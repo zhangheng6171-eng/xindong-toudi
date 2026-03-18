@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "yarn install",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "regions": ["hkg1"],
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/weekly-match",
+      "schedule": "0 20 * * 0"
+    }
+  ]
+}
