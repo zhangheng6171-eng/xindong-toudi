@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
-import { Button } from '@/components/ui'
-import { ProgressBar } from '@/components/ui'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronLeft, ChevronRight, Sparkles, Heart, Check, GripVertical } from 'lucide-react'
+import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, Tag } from '@/components/animated-background'
 
 // 问卷问题数据
 const questions = [
@@ -165,6 +165,13 @@ const questions = [
 
 const groups = ['基本信息', '价值观', '生活方式', '恋爱观', '性格特质', '兴趣爱好', '开放式问题']
 
+// 动画变体
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+}
+
 export default function QuestionnairePage() {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, any>>({})
@@ -213,28 +220,39 @@ export default function QuestionnairePage() {
               const isSelected = answers[question.id] === value
               
               return (
-                <button
+                <motion.button
                   key={index}
                   onClick={() => handleAnswer(value)}
-                  className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                  className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
                     isSelected
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                      ? 'border-rose-400 bg-gradient-to-r from-rose-50 to-pink-50 shadow-lg shadow-rose-200/50'
+                      : 'border-white/50 bg-white/50 hover:border-rose-200 hover:bg-white/80'
                   }`}
+                  whileHover={{ scale: 1.01, x: 4 }}
+                  whileTap={{ scale: 0.99 }}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isSelected ? 'border-primary-500 bg-primary-500' : 'border-gray-300'
+                      isSelected 
+                        ? 'border-rose-500 bg-gradient-to-br from-rose-400 to-pink-500 shadow-lg shadow-rose-300/50' 
+                        : 'border-gray-300 bg-white'
                     }`}>
                       {isSelected && (
-                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 500 }}
+                        >
+                          <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                        </motion.div>
                       )}
                     </div>
-                    <span className="font-medium">{label}</span>
+                    <span className="font-medium text-gray-700">{label}</span>
                   </div>
-                </button>
+                </motion.button>
               )
             })}
           </div>
@@ -246,15 +264,20 @@ export default function QuestionnairePage() {
         
         return (
           <div className="space-y-3">
-            <p className="text-sm text-gray-500 mb-4">
-              已选择 {selectedAnswers.length} / {maxSelect} 个
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-gray-500">
+                已选择 <span className="font-bold text-rose-500">{selectedAnswers.length}</span> / {maxSelect} 个
+              </p>
+              {selectedAnswers.length >= maxSelect && (
+                <Tag color="rose">已达上限</Tag>
+              )}
+            </div>
             {question.options?.map((option, index) => {
               const isSelected = selectedAnswers.includes(option)
               const canSelect = selectedAnswers.length < maxSelect || isSelected
               
               return (
-                <button
+                <motion.button
                   key={index}
                   onClick={() => {
                     if (!canSelect) return
@@ -263,72 +286,118 @@ export default function QuestionnairePage() {
                       : [...selectedAnswers, option]
                     handleAnswer(newAnswers)
                   }}
-                  className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                  className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
                     isSelected
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      ? 'border-pink-400 bg-gradient-to-r from-pink-50 to-rose-50 shadow-lg shadow-pink-200/50'
                       : canSelect
-                        ? 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
-                        : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                        ? 'border-white/50 bg-white/50 hover:border-pink-200 hover:bg-white/80'
+                        : 'border-gray-100 bg-gray-50/50 opacity-50 cursor-not-allowed'
                   }`}
+                  whileHover={canSelect ? { scale: 1.01, x: 4 } : {}}
+                  whileTap={canSelect ? { scale: 0.99 } : {}}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                      isSelected ? 'border-primary-500 bg-primary-500' : 'border-gray-300'
+                      isSelected 
+                        ? 'border-pink-500 bg-gradient-to-br from-pink-400 to-rose-500 shadow-lg shadow-pink-300/50' 
+                        : 'border-gray-300 bg-white'
                     }`}>
                       {isSelected && (
-                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 500 }}
+                        >
+                          <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                        </motion.div>
                       )}
                     </div>
-                    <span className="font-medium">{typeof option === 'string' ? option : option.label}</span>
+                    <span className="font-medium text-gray-700">{typeof option === 'string' ? option : option.label}</span>
                   </div>
-                </button>
+                </motion.button>
               )
             })}
           </div>
         )
 
       case 'scale':
+        const scaleValue = answers[question.id] || 3
         return (
-          <div className="space-y-6">
-            <input
-              type="range"
-              min={question.min || 1}
-              max={question.max || 5}
-              value={answers[question.id] || 3}
-              onChange={(e) => handleAnswer(parseInt(e.target.value))}
-              className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-500"
-            />
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>{question.minLabel}</span>
-              <span className="font-bold text-primary-600 text-lg">{answers[question.id] || 3}</span>
-              <span>{question.maxLabel}</span>
+          <div className="space-y-8 py-4">
+            <div className="flex justify-between gap-3">
+              {Array.from({ length: (question.max || 5) - (question.min || 1) + 1 }, (_, i) => {
+                const num = (question.min || 1) + i
+                const isSelected = scaleValue === num
+                return (
+                  <motion.button
+                    key={num}
+                    onClick={() => handleAnswer(num)}
+                    className={`flex-1 py-5 rounded-2xl font-bold text-lg transition-all ${
+                      isSelected
+                        ? 'bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-xl shadow-rose-300/50 scale-110'
+                        : 'bg-white/80 text-gray-500 hover:bg-white border border-gray-100'
+                    }`}
+                    whileHover={{ scale: isSelected ? 1.1 : 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {num}
+                  </motion.button>
+                )
+              })}
+            </div>
+            <div className="flex justify-between text-sm text-gray-500 px-2">
+              <span className="text-left max-w-[40%]">{question.minLabel}</span>
+              <span className="text-right max-w-[40%]">{question.maxLabel}</span>
             </div>
           </div>
         )
 
       case 'slider':
+        const sliderVal = answers[question.id] || 50
         return (
-          <div className="space-y-6">
-            <div className="relative pt-8 pb-4">
+          <div className="space-y-8 py-8">
+            <div className="relative">
+              {/* 背景轨道 */}
+              <div className="h-3 bg-gradient-to-r from-purple-200 via-rose-200 to-pink-200 rounded-full" />
+              
+              {/* 填充部分 */}
+              <div 
+                className="absolute top-0 left-0 h-3 bg-gradient-to-r from-rose-400 to-pink-500 rounded-full transition-all duration-300"
+                style={{ width: `${sliderVal}%` }}
+              />
+              
+              {/* 滑块 */}
+              <motion.div
+                className="absolute top-1/2 -translate-y-1/2 w-14 h-14 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full shadow-xl shadow-rose-300/50 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                style={{ left: `calc(${sliderVal}% - 28px)` }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Heart className="w-6 h-6 text-white" fill="white" />
+              </motion.div>
+              
+              {/* 隐藏的滑块输入 */}
               <input
                 type="range"
                 min={0}
                 max={100}
-                value={answers[question.id] || 50}
+                value={sliderVal}
                 onChange={(e) => handleAnswer(parseInt(e.target.value))}
-                className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-500"
-              />
-              {/* Custom thumb position indicator */}
-              <div 
-                className="absolute top-0 w-12 h-12 bg-gradient-to-br from-primary-400 to-romance-400 rounded-full transform -translate-x-1/2 shadow-lg"
-                style={{ left: `${answers[question.id] || 50}%` }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
             <div className="flex justify-between text-sm text-gray-500">
-              <span>{question.minLabel}</span>
-              <span>{question.maxLabel}</span>
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-purple-300" />
+                {question.minLabel}
+              </span>
+              <span className="flex items-center gap-2">
+                {question.maxLabel}
+                <span className="w-3 h-3 rounded-full bg-pink-400" />
+              </span>
             </div>
           </div>
         )
@@ -336,29 +405,43 @@ export default function QuestionnairePage() {
       case 'ranking':
         return (
           <div className="space-y-3">
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
+              <GripVertical className="w-4 h-4" />
               拖动调整顺序，最重要的放在最上面
             </p>
             {rankingItems.map((item, index) => (
-              <div
+              <motion.div
                 key={typeof item === 'string' ? item : item.value}
-                className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-2xl hover:border-primary-300 transition-all cursor-move"
+                className={`flex items-center gap-3 p-4 bg-white/80 border-2 rounded-2xl cursor-move transition-all ${
+                  index === 0 
+                    ? 'border-rose-300 shadow-lg shadow-rose-200/50' 
+                    : 'border-white/50 hover:border-rose-200'
+                }`}
                 draggable
-                onDragStart={(e) => e.dataTransfer.setData('index', index.toString())}
+                onDragStart={(e) => (e as unknown as React.DragEvent).dataTransfer.setData('index', index.toString())}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
-                  const fromIndex = parseInt(e.dataTransfer.getData('index'))
+                  const dragEvent = e as unknown as React.DragEvent
+                  const fromIndex = parseInt(dragEvent.dataTransfer.getData('index'))
                   moveRankingItem(fromIndex, index)
                 }}
+                whileHover={{ scale: 1.01, x: 4 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
               >
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-romance-400 rounded-full flex items-center justify-center text-white font-bold">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-lg ${
+                  index === 0 
+                    ? 'bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-rose-300/50' 
+                    : index < 3 
+                      ? 'bg-gradient-to-br from-purple-400 to-violet-500 text-white shadow-purple-300/50'
+                      : 'bg-gray-100 text-gray-600'
+                }`}>
                   {index + 1}
                 </div>
-                <span className="font-medium">{typeof item === 'string' ? item : item.label}</span>
-                <svg className="w-5 h-5 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                </svg>
-              </div>
+                <span className="font-medium text-gray-700 flex-1">{typeof item === 'string' ? item : item.label}</span>
+                <GripVertical className="w-5 h-5 text-gray-400" />
+              </motion.div>
             ))}
           </div>
         )
@@ -366,16 +449,20 @@ export default function QuestionnairePage() {
       case 'open_text':
         return (
           <div className="space-y-4">
-            <textarea
+            <motion.textarea
               value={answers[question.id] || ''}
               onChange={(e) => handleAnswer(e.target.value)}
               placeholder={question.placeholder}
               maxLength={question.maxLength}
               rows={5}
-              className="w-full p-4 rounded-2xl border-2 border-gray-200 focus:border-primary-500 focus:ring-0 transition-colors resize-none"
+              className="w-full p-5 rounded-2xl border-2 border-white/50 bg-white/60 focus:border-rose-300 focus:bg-white/80 focus:ring-4 focus:ring-rose-100 transition-all resize-none text-gray-700 placeholder-gray-400"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
             />
-            <div className="text-right text-sm text-gray-400">
-              {(answers[question.id]?.length || 0)} / {question.maxLength}
+            <div className="flex justify-end">
+              <span className="text-sm text-gray-400">
+                {(answers[question.id]?.length || 0)} / {question.maxLength}
+              </span>
             </div>
           </div>
         )
@@ -386,83 +473,125 @@ export default function QuestionnairePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={handlePrev}
-            disabled={currentQuestion === 0}
-            className="flex items-center gap-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span>上一题</span>
-          </button>
-          
-          <div className="text-sm text-gray-500">
-            第 {groupProgress} 组 / 共 {groups.length} 组
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <ProgressBar progress={progress} className="h-2" />
-          <div className="flex justify-between mt-2 text-sm text-gray-500">
-            <span>{currentGroup}</span>
-            <span>{currentQuestion + 1} / {questions.length}</span>
-          </div>
-        </div>
-
-        {/* Question Card */}
-        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 mb-8">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="w-5 h-5 text-primary-500" />
-            <span className="text-sm text-primary-600 font-medium">{currentGroup}</span>
-          </div>
-          
-          <h2 className="text-2xl font-bold text-gray-800 mb-8">
-            {question.question}
-          </h2>
-
-          {renderQuestion()}
-        </div>
-
-        {/* Tip */}
-        <div className="bg-primary-50 rounded-2xl p-4 mb-8">
-          <p className="text-sm text-primary-700">
-            💡 了解你的{currentGroup.toLowerCase()}，帮助我们匹配更合适的人
-          </p>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex justify-between">
-          <Button
-            variant="ghost"
-            onClick={handlePrev}
-            disabled={currentQuestion === 0}
-          >
-            上一题
-          </Button>
-          
-          {currentQuestion === questions.length - 1 ? (
-            <Button
-              variant="primary"
-              size="lg"
+    <AnimatedBackground variant="romance" showFloatingHearts>
+      <div className="min-h-screen py-6 sm:py-10 px-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <FadeIn className="flex items-center justify-between mb-6">
+            <button
+              onClick={handlePrev}
+              disabled={currentQuestion === 0}
+              className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all bg-white/50 backdrop-blur-sm rounded-full"
             >
-              完成问卷
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={handleNext}
+              <ChevronLeft className="w-5 h-5" />
+              <span className="hidden sm:inline">上一题</span>
+            </button>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-300/50">
+                <Heart className="w-5 h-5 text-white" fill="white" />
+              </div>
+              <span className="text-sm font-medium text-gray-600">
+                第 {groupProgress} 组 / 共 {groups.length} 组
+              </span>
+            </div>
+            
+            <div className="w-20 sm:w-24" /> {/* 占位，保持居中 */}
+          </FadeIn>
+
+          {/* Progress Bar */}
+          <FadeIn delay={0.1} className="mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 bg-white/50 backdrop-blur-sm rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-rose-400 via-pink-500 to-purple-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+              <span className="text-sm font-bold text-rose-500 min-w-[60px] text-right">
+                {Math.round(progress)}%
+              </span>
+            </div>
+            <div className="flex justify-between mt-3 text-sm">
+              <Tag color="rose">
+                <Sparkles className="w-3 h-3 mr-1" />
+                {currentGroup}
+              </Tag>
+              <span className="text-gray-500">
+                {currentQuestion + 1} / {questions.length}
+              </span>
+            </div>
+          </FadeIn>
+
+          {/* Question Card */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentQuestion}
+              variants={fadeInUp}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.3 }}
             >
-              下一题
-              <ChevronRight className="w-5 h-5 ml-1" />
-            </Button>
-          )}
+              <GlassCard className="p-6 sm:p-8 mb-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="w-8 h-8 bg-gradient-to-br from-rose-400 to-pink-500 rounded-lg flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-sm text-rose-600 font-medium">{currentGroup}</span>
+                </div>
+                
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
+                  {question.question}
+                </h2>
+
+                {renderQuestion()}
+              </GlassCard>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Tip */}
+          <FadeIn delay={0.2}>
+            <GlassCard className="p-4 mb-6 bg-gradient-to-r from-rose-50/80 to-pink-50/80 border-rose-200/50">
+              <p className="text-sm text-rose-700 flex items-center gap-2">
+                <Heart className="w-4 h-4 text-rose-400" fill="currentColor" />
+                了解你的{currentGroup.toLowerCase()}，帮助我们匹配更合适的人
+              </p>
+            </GlassCard>
+          </FadeIn>
+
+          {/* Navigation */}
+          <FadeIn delay={0.3} className="flex justify-between items-center">
+            <motion.button
+              onClick={handlePrev}
+              disabled={currentQuestion === 0}
+              className="px-6 py-3 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:text-rose-500 transition-colors bg-white/50 backdrop-blur-sm rounded-2xl"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              ← 上一题
+            </motion.button>
+            
+            {currentQuestion === questions.length - 1 ? (
+              <GradientButton size="lg">
+                <span className="flex items-center gap-2">
+                  <Heart className="w-5 h-5" fill="white" />
+                  完成问卷
+                </span>
+              </GradientButton>
+            ) : (
+              <GradientButton size="lg" onClick={handleNext}>
+                <span className="flex items-center gap-2">
+                  下一题
+                  <ChevronRight className="w-5 h-5" />
+                </span>
+              </GradientButton>
+            )}
+          </FadeIn>
         </div>
       </div>
-    </div>
+    </AnimatedBackground>
   )
 }
