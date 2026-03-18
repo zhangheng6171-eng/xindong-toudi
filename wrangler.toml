@@ -1,3 +1,13 @@
 name = "xindong-toudi"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Pages 配置
+[pages_build_output_dir]
+dir = "./out"
+binding = ""
+
+# 路由配置
+[[pages.routes]]
+pattern = "/"
+zone_name = "henghe.site"
