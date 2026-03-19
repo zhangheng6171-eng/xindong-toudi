@@ -83,8 +83,23 @@ export default function ChatListPage() {
     const chatKeys = Object.keys(localStorage).filter(key => key.startsWith('xindong_chat_'))
     
     chatKeys.forEach(chatKey => {
-      const ids = chatKey.replace('xindong_chat_', '').split('_')
-      const otherUserId = ids[0] === userId ? ids[1] : ids[0]
+      // 使用更智能的方式解析用户ID
+      // key格式: xindong_chat_{sorted_id1}_{sorted_id2}
+      // 用户ID格式: user_数字
+      // 所以需要找到两个 user_ 开头的部分
+      const keyPart = chatKey.replace('xindong_chat_', '')
+      
+      // 使用正则提取两个用户ID
+      const userIdPattern = /user_\d+/g
+      const matches = keyPart.match(userIdPattern)
+      
+      if (!matches || matches.length !== 2) {
+        console.warn('Invalid chat key format:', chatKey)
+        return
+      }
+      
+      const [id1, id2] = matches
+      const otherUserId = id1 === userId ? id2 : id1
       
       // 确保不是当前用户
       if (otherUserId === userId) return
@@ -104,7 +119,7 @@ export default function ChatListPage() {
       // 获取最后一条消息
       const lastMessage = chatMessages[chatMessages.length - 1]
       
-      // 计算未读消息数（简单的实现：标记最后读取时间）
+      // 计算未读消息数
       const lastReadKey = `xindong_last_read_${userId}_${otherUserId}`
       const lastReadTime = localStorage.getItem(lastReadKey)
       const unreadCount = lastReadTime 
