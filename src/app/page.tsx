@@ -4,75 +4,41 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp } from 'lucide-react'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth, UserProfile } from '@/hooks/useAuth'
 
-// 模拟推荐用户数据
-const recommendedUsers = [
-  {
-    id: '1',
-    nickname: '小雨',
-    age: 26,
-    city: '北京',
-    occupation: '产品设计师',
-    education: '硕士',
-    height: 165,
-    bio: '热爱生活，喜欢摄影和旅行。周末喜欢探店、看展，期待遇见有趣的灵魂～',
-    interests: ['摄影', '旅行', '美食', '艺术'],
-    matchScore: 92,
-    avatar: null,
-  },
-  {
-    id: '2',
-    nickname: '云云',
-    age: 27,
-    city: '上海',
-    occupation: '市场经理',
-    education: '本科',
-    height: 168,
-    bio: '喜欢健身和阅读，相信坚持的力量。希望找到一个一起成长的人。',
-    interests: ['健身', '阅读', '投资', '电影'],
-    matchScore: 88,
-    avatar: null,
-  },
-  {
-    id: '3',
-    nickname: '小晴',
-    age: 25,
-    city: '北京',
-    occupation: '教师',
-    education: '硕士',
-    height: 162,
-    bio: '温柔善良，喜欢小孩和宠物。周末喜欢烘焙和追剧～',
-    interests: ['烘焙', '宠物', '音乐', '旅行'],
-    matchScore: 85,
-    avatar: null,
-  },
-  {
-    id: '4',
-    nickname: '阿杰',
-    age: 29,
-    city: '深圳',
-    occupation: '软件工程师',
-    education: '硕士',
-    height: 178,
-    bio: '技术宅，但也喜欢户外运动。热爱编程，也热爱生活。',
-    interests: ['编程', '跑步', '游戏', '科技'],
-    matchScore: 82,
-    avatar: null,
-  },
-]
+// 用户数据类型
+interface DisplayUser {
+  id: string
+  nickname: string
+  age: number
+  city: string
+  occupation: string
+  education: string
+  bio: string
+  interests: string[]
+  avatar: string | null
+  matchScore: number
+}
 
 // 用户卡片组件
-function UserCard({ user, index }: { user: typeof recommendedUsers[0]; index: number }) {
+function UserCard({ user, index }: { user: DisplayUser; index: number }) {
   return (
     <FadeIn delay={index * 0.1}>
       <GlassCard className="p-5 hover:shadow-xl transition-all cursor-pointer group" hover={true}>
         <div className="flex items-start gap-4">
           {/* 头像 */}
           <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-rose-500/30">
-              {user.nickname[0]}
-            </div>
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.nickname}
+                className="w-16 h-16 rounded-2xl object-cover shadow-lg"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-rose-500/30">
+                {user.nickname[0]}
+              </div>
+            )}
             {/* 匹配度标签 */}
             <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg">
               {user.matchScore}%
@@ -91,20 +57,28 @@ function UserCard({ user, index }: { user: typeof recommendedUsers[0]; index: nu
                 <MapPin className="w-3.5 h-3.5" />
                 {user.city}
               </span>
-              <span className="flex items-center gap-1">
-                <Briefcase className="w-3.5 h-3.5" />
-                {user.occupation}
-              </span>
+              {user.occupation && (
+                <span className="flex items-center gap-1">
+                  <Briefcase className="w-3.5 h-3.5" />
+                  {user.occupation}
+                </span>
+              )}
             </div>
             
-            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{user.bio}</p>
+            {user.bio && (
+              <p className="text-sm text-gray-600 line-clamp-2 mb-3">{user.bio}</p>
+            )}
             
             {/* 兴趣标签 */}
-            <div className="flex flex-wrap gap-1.5">
-              {user.interests.slice(0, 3).map((interest) => (
-                <span key={interest} className="px-2 py-0.5 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">{interest}</span>
-              ))}
-            </div>
+            {user.interests.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {user.interests.slice(0, 3).map((interest) => (
+                  <span key={interest} className="px-2 py-0.5 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         
@@ -127,6 +101,77 @@ function UserCard({ user, index }: { user: typeof recommendedUsers[0]; index: nu
 // 已登录用户的首页
 function LoggedInHome() {
   const { currentUser } = useAuth()
+  const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    
+    // 从 localStorage 读取所有注册用户
+    const usersJson = localStorage.getItem('xindong_users')
+    if (usersJson) {
+      try {
+        const users = JSON.parse(usersJson)
+        
+        // 转换为显示格式，排除当前用户
+        const displayUsers: DisplayUser[] = users
+          .filter((u: any) => u.id !== currentUser?.id)
+          .map((u: any) => {
+            // 读取用户资料
+            const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
+            const profile = profileJson ? JSON.parse(profileJson) : {}
+            
+            // 读取头像
+            const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
+            
+            return {
+              id: u.id,
+              nickname: profile.nickname || u.nickname,
+              age: profile.age || u.age,
+              city: profile.city || u.city || '未知',
+              occupation: profile.occupation || '',
+              education: profile.education || '',
+              bio: profile.bio || '',
+              interests: profile.interests || [],
+              avatar: avatar,
+              matchScore: Math.floor(Math.random() * 30) + 70, // 模拟匹配度
+            }
+          })
+        
+        setAllUsers(displayUsers)
+      } catch (e) {
+        console.error('Failed to parse users:', e)
+      }
+    }
+  }, [currentUser])
+
+  // 如果没有真实用户，显示模拟用户
+  const displayUsers = allUsers.length > 0 ? allUsers : [
+    {
+      id: 'demo1',
+      nickname: '小雨',
+      age: 26,
+      city: '北京',
+      occupation: '产品设计师',
+      education: '硕士',
+      bio: '热爱生活，喜欢摄影和旅行。周末喜欢探店、看展，期待遇见有趣的灵魂～',
+      interests: ['摄影', '旅行', '美食', '艺术'],
+      matchScore: 92,
+      avatar: null,
+    },
+    {
+      id: 'demo2',
+      nickname: '云云',
+      age: 27,
+      city: '上海',
+      occupation: '市场经理',
+      education: '本科',
+      bio: '喜欢健身和阅读，相信坚持的力量。希望找到一个一起成长的人。',
+      interests: ['健身', '阅读', '投资', '电影'],
+      matchScore: 88,
+      avatar: null,
+    },
+  ]
   
   return (
     <AnimatedBackground variant="purple" showFloatingHearts={true}>
@@ -172,31 +217,41 @@ function LoggedInHome() {
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1.5">
                     <TrendingUp className="w-4 h-4" />
-                    <span>已为你推荐 24 人</span>
+                    <span>已注册 {allUsers.length + 1} 位用户</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Heart className="w-4 h-4" />
-                    <span>3 人互相喜欢</span>
+                    <span>等你发现</span>
                   </div>
                 </div>
               </div>
             </div>
           </FadeIn>
 
-          {/* 推荐用户列表 */}
+          {/* 用户列表 */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">今日推荐</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                {allUsers.length > 0 ? '真实用户推荐' : '推荐用户'}
+              </h3>
               <button className="text-sm text-rose-500 font-medium hover:underline">
                 查看更多
               </button>
             </div>
             
-            <div className="grid gap-4">
-              {recommendedUsers.map((user, index) => (
-                <UserCard key={user.id} user={user} index={index} />
-              ))}
-            </div>
+            {displayUsers.length > 0 ? (
+              <div className="grid gap-4">
+                {displayUsers.map((user, index) => (
+                  <UserCard key={user.id} user={user} index={index} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <Heart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>还没有其他用户注册</p>
+                <p className="text-sm mt-2">邀请朋友一起来玩吧！</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -271,7 +326,7 @@ function LandingPage() {
         {/* 标签 */}
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full shadow-sm mb-6">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-sm text-gray-600">已有 10,000+ 用户找到真爱</span>
+          <span className="text-sm text-gray-600">AI 驱动的智能匹配平台</span>
         </div>
         
         <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
@@ -309,7 +364,7 @@ function LandingPage() {
             { value: '92%', label: '满意度' },
             { value: '66', label: '灵魂问题' },
           ].map((stat, i) => (
-            <div key={i} className="text-center">
+          <div key={i} className="text-center">
               <div className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
                 {stat.value}
               </div>
@@ -357,55 +412,6 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* 流程区域 */}
-      <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
-          三步开启心动之旅
-        </h2>
-        
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            {
-              num: '1',
-              title: '填写问卷',
-              desc: '完成 66 道灵魂问题',
-              tags: ['性格测试', '价值观', '生活习惯'],
-            },
-            {
-              num: '2',
-              title: '等待匹配',
-              desc: 'AI 算法每周推荐',
-              tags: ['精准匹配', '每周更新', '通知提醒'],
-            },
-            {
-              num: '3',
-              title: '开始互动',
-              desc: '遇见心动的人',
-              tags: ['匿名聊天', '互喜解锁', '真实身份'],
-            },
-          ].map((step, i) => (
-            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-pink-500 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                  {step.num}
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">{step.title}</h3>
-                  <p className="text-sm text-gray-500">{step.desc}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {step.tags.map((tag, j) => (
-                  <span key={j} className="px-3 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* CTA 区域 */}
       <section className="relative z-10 max-w-3xl mx-auto px-4 py-16 text-center">
         <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 rounded-3xl p-8 md:p-12 text-white">
@@ -413,7 +419,7 @@ function LandingPage() {
             准备好遇见那个对的人了吗？
           </h2>
           <p className="text-white/90 mb-8">
-            现在 registration，立即开启你的心动之旅
+            现在注册，立即开启你的心动之旅
           </p>
           <Link 
             href="/register"
