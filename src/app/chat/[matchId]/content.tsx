@@ -14,6 +14,7 @@ import {
 } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { requestNotificationPermission, notifyNewMessage } from '@/lib/notifications'
+import { compressImage, selectImage, isValidImageType, isValidImageSize } from '@/lib/image-utils'
 
 interface Message {
   id: string
@@ -90,6 +91,51 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
     localStorage.removeItem(chatKey)
     setMessages([])
+  }
+  
+  // 发送图片
+  const handleSendImage = async () => {
+    if (!currentUser || !otherUser) return
+    
+    try {
+      const file = await selectImage()
+      
+      if (!isValidImageType(file)) {
+        setError('不支持的图片格式')
+        return
+      }
+      
+      if (!isValidImageSize(file, 5)) {
+        setError('图片大小不能超过5MB')
+        return
+      }
+      
+      // 压缩图片
+      const compressedImage = await compressImage(file)
+      
+      const newMessage: Message = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        senderId: currentUser.id,
+        text: compressedImage,
+        timestamp: new Date(),
+        status: 'sending',
+        type: 'image'
+      }
+      
+      setMessages(prev => [...prev, newMessage])
+      saveMessageToLocal(newMessage)
+      
+      // 更新状态
+      setTimeout(() => {
+        setMessages(prev =>
+          prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+        )
+      }, 500)
+      
+    } catch (err) {
+      console.error('发送图片失败:', err)
+      setError('发送图片失败')
+    }
   }
 
   // 创建或获取会话
@@ -606,6 +652,15 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
           <div className="flex items-end space-x-3">
             <div className="flex space-x-2">
               <motion.button
+                onClick={handleSendImage}
+                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                title="发送图片"
+              >
+                <Image className="w-6 h-6" />
+              </motion.button>
+              <motion.button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 className={`p-2 transition-colors ${showEmojiPicker ? 'text-rose-500' : 'text-gray-400 hover:text-rose-500'}`}
                 whileHover={{ scale: 1.1 }}
@@ -682,12 +737,25 @@ function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: b
 
           {/* 发送中状态 */}
           {message.status === 'sending' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl z-10">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             </div>
           )}
 
-          <p className="whitespace-pre-wrap">{message.text}</p>
+          {/* 图片消息 */}
+          {message.type === 'image' ? (
+            <img 
+              src={message.text} 
+              alt="发送的图片" 
+              className="max-w-full rounded-lg cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation()
+                window.open(message.text, '_blank')
+              }}
+            />
+          ) : (
+            <p className="whitespace-pre-wrap">{message.text}</p>
+          )}
         </div>
 
         {/* 操作菜单 */}
