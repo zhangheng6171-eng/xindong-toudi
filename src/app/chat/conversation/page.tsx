@@ -110,8 +110,12 @@ function ConversationContent() {
   const fetchMessages = useCallback(async () => {
     if (!otherUser) return
 
-    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
+    // 使用固定的key格式确保消息互通
+    const sortedIds = [currentUserId, otherUser.id].sort()
+    const chatKey = `xindong_chat_${sortedIds.join('_')}`
     const stored = localStorage.getItem(chatKey)
+    
+    console.log('fetchMessages:', { chatKey, currentUserId, otherUserId: otherUser.id, stored: !!stored })
     
     if (stored) {
       try {
@@ -123,6 +127,8 @@ function ConversationContent() {
       } catch (e) {
         console.error('Failed to parse messages:', e)
       }
+    } else {
+      setMessages([])
     }
   }, [currentUserId, otherUser])
 
@@ -179,32 +185,51 @@ function ConversationContent() {
     
     sendMessageFeedback()
 
-    // 保存到本地存储
-    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
+    // 使用固定的key格式确保消息互通
+    const sortedIds = [currentUserId, otherUser.id].sort()
+    const chatKey = `xindong_chat_${sortedIds.join('_')}`
     
-    // 模拟发送成功
-    setTimeout(() => {
-      // 更新消息状态
-      setMessages(prev => {
-        const updated = prev.map(m => 
-          m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
-        )
-        // 保存到localStorage
-        localStorage.setItem(chatKey, JSON.stringify(updated))
-        return updated
-      })
-      
-      // 更新会话列表
-      const convKey = `xindong_conversations_${currentUserId}`
-      const stored = localStorage.getItem(convKey)
-      const conversations = stored ? JSON.parse(stored) : []
-      const updatedConvs = conversations.map((c: any) => 
-        c.matchId === otherUser.id 
-          ? { ...c, lastMessage: messageText, lastMessageAt: new Date().toISOString() }
-          : c
+    console.log('handleSendMessage:', { chatKey, currentUserId, otherUserId: otherUser.id, message: messageText })
+    
+    // 立即保存消息到localStorage（状态为sending）
+    setMessages(prev => {
+      // 更新消息状态为已发送
+      const updated = prev.map(m => 
+        m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
       )
-      localStorage.setItem(convKey, JSON.stringify(updatedConvs))
-    }, 300)
+      // 保存到localStorage
+      localStorage.setItem(chatKey, JSON.stringify(updated))
+      console.log('Messages saved to localStorage:', updated.length)
+      return updated
+    })
+    
+    // 更新会话列表
+    const convKey = `xindong_conversations_${currentUserId}`
+    const stored = localStorage.getItem(convKey)
+    const conversations = stored ? JSON.parse(stored) : []
+    
+    const existingIndex = conversations.findIndex((c: any) => c.matchId === otherUser.id)
+    const updatedConv = {
+      id: chatKey,
+      matchId: otherUser.id,
+      otherUser: {
+        id: otherUser.id,
+        nickname: otherUser.nickname,
+        avatar: otherUser.avatar
+      },
+      lastMessage: messageText,
+      lastMessageAt: new Date().toISOString(),
+      unreadCount: 0,
+      matchScore: otherUser.score,
+      createdAt: new Date().toISOString(),
+    }
+    
+    if (existingIndex >= 0) {
+      conversations[existingIndex] = updatedConv
+    } else {
+      conversations.unshift(updatedConv)
+    }
+    localStorage.setItem(convKey, JSON.stringify(conversations))
   }
 
   // 发送图片
@@ -232,13 +257,15 @@ function ConversationContent() {
         senderId: currentUserId,
         text: dataUrl,
         timestamp: new Date(),
-        status: 'sending',
+        status: 'sent',
         type: 'image'
       }
 
       setMessages(prev => [...prev, newMessage])
       
-      const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
+      // 使用固定的key格式
+      const sortedIds = [currentUserId, otherUser.id].sort()
+      const chatKey = `xindong_chat_${sortedIds.join('_')}`
       const updatedMessages = [...messages, newMessage]
       localStorage.setItem(chatKey, JSON.stringify(updatedMessages))
     } catch (error) {
@@ -280,20 +307,25 @@ function ConversationContent() {
       return
     }
 
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, status: 'recalled', text: '你撤回了一条消息' } : m
-    ))
-
-    if (otherUser) {
-      const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
-      localStorage.setItem(chatKey, JSON.stringify(messages))
-    }
+    setMessages(prev => {
+      const updated = prev.map(m => 
+        m.id === messageId ? { ...m, status: 'recalled' as const, text: '你撤回了一条消息' } : m
+      )
+      
+      if (otherUser) {
+        const sortedIds = [currentUserId, otherUser.id].sort()
+        const chatKey = `xindong_chat_${sortedIds.join('_')}`
+        localStorage.setItem(chatKey, JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   const clearChatHistory = () => {
     if (!otherUser) return
 
-    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
+    const sortedIds = [currentUserId, otherUser.id].sort()
+    const chatKey = `xindong_chat_${sortedIds.join('_')}`
     localStorage.removeItem(chatKey)
     setMessages([])
   }

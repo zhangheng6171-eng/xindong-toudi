@@ -70,20 +70,72 @@ export default function ChatListPage() {
 
   // 从 localStorage 获取本地会话（后备方案）
   const getLocalConversations = (userId: string): Conversation[] => {
-    const matchesJson = localStorage.getItem(`xindong_matches_${userId}`)
-    const likesJson = localStorage.getItem(`xindong_likes_${userId}`)
     const usersJson = localStorage.getItem('xindong_users')
-
-    if (!matchesJson || !usersJson) return []
-
-    const matches = JSON.parse(matchesJson)
-    const likes = likesJson ? JSON.parse(likesJson) : []
+    const likesJson = localStorage.getItem(`xindong_likes_${userId}`)
+    
+    if (!usersJson) return []
+    
     const users = JSON.parse(usersJson)
+    const likes = likesJson ? JSON.parse(likesJson) : []
+    const conversations: Conversation[] = []
 
-    // 获取双向喜欢的匹配
-    const mutualLikes: Conversation[] = []
+    // 1. 先检查所有聊天记录，找出有消息的用户
+    const chatKeys = Object.keys(localStorage).filter(key => key.startsWith('xindong_chat_'))
+    
+    chatKeys.forEach(chatKey => {
+      const ids = chatKey.replace('xindong_chat_', '').split('_')
+      const otherUserId = ids[0] === userId ? ids[1] : ids[0]
+      
+      // 确保不是当前用户
+      if (otherUserId === userId) return
+      
+      const chatJson = localStorage.getItem(chatKey)
+      if (!chatJson) return
+      
+      const chatMessages = JSON.parse(chatJson)
+      if (chatMessages.length === 0) return
+      
+      // 获取对方用户信息
+      const otherUser = users.find((u: any) => u.id === otherUserId)
+      const profileJson = localStorage.getItem(`xindong_profile_${otherUserId}`)
+      const profile = profileJson ? JSON.parse(profileJson) : {}
+      const avatar = localStorage.getItem(`xindong_avatar_${otherUserId}`)
+      
+      // 获取最后一条消息
+      const lastMessage = chatMessages[chatMessages.length - 1]
+      
+      // 计算未读消息数（简单的实现：标记最后读取时间）
+      const lastReadKey = `xindong_last_read_${userId}_${otherUserId}`
+      const lastReadTime = localStorage.getItem(lastReadKey)
+      const unreadCount = lastReadTime 
+        ? chatMessages.filter((m: any) => 
+            m.senderId !== userId && 
+            new Date(m.timestamp).getTime() > new Date(lastReadTime).getTime()
+          ).length 
+        : chatMessages.filter((m: any) => m.senderId !== userId).length
 
+      conversations.push({
+        id: chatKey,
+        matchId: otherUserId,
+        otherUser: {
+          id: otherUserId,
+          nickname: profile.nickname || otherUser?.nickname || '心动对象',
+          avatar: avatar,
+          isOnline: true,
+        },
+        lastMessage: lastMessage?.text || '开始聊天吧～',
+        lastMessageAt: lastMessage?.timestamp || null,
+        unreadCount,
+        matchScore: profile.matchScore || 92,
+        createdAt: new Date().toISOString(),
+      })
+    })
+
+    // 2. 检查互相喜欢但没有消息的用户
     likes.forEach((likedUserId: string) => {
+      // 检查是否已经有会话
+      if (conversations.find(c => c.matchId === likedUserId)) return
+      
       const theirLikesJson = localStorage.getItem(`xindong_likes_${likedUserId}`)
       const theirLikes = theirLikesJson ? JSON.parse(theirLikesJson) : []
 
@@ -95,35 +147,31 @@ export default function ChatListPage() {
           const profile = profileJson ? JSON.parse(profileJson) : {}
           const avatar = localStorage.getItem(`xindong_avatar_${likedUserId}`)
 
-          // 获取聊天记录
-          const chatKey = `xindong_chat_${[userId, likedUserId].sort().join('_')}`
-          const chatJson = localStorage.getItem(chatKey)
-          const chatMessages = chatJson ? JSON.parse(chatJson) : []
-          const lastMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
-
-          // 模拟在线状态（实际应用中从服务器获取）
-          const isOnline = Math.random() > 0.5
-
-          mutualLikes.push({
-            id: chatKey,
+          conversations.push({
+            id: `conv_${likedUserId}`,
             matchId: likedUserId,
             otherUser: {
               id: likedUserId,
               nickname: profile.nickname || otherUser.nickname,
               avatar: avatar,
-              isOnline,
+              isOnline: true,
             },
-            lastMessage: lastMessage?.content || '开始聊天吧～',
-            lastMessageAt: lastMessage?.timestamp || null,
+            lastMessage: '开始聊天吧～',
+            lastMessageAt: null,
             unreadCount: 0,
-            matchScore: Math.floor(Math.random() * 20) + 80,
+            matchScore: profile.matchScore || 92,
             createdAt: new Date().toISOString(),
           })
         }
       }
     })
 
-    return mutualLikes
+    // 按最后消息时间排序
+    return conversations.sort((a, b) => {
+      if (!a.lastMessageAt) return 1
+      if (!b.lastMessageAt) return -1
+      return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    })
   }
 
   useEffect(() => {
