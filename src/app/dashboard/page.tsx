@@ -1,21 +1,39 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { 
   Settings, Heart, MessageCircle, User, Bell, ChevronRight,
   TrendingUp, Calendar, Sparkles, Target, Users, BookOpen,
-  Camera, Edit2, Award, Zap, Moon, Sun, BarChart3
+  Camera, Edit2, Award, Zap, BarChart3, LogOut
 } from 'lucide-react'
 import { 
   AnimatedBackground, 
   GlassCard, 
-  GradientButton, 
   GradientText,
   AnimatedCounter,
   FadeIn,
   Tag
 } from '@/components/animated-background'
+import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
+
+// 根据时间获取问候语
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 6) {
+    return '夜深了'
+  } else if (hour < 12) {
+    return '早安'
+  } else if (hour < 14) {
+    return '午安'
+  } else if (hour < 18) {
+    return '下午好'
+  } else if (hour < 22) {
+    return '晚上好'
+  } else {
+    return '夜深了'
+  }
+}
 
 // 大五人格雷达图组件
 function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
@@ -49,7 +67,6 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
   return (
     <div className="relative">
       <svg viewBox="0 0 300 300" className="w-full max-w-xs mx-auto">
-        {/* 背景网格 - 渐变效果 */}
         {[20, 40, 60, 80, 100].map((level) => {
           const radius = (level / 100) * maxRadius
           return (
@@ -66,7 +83,6 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
           )
         })}
 
-        {/* 轴线 */}
         {dimensions.map((dim, i) => {
           const angle = (Math.PI * 2 * i) / dimensions.length - Math.PI / 2
           const endX = centerX + maxRadius * Math.cos(angle)
@@ -85,16 +101,13 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
           )
         })}
 
-        {/* 数据区域 */}
         <path
           d={pathD}
           fill="url(#radarGradient)"
           stroke="url(#radarStroke)"
           strokeWidth="3"
-          className="animate-pulse-soft"
         />
 
-        {/* 数据点 */}
         {points.map((p, i) => (
           <circle
             key={i}
@@ -108,7 +121,6 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
           />
         ))}
 
-        {/* 渐变定义 */}
         <defs>
           <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="rgba(244, 63, 94, 0.4)" />
@@ -135,7 +147,6 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
         </defs>
       </svg>
 
-      {/* 标签 */}
       <div className="absolute inset-0 pointer-events-none">
         {points.map((p, i) => (
           <div
@@ -188,18 +199,36 @@ function MatchHistoryCard({ match }: { match: any }) {
 }
 
 export default function DashboardPage() {
+  const { currentUser, isLoading, getUserData, logout } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile)
+  const [avatar, setAvatar] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<'overview' | 'personality' | 'history' | 'settings'>('overview')
 
-  // 模拟用户数据
-  const user = {
-    nickname: '小恒',
-    age: 28,
-    city: '北京',
-    avatar: null,
-    questionnaireProgress: 66,
-    nextMatchDate: '3月26日',
-    daysUntilMatch: 4,
+  // 从用户专属存储加载数据
+  useEffect(() => {
+    setMounted(true)
+    
+    if (!isLoading && currentUser) {
+      const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
+      setProfile(savedProfile)
+      
+      const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
+      if (savedAvatar) {
+        setAvatar(savedAvatar)
+      }
+    }
+  }, [isLoading, currentUser, getUserData])
+
+  // 处理登出
+  const handleLogout = () => {
+    if (confirm('确定要退出登录吗？')) {
+      logout()
+      window.location.href = '/login'
+    }
   }
+
+  const greeting = getGreeting()
 
   // 大五人格分数
   const personalityScores = {
@@ -207,7 +236,7 @@ export default function DashboardPage() {
     conscientiousness: 65,
     extraversion: 52,
     agreeableness: 85,
-    neuroticism: 35, // 低神经质 = 高稳定性
+    neuroticism: 35,
   }
 
   // 匹配历史
@@ -218,13 +247,30 @@ export default function DashboardPage() {
     { name: '云云', date: '2月25日', score: 72, emoji: '🙂', status: 'matched' },
   ]
 
-  // 性格解读
   const personalityInsights = [
     { title: '创意先锋', desc: '你对新事物充满好奇，富有想象力和创造力', icon: '🌟', gradient: 'from-amber-400 to-orange-500' },
     { title: '可靠伙伴', desc: '做事认真负责，值得信赖的好朋友', icon: '🎯', gradient: 'from-blue-400 to-cyan-500' },
     { title: '温柔善良', desc: '待人友善，善解人意，给身边人带来温暖', icon: '💚', gradient: 'from-emerald-400 to-green-500' },
     { title: '情绪稳定', desc: '内心平和，能够很好地应对压力', icon: '🌊', gradient: 'from-teal-400 to-cyan-500' },
   ]
+
+  if (isLoading || !mounted) {
+    return (
+      <AnimatedBackground variant="purple" showFloatingHearts={true}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-rose-500">加载中...</div>
+        </div>
+      </AnimatedBackground>
+    )
+  }
+
+  // 如果未登录，跳转到登录页
+  if (!currentUser) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
+    return null
+  }
 
   return (
     <AnimatedBackground variant="purple" showFloatingHearts={true}>
@@ -234,15 +280,26 @@ export default function DashboardPage() {
           <div className="max-w-6xl mx-auto px-4">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 bg-gradient-to-br from-rose-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-rose-500/30">
-                  {user.nickname[0]}
+                <div className="w-11 h-11 bg-gradient-to-br from-rose-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-rose-500/30 overflow-hidden">
+                  {avatar ? (
+                    <img src={avatar} alt="头像" className="w-full h-full object-cover" />
+                  ) : (
+                    profile.nickname[0]
+                  )}
                 </div>
                 <div>
-                  <h1 className="font-bold text-gray-800">{user.nickname}的主页</h1>
-                  <p className="text-xs text-gray-500">下次匹配：<GradientText className="font-medium">{user.nextMatchDate}</GradientText></p>
+                  <h1 className="font-bold text-gray-800">{profile.nickname}的主页</h1>
+                  <p className="text-xs text-gray-500">下次匹配：<GradientText className="font-medium">3月26日</GradientText></p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleLogout}
+                  className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors"
+                  title="退出登录"
+                >
+                  <LogOut className="w-5 h-5 text-gray-600" />
+                </button>
                 <button className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors relative">
                   <Bell className="w-5 h-5 text-gray-600" />
                   <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
@@ -268,10 +325,10 @@ export default function DashboardPage() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <h2 className="text-2xl md:text-3xl font-bold mb-2 drop-shadow-md">
-                      早安，{user.nickname}！✨
+                      {greeting}，{profile.nickname}！✨
                     </h2>
                     <p className="text-white/90">
-                      还有 <span className="font-bold text-xl drop-shadow-md">{user.daysUntilMatch}天</span> 就能见到你的新匹配啦~
+                      还有 <span className="font-bold text-xl drop-shadow-md">7天</span> 就能见到你的新匹配啦~
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -327,7 +384,7 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-gray-800">
-                      <AnimatedCounter end={66} suffix="%" duration={1.5} />
+                      <AnimatedCounter end={0} suffix="%" duration={1.5} />
                     </p>
                     <p className="text-sm text-gray-500">问卷完成</p>
                   </div>
@@ -364,13 +421,12 @@ export default function DashboardPage() {
                         <BarChart3 className="w-5 h-5 text-rose-500" />
                         人格画像分析
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">基于你的问卷回答生成的性格分析</p>
+                      <p className="text-sm text-gray-500 mt-1">完成问卷后生成你的性格分析</p>
                     </div>
                   </div>
 
                   <PersonalityRadar scores={personalityScores} />
 
-                  {/* 性格特点标签 */}
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     {personalityInsights.map((insight, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100/50">
@@ -432,8 +488,8 @@ export default function DashboardPage() {
                         <BookOpen className="w-5 h-5 text-pink-600" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-gray-800">继续问卷</p>
-                        <p className="text-xs text-gray-500">还剩 22 题</p>
+                        <p className="font-medium text-gray-800">开始问卷</p>
+                        <p className="text-xs text-gray-500">完成66道灵魂问题</p>
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </Link>
@@ -449,7 +505,7 @@ export default function DashboardPage() {
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </Link>
 
-                    <Link href="/profile/preferences" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-green-50 hover:to-emerald-50 transition-all group border border-gray-100/50">
+                    <Link href="/profile/edit" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-green-50 hover:to-emerald-50 transition-all group border border-gray-100/50">
                       <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg flex items-center justify-center group-hover:from-green-200 group-hover:to-emerald-200 transition-all">
                         <Target className="w-5 h-5 text-green-600" />
                       </div>
@@ -467,7 +523,6 @@ export default function DashboardPage() {
               <FadeIn delay={0.45}>
                 <div className="relative overflow-hidden rounded-3xl">
                   <div className="absolute inset-0 bg-gradient-to-br from-rose-500 via-pink-500 to-purple-500" />
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiBwYXR0ZXJuVHJhbnNmb3JtPSJyb3RhdGUoNDUpIj48cGF0aCBkPSJNLTEwIDMwaDYwdi0yMEgtMTB6IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+')] opacity-50" />
                   <div className="relative p-6 text-white">
                     <div className="flex items-center gap-2 mb-4">
                       <Zap className="w-5 h-5" />
@@ -496,10 +551,10 @@ export default function DashboardPage() {
                     <div className="mt-4 pt-4 border-t border-white/20">
                       <div className="flex items-center justify-between text-sm">
                         <span>完成度</span>
-                        <span className="font-bold">66%</span>
+                        <span className="font-bold">0%</span>
                       </div>
                       <div className="w-full bg-white/20 rounded-full h-2 mt-2 overflow-hidden">
-                        <div className="bg-white rounded-full h-2 transition-all duration-1000" style={{ width: '66%' }}></div>
+                        <div className="bg-white rounded-full h-2 transition-all duration-1000" style={{ width: '0%' }}></div>
                       </div>
                     </div>
                   </div>
@@ -514,14 +569,14 @@ export default function DashboardPage() {
                     我的成就
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30" title="真诚填写">
-                      ✍️
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl opacity-40" title="待解锁">
+                      🔒
                     </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-rose-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl shadow-lg shadow-rose-500/30" title="连续登录">
-                      🔥
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl opacity-40" title="待解锁">
+                      🔒
                     </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/30" title="积极互动">
-                      💬
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl opacity-40" title="待解锁">
+                      🔒
                     </div>
                     <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl opacity-40" title="待解锁">
                       🔒
