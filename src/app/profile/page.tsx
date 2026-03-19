@@ -1,23 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Settings, Edit2, Camera, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { Settings, Edit2, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap } from 'lucide-react'
 import { 
   AnimatedBackground, 
   GlassCard, 
-  GradientButton, 
   GradientText, 
   AnimatedCounter,
   FadeIn,
   Tag
 } from '@/components/animated-background'
+import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
 
 export default function ProfilePage() {
-  const [activeTab, setActiveTab] = useState<'about' | 'preferences' | 'tags'>('about')
-
-  const profile = {
+  const [mounted, setMounted] = useState(false)
+  
+  const [profile, setProfile] = useState({
     nickname: '小恒',
     age: 28,
     city: '北京',
@@ -33,9 +32,47 @@ export default function ProfilePage() {
       liked: 8,
       mutualLikes: 3,
     },
-    photos: [
-      null, null, null, // Placeholders
-    ],
+  })
+  
+  const [avatar, setAvatar] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
+
+  // 从 localStorage 加载已保存的数据
+  useEffect(() => {
+    setMounted(true)
+    const savedAvatar = localStorage.getItem('user_avatar')
+    const savedPhotos = localStorage.getItem('user_photos')
+    
+    if (savedAvatar) {
+      setAvatar(savedAvatar)
+    }
+    if (savedPhotos) {
+      try {
+        setPhotos(JSON.parse(savedPhotos))
+      } catch (e) {
+        console.error('Failed to parse photos:', e)
+      }
+    }
+  }, [])
+
+  // 保存头像到 localStorage
+  const handleAvatarChange = (url: string | null) => {
+    setAvatar(url)
+    if (url) {
+      localStorage.setItem('user_avatar', url)
+    } else {
+      localStorage.removeItem('user_avatar')
+    }
+  }
+
+  // 保存照片到 localStorage
+  const handlePhotosChange = (newPhotos: (string | null)[]) => {
+    setPhotos(newPhotos)
+    localStorage.setItem('user_photos', JSON.stringify(newPhotos))
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -58,15 +95,11 @@ export default function ProfilePage() {
 
             {/* Avatar & Info */}
             <div className="flex flex-col items-center pb-10 pt-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-white/30 rounded-full blur-xl scale-125" />
-                <div className="relative w-28 h-28 bg-white rounded-full flex items-center justify-center text-5xl font-bold bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-2xl">
-                  {profile.nickname[0]}
-                </div>
-                <button className="absolute bottom-0 right-0 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                  <Camera className="w-4 h-4 text-gray-600" />
-                </button>
-              </div>
+              <AvatarUploader
+                value={avatar}
+                onChange={handleAvatarChange}
+                name={profile.nickname}
+              />
               
               <h2 className="text-2xl font-bold mt-5 drop-shadow-md">{profile.nickname}，{profile.age}岁</h2>
               <p className="text-white/90 mt-1">{profile.city} · {profile.occupation}</p>
@@ -112,20 +145,18 @@ export default function ProfilePage() {
         <div className="px-4 -mt-2 relative z-10">
           <FadeIn delay={0.1}>
             <GlassCard className="p-4" hover={false}>
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-200 hover:border-rose-300 transition-colors cursor-pointer"
-                  >
-                    {i <= profile.photos.length ? (
-                      <span className="text-3xl">📷</span>
-                    ) : (
-                      <Camera className="w-6 h-6 text-gray-300" />
-                    )}
-                  </div>
-                ))}
-              </div>
+              <h3 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
+                <span className="text-lg">📷</span>
+                照片墙
+                <span className="text-xs text-gray-400">
+                  ({photos.filter(p => p !== null).length}/6)
+                </span>
+              </h3>
+              <PhotoGallery
+                photos={photos}
+                onChange={handlePhotosChange}
+                maxPhotos={6}
+              />
             </GlassCard>
           </FadeIn>
         </div>
@@ -164,75 +195,53 @@ export default function ProfilePage() {
             </GlassCard>
           </FadeIn>
 
-          {/* Tabs */}
+          {/* Bio Card */}
           <FadeIn delay={0.3}>
-            <GlassCard className="p-1.5" hover={false}>
-              <div className="flex">
-                {(['about', 'preferences', 'tags'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ${
-                      activeTab === tab
-                        ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/30'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab === 'about' ? '关于我' : tab === 'preferences' ? '期待的TA' : '我的特质'}
-                  </button>
+            <GlassCard className="p-5" hover={false}>
+              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <span className="text-lg">✨</span>
+                关于我
+              </h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                {profile.bio}
+              </p>
+              
+              {/* Tags */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {profile.tags.map((tag) => (
+                  <Tag key={tag} color="rose">
+                    {tag}
+                  </Tag>
                 ))}
               </div>
             </GlassCard>
           </FadeIn>
 
-          {/* Tab Content */}
+          {/* Preferences Card */}
           <FadeIn delay={0.4}>
             <GlassCard className="p-5" hover={false}>
-              {activeTab === 'about' && (
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <span className="text-lg">✨</span>
-                    关于我
-                  </h3>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {profile.bio}
-                  </p>
+              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <span className="text-lg">💝</span>
+                期待的TA
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
+                  <span className="text-gray-500">年龄</span>
+                  <span className="text-gray-800 font-medium">24-32岁</span>
                 </div>
-              )}
-
-              {activeTab === 'preferences' && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
-                    <span className="text-gray-500">年龄</span>
-                    <span className="text-gray-800 font-medium">24-32岁</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
-                    <span className="text-gray-500">城市</span>
-                    <span className="text-gray-800 font-medium">北京 / 上海</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
-                    <span className="text-gray-500">学历</span>
-                    <span className="text-gray-800 font-medium">本科及以上</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-gray-500">性格</span>
-                    <span className="text-gray-800 font-medium">开朗、善良</span>
-                  </div>
+                <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
+                  <span className="text-gray-500">城市</span>
+                  <span className="text-gray-800 font-medium">北京 / 上海</span>
                 </div>
-              )}
-
-              {activeTab === 'tags' && (
-                <div className="flex flex-wrap gap-2">
-                  {profile.tags.map((tag) => (
-                    <Tag key={tag} color="rose">
-                      {tag}
-                    </Tag>
-                  ))}
-                  <button className="px-4 py-2 border-2 border-dashed border-rose-200 text-rose-400 rounded-full text-sm hover:border-rose-300 hover:text-rose-500 transition-colors">
-                    + 添加
-                  </button>
+                <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
+                  <span className="text-gray-500">学历</span>
+                  <span className="text-gray-800 font-medium">本科及以上</span>
                 </div>
-              )}
+                <div className="flex justify-between items-center py-2.5">
+                  <span className="text-gray-500">性格</span>
+                  <span className="text-gray-800 font-medium">开朗、善良</span>
+                </div>
+              </div>
             </GlassCard>
           </FadeIn>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
@@ -14,9 +14,12 @@ import {
   GradientText,
   FadeIn
 } from '@/components/animated-background'
+import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
 
 export default function EditProfilePage() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+  
   const [profile, setProfile] = useState({
     nickname: '小明',
     age: 28,
@@ -34,8 +37,47 @@ export default function EditProfilePage() {
       relationship: 'serious' // serious, casual, not_sure
     }
   })
-
+  
+  const [avatar, setAvatar] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
   const [activeSection, setActiveSection] = useState<string | null>(null)
+
+  // 从 localStorage 加载数据
+  useEffect(() => {
+    setMounted(true)
+    const savedAvatar = localStorage.getItem('user_avatar')
+    const savedPhotos = localStorage.getItem('user_photos')
+    const savedProfile = localStorage.getItem('user_profile')
+    
+    if (savedAvatar) {
+      setAvatar(savedAvatar)
+    }
+    if (savedPhotos) {
+      try {
+        setPhotos(JSON.parse(savedPhotos))
+      } catch (e) {
+        console.error('Failed to parse photos:', e)
+      }
+    }
+    if (savedProfile) {
+      try {
+        setProfile(JSON.parse(savedProfile))
+      } catch (e) {
+        console.error('Failed to parse profile:', e)
+      }
+    }
+  }, [])
+
+  const handleSave = () => {
+    // 保存所有数据到 localStorage
+    localStorage.setItem('user_profile', JSON.stringify(profile))
+    localStorage.setItem('user_avatar', avatar || '')
+    localStorage.setItem('user_photos', JSON.stringify(photos))
+    
+    console.log('Saving profile:', { profile, avatar, photos })
+    // 保存成功后返回个人主页
+    router.push('/profile')
+  }
 
   const interestOptions = [
     '旅行', '美食', '摄影', '电影', '音乐', '阅读',
@@ -44,11 +86,8 @@ export default function EditProfilePage() {
     '投资', '创业', '科技', '汽车', '宠物', '园艺'
   ]
 
-  const handleSave = () => {
-    // TODO: 保存到后端
-    console.log('Saving profile:', profile)
-    // 保存成功后返回个人主页
-    router.push('/profile')
+  if (!mounted) {
+    return null
   }
 
   return (
@@ -79,21 +118,40 @@ export default function EditProfilePage() {
           <FadeIn delay={0}>
             <GlassCard className="p-6">
               <div className="flex items-center">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full blur-lg opacity-40 scale-110" />
-                  <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-xl">
-                    {profile.nickname[0]}
-                  </div>
-                  <button className="absolute bottom-0 right-0 w-9 h-9 bg-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
-                    <Camera className="w-4 h-4 text-gray-600" />
-                  </button>
-                </div>
+                <AvatarUploader
+                  value={avatar}
+                  onChange={setAvatar}
+                  name={profile.nickname}
+                />
                 <div className="ml-6 flex-1">
                   <h2 className="text-xl font-bold text-gray-900">{profile.nickname}</h2>
                   <p className="text-gray-500">{profile.age}岁 · {profile.city}</p>
                   <p className="text-sm text-rose-500 mt-1">点击头像更换照片</p>
                 </div>
               </div>
+            </GlassCard>
+          </FadeIn>
+
+          {/* 照片墙 */}
+          <FadeIn delay={0.05}>
+            <GlassCard className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-rose-500" />
+                  照片墙
+                </h3>
+                <span className="text-sm text-gray-500">
+                  {photos.filter(p => p !== null).length}/6 张
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                上传更多生活照片，让匹配更了解真实的你
+              </p>
+              <PhotoGallery
+                photos={photos}
+                onChange={setPhotos}
+                maxPhotos={6}
+              />
             </GlassCard>
           </FadeIn>
 

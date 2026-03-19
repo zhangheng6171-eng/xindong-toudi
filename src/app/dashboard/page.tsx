@@ -438,7 +438,7 @@ export default function DashboardPage() {
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </Link>
 
-                    <Link href="/profile/photos" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-amber-50 hover:to-orange-50 transition-all group border border-gray-100/50">
+                    <Link href="/profile" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-amber-50 hover:to-orange-50 transition-all group border border-gray-100/50">
                       <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center group-hover:from-amber-200 group-hover:to-orange-200 transition-all">
                         <Camera className="w-5 h-5 text-amber-600" />
                       </div>
