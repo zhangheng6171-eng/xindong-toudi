@@ -1,19 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect, use } from 'react'
+import { useState, useRef, useEffect, use, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Send, Image, Mic, Phone, Video,
-  ArrowLeft, Smile, MoreVertical,
-  Heart, Sparkles, ChevronDown
+import {
+  Send, Image, Mic, ArrowLeft, Smile, MoreVertical,
+  Heart, Sparkles, ChevronDown, Phone, Video, RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
-import { 
-  AnimatedBackground, 
-  GlassCard, 
-  GradientText,
-  FadeIn 
+import { useSearchParams } from 'next/navigation'
+import {
+  AnimatedBackground,
+  FadeIn
 } from '@/components/animated-background'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Message {
   id: string
@@ -24,51 +23,240 @@ interface Message {
   type: 'text' | 'image' | 'system'
 }
 
+interface OtherUser {
+  id: string
+  nickname: string
+  age: number
+  city: string
+  score: number
+  isOnline: boolean
+  avatar: string | null
+  lastActive: string
+}
+
 export default function ChatContent({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = use(params)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      senderId: 'system',
-      text: '🎉 你们匹配成功！匹配度92%，打开话题聊聊吧～',
-      timestamp: new Date(Date.now() - 3600000),
-      status: 'read',
-      type: 'system'
-    },
-    {
-      id: '2',
-      senderId: 'other',
-      text: '你好呀！很高兴认识你 😊',
-      timestamp: new Date(Date.now() - 3000000),
-      status: 'read',
-      type: 'text'
-    },
-    {
-      id: '3',
-      senderId: 'me',
-      text: '嗨！我也很高兴认识你，看了我们的匹配分析，发现我们价值观真的很像呢！',
-      timestamp: new Date(Date.now() - 2400000),
-      status: 'read',
-      type: 'text'
-    },
-  ])
+  const searchParams = useSearchParams()
+  const urlConversationId = searchParams.get('conversationId')
+  const { currentUser } = useAuth()
 
+  const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const [otherUser, setOtherUser] = useState<OtherUser | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(urlConversationId)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const matchedUser = {
-    id: matchId,
-    nickname: '小红',
-    age: 26,
-    city: '北京',
-    score: 92,
-    isOnline: true,
-    lastActive: '刚刚在线'
+  // 创建或获取会话
+  const ensureConversation = useCallback(async () => {
+    if (!currentUser || !matchId || conversationId) return conversationId
+
+    try {
+      const response = await fetch('/api/chat/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': currentUser.id,
+        },
+        body: JSON.stringify({
+          targetUserId: matchId,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setConversationId(data.conversation.id)
+        return data.conversation.id
+      }
+    } catch (err) {
+      console.error('创建会话失败:', err)
+    }
+    return null
+  }, [currentUser, matchId, conversationId])
+
+  // 获取对方用户信息
+  const fetchOtherUser = useCallback(async () => {
+    if (!currentUser) return
+
+    try {
+      // 从 localStorage 获取用户信息
+      const usersJson = localStorage.getItem('xindong_users')
+      if (usersJson) {
+        const users = JSON.parse(usersJson)
+        const user = users.find((u: any) => u.id === matchId)
+        if (user) {
+          const profileJson = localStorage.getItem(`xindong_profile_${matchId}`)
+          const profile = profileJson ? JSON.parse(profileJson) : {}
+          const avatar = localStorage.getItem(`xindong_avatar_${matchId}`)
+
+          setOtherUser({
+            id: matchId,
+            nickname: profile.nickname || user.nickname || '用户',
+            age: profile.age || user.age || 25,
+            city: profile.city || user.city || '未知',
+            score: Math.floor(Math.random() * 20) + 80,
+            isOnline: Math.random() > 0.5,
+            avatar: avatar,
+            lastActive: '刚刚在线'
+          })
+        }
+      }
+    } catch (err) {
+      console.error('获取用户信息失败:', err)
+    }
+  }, [matchId, currentUser])
+
+  // 获取消息列表
+  const fetchMessages = useCallback(async () => {
+    if (!currentUser || !matchId) return
+
+    setIsLoading(true)
+
+    try {
+      // 尝试从 API 获取
+      if (conversationId) {
+        const response = await fetch(`/api/chat/${conversationId}/messages`, {
+          headers: {
+            'X-User-Id': currentUser.id,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const apiMessages = (data.messages || []).map((m: any) => ({
+            id: m.id,
+            senderId: m.senderId,
+            text: m.content,
+            timestamp: new Date(m.createdAt),
+            status: m.status as 'sending' | 'sent' | 'read',
+            type: m.type as 'text' | 'image' | 'system',
+          }))
+          setMessages(apiMessages)
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // 从 localStorage 获取（后备方案）
+      const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+      const chatJson = localStorage.getItem(chatKey)
+      if (chatJson) {
+        const localMessages = JSON.parse(chatJson)
+        setMessages(localMessages.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        })))
+      }
+    } catch (err) {
+      console.error('获取消息失败:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentUser, matchId, conversationId])
+
+  // 发送消息
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !currentUser || !otherUser) return
+
+    const newMessage: Message = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      senderId: currentUser.id,
+      text: inputText,
+      timestamp: new Date(),
+      status: 'sending',
+      type: 'text'
+    }
+
+    // 立即显示消息
+    setMessages(prev => [...prev, newMessage])
+    setInputText('')
+    setShowSuggestions(false)
+
+    try {
+      // 尝试通过 API 发送
+      if (conversationId) {
+        const response = await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': currentUser.id,
+          },
+          body: JSON.stringify({
+            conversationId,
+            content: newMessage.text,
+            type: 'text',
+          }),
+        })
+
+        if (response.ok) {
+          setMessages(prev =>
+            prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+          )
+          return
+        }
+      }
+
+      // 保存到 localStorage（后备方案）
+      const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+      const chatJson = localStorage.getItem(chatKey)
+      const chatMessages = chatJson ? JSON.parse(chatJson) : []
+      chatMessages.push({
+        ...newMessage,
+        timestamp: newMessage.timestamp.toISOString(),
+      })
+      localStorage.setItem(chatKey, JSON.stringify(chatMessages))
+
+      // 更新状态
+      setMessages(prev =>
+        prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+      )
+    } catch (err) {
+      console.error('发送消息失败:', err)
+      setError('发送失败，请重试')
+      // 标记消息失败
+      setMessages(prev =>
+        prev.map(m => m.id === newMessage.id ? { ...m, status: 'sending' as const } : m)
+      )
+    }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  // 初始化会话
+  useEffect(() => {
+    ensureConversation()
+  }, [])
+
+  // 初始化
+  useEffect(() => {
+    fetchOtherUser()
+    if (conversationId) {
+      fetchMessages()
+    }
+  }, [conversationId, fetchOtherUser, fetchMessages])
+
+  // 滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // 定时刷新消息（简单轮询）
+  useEffect(() => {
+    const interval = setInterval(fetchMessages, 5000) // 每5秒刷新
+    return () => clearInterval(interval)
+  }, [fetchMessages])
+
+  // 话题建议
   const topicSuggestions = [
     { emoji: '🎬', text: '最近有什么好看的电影推荐吗？' },
     { emoji: '✈️', text: '你最想去的旅行目的地是哪里？' },
@@ -83,38 +271,14 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     '那我们下次可以一起去！'
   ]
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: 'me',
-      text: inputText,
-      timestamp: new Date(),
-      status: 'sending',
-      type: 'text'
-    }
-
-    setMessages(prev => [...prev, newMessage])
-    setInputText('')
-    setShowSuggestions(false)
-
-    setTimeout(() => {
-      setMessages(prev => 
-        prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' } : m)
-      )
-    }, 500)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
+  if (!otherUser) {
+    return (
+      <AnimatedBackground variant="romance" showFloatingHearts={false}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-rose-500">加载中...</div>
+        </div>
+      </AnimatedBackground>
+    )
   }
 
   return (
@@ -123,67 +287,57 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         {/* Header */}
         <FadeIn>
           <header className="bg-white/80 backdrop-blur-xl border-b border-rose-100/50 px-4 py-3 flex items-center">
-            <Link href="/dashboard" className="p-2 -ml-2 text-gray-600 hover:text-rose-500 transition-colors">
+            <Link href="/chat" className="p-2 -ml-2 text-gray-600 hover:text-rose-500 transition-colors">
               <ArrowLeft className="w-6 h-6" />
             </Link>
-            
+
             <div className="flex-1 flex items-center ml-2">
               <div className="relative">
-                <motion.div 
-                  className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-rose-500/30"
+                <motion.div
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-rose-500/30 overflow-hidden"
                   whileHover={{ scale: 1.05 }}
                 >
-                  {matchedUser.nickname[0]}
+                  {otherUser.avatar ? (
+                    <img src={otherUser.avatar} alt={otherUser.nickname} className="w-full h-full object-cover" />
+                  ) : (
+                    otherUser.nickname[0]
+                  )}
                 </motion.div>
-                {matchedUser.isOnline && (
-                  <motion.div 
+                {otherUser.isOnline && (
+                  <motion.div
                     className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   />
                 )}
               </div>
-              
+
               <div className="ml-3">
                 <div className="flex items-center">
-                  <h1 className="font-bold text-gray-900">{matchedUser.nickname}</h1>
+                  <h1 className="font-bold text-gray-900">{otherUser.nickname}</h1>
                   <span className="ml-2 text-xs bg-gradient-to-r from-rose-500 to-pink-500 text-white px-2 py-0.5 rounded-full shadow-sm">
-                    {matchedUser.score}% 匹配
+                    {otherUser.score}% 匹配
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {matchedUser.isOnline ? (
+                  {otherUser.isOnline ? (
                     <span className="text-green-500 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                       在线
                     </span>
-                  ) : matchedUser.lastActive}
+                  ) : otherUser.lastActive}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
-              <motion.button 
+              <button
+                onClick={fetchMessages}
+                disabled={isLoading}
                 className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
               >
-                <Phone className="w-5 h-5" />
-              </motion.button>
-              <motion.button 
-                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Video className="w-5 h-5" />
-              </motion.button>
-              <motion.button 
-                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <MoreVertical className="w-5 h-5" />
-              </motion.button>
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </header>
         </FadeIn>
@@ -194,27 +348,49 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
             <div className="flex items-center justify-between">
               <div className="flex items-center text-sm text-gray-600">
                 <Sparkles className="w-4 h-4 text-rose-500 mr-2" />
-                <span>你们有<strong className="text-gray-900">价值观高度契合</strong>的共同点</span>
+                <span>你们已互相喜欢，尽情聊天吧！</span>
               </div>
-              <button className="text-xs font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
-                查看详情
-              </button>
             </div>
           </div>
         </FadeIn>
 
+        {/* Error Message */}
+        {error && (
+          <div className="px-4 py-2 bg-red-50 text-red-600 text-sm text-center">
+            {error}
+            <button onClick={() => setError(null)} className="ml-2 underline">关闭</button>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {/* 系统消息 */}
+          <MessageBubble
+            message={{
+              id: 'system-1',
+              senderId: 'system',
+              text: '🎉 你们匹配成功！开始聊天吧～',
+              timestamp: new Date(Date.now() - 3600000),
+              status: 'read',
+              type: 'system'
+            }}
+            isOwn={false}
+          />
+
           <AnimatePresence initial={false}>
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} isOwn={message.senderId === 'me'} />
+              <MessageBubble key={message.id} message={message} isOwn={message.senderId === currentUser?.id} />
             ))}
           </AnimatePresence>
 
           {isTyping && (
             <motion.div className="flex items-start" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-xs mr-2 shadow-md shadow-rose-500/20">
-                {matchedUser.nickname[0]}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-xs mr-2 shadow-md shadow-rose-500/20 overflow-hidden">
+                {otherUser.avatar ? (
+                  <img src={otherUser.avatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  otherUser.nickname[0]
+                )}
               </div>
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl rounded-tl-none px-4 py-3 shadow-sm border border-rose-100/30">
                 <div className="flex space-x-1">
@@ -236,8 +412,8 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
         {/* Topic Suggestions */}
         <AnimatePresence>
-          {showSuggestions && messages.length <= 4 && (
-            <motion.div 
+          {showSuggestions && messages.length <= 1 && (
+            <motion.div
               className="px-4 py-3 bg-gradient-to-r from-purple-50/90 to-indigo-50/90 backdrop-blur-sm border-t border-purple-100/50"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -267,8 +443,8 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         </AnimatePresence>
 
         {/* Quick Replies */}
-        {inputText.length === 0 && messages.length > 4 && (
-          <motion.div 
+        {inputText.length === 0 && messages.length > 1 && (
+          <motion.div
             className="px-4 py-2 border-t border-rose-100/50 bg-white/50 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -293,19 +469,12 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         <div className="bg-white/80 backdrop-blur-xl border-t border-rose-100/50 px-4 py-3">
           <div className="flex items-end space-x-3">
             <div className="flex space-x-2">
-              <motion.button 
+              <motion.button
                 className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <Image className="w-6 h-6" />
-              </motion.button>
-              <motion.button 
-                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Mic className="w-6 h-6" />
               </motion.button>
             </div>
 
@@ -355,11 +524,10 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
   return (
     <motion.div className={`flex items-start ${isOwn ? 'flex-row-reverse' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className={`max-w-[70%] ${isOwn ? 'ml-2' : 'mr-2'}`}>
-        <div className={`px-4 py-3 rounded-2xl ${
-          isOwn 
-            ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white rounded-br-none shadow-lg shadow-rose-500/20' 
+        <div className={`px-4 py-3 rounded-2xl ${isOwn
+            ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white rounded-br-none shadow-lg shadow-rose-500/20'
             : 'bg-white/80 backdrop-blur-sm text-gray-900 shadow-sm rounded-bl-none border border-rose-100/30'
-        }`}>
+          }`}>
           <p className="whitespace-pre-wrap">{message.text}</p>
         </div>
         <div className={`flex items-center mt-1 text-xs text-gray-400 ${isOwn ? 'justify-end' : ''}`}>

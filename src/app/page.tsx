@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp, X, Camera, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
@@ -331,6 +332,7 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
 // 已登录用户的首页
 function LoggedInHome() {
   const { currentUser } = useAuth()
+  const router = useRouter()
   const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
   const [mounted, setMounted] = useState(false)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
@@ -444,8 +446,9 @@ function LoggedInHome() {
       setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～')
       return
     }
-    // TODO: 跳转到聊天页面
-    setAlertMessage('聊天功能开发中，敬请期待！')
+    // 跳转到聊天页面
+    setSelectedUser(null) // 关闭详情弹窗
+    router.push(`/chat/${user.id}`)
   }
 
   // 如果没有真实用户，显示模拟用户
