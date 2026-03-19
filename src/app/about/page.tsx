@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Heart, Target, Shield, MessageCircle, Lightbulb, Rocket, Globe, Users, Sparkles, ArrowRight, Check, Star } from 'lucide-react'
-import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, AnimatedCounter, StarRating } from '@/components/animated-background'
+import { AnimatedBackground, GlassCard, GradientText, FadeIn, AnimatedCounter, StarRating } from '@/components/animated-background'
 
 // 特性卡片
 function FeatureCard({ icon: Icon, title, desc, color, delay }: {
@@ -115,12 +115,25 @@ export default function AboutPage() {
               <GradientText>心动投递</GradientText>
             </span>
           </Link>
-          <GradientButton size="sm">
+          <Link href="/register" className="inline-flex" style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '10px 20px',
+            borderRadius: '9999px',
+            fontWeight: 600,
+            fontSize: '14px',
+            background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+            color: 'white',
+            boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}>
             <span className="flex items-center gap-1">
               立即开始
               <ArrowRight className="w-4 h-4" />
             </span>
-          </GradientButton>
+          </Link>
         </div>
       </nav>
 
@@ -278,12 +291,25 @@ export default function AboutPage() {
                 <p className="text-gray-600 text-lg mb-8">
                   开启你的心动之旅，下一个故事的主角就是你
                 </p>
-                <GradientButton size="lg">
+                <Link href="/register" className="inline-flex" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '20px 40px',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+                  color: 'white',
+                  boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                }}>
                   <span className="flex items-center gap-2">
                     立即开始
                     <ArrowRight className="w-5 h-5" />
                   </span>
-                </GradientButton>
+                </Link>
               </div>
             </GlassCard>
           </motion.div>

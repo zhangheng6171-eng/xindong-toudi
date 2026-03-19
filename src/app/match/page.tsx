@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Heart, MessageCircle, Eye, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui'
 import { getCompatibilityEmoji, getCompatibilityLabel } from '@/lib/utils'
 import { 
@@ -73,14 +74,26 @@ const mockMatches = [
 ]
 
 export default function MatchPage() {
+  const router = useRouter()
   const [matches, setMatches] = useState(mockMatches)
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState(false)
 
-  const handleLike = (matchId: string) => {
+  const handleLike = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     setMatches(prev => prev.map(m => 
       m.id === matchId ? { ...m, liked: !m.liked } : m
     ))
+  }
+
+  const handleViewDetail = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    router.push(`/match/${matchId}`)
+  }
+
+  const handleSendMessage = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    router.push(`/chat/${matchId}`)
   }
 
   const currentMatch = matches.find(m => m.id === selectedMatch)
@@ -215,10 +228,7 @@ export default function MatchPage() {
                     <Button
                       variant="outline"
                       className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
-                      onClick={() => {
-                        setSelectedMatch(match.id)
-                        setShowDetail(true)
-                      }}
+                      onClick={(e) => handleViewDetail(match.id, e)}
                     >
                       查看详情
                     </Button>
@@ -347,7 +357,14 @@ export default function MatchPage() {
                       <Heart className={`w-5 h-5 mr-2 ${currentMatch.liked ? 'fill-current text-rose-500' : ''}`} />
                       {currentMatch.liked ? '已喜欢' : '心动了！'}
                     </GradientButton>
-                    <Button variant="outline" size="lg" className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50"
+                      onClick={(e) => {
+                        setShowDetail(false)
+                        handleSendMessage(currentMatch.id, e)
+                      }}
+                    >
                       <MessageCircle className="w-5 h-5 mr-2" />
                       发消息
                     </Button>

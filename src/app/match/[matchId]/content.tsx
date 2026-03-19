@@ -4,6 +4,7 @@ import { use } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Heart, MessageCircle, Users, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   AnimatedBackground, 
   GlassCard, 
@@ -15,6 +16,8 @@ import {
 
 export default function MatchResultContent({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = use(params)
+  const router = useRouter()
+  
   // 模拟匹配数据
   const match = {
     id: matchId,
@@ -63,10 +66,13 @@ export default function MatchResultContent({ params }: { params: Promise<{ match
         <FadeIn>
           <header className="bg-white/70 backdrop-blur-xl sticky top-0 z-50 border-b border-rose-100/50">
             <div className="max-w-7xl mx-auto px-4 py-4">
-              <Link href="/dashboard" className="flex items-center text-gray-600 hover:text-rose-500 transition-colors">
+              <button 
+                onClick={() => router.back()}
+                className="flex items-center text-gray-600 hover:text-rose-500 transition-colors"
+              >
                 <ChevronRight className="w-5 h-5 rotate-180 mr-1" />
                 返回
-              </Link>
+              </button>
             </div>
           </header>
         </FadeIn>
@@ -137,12 +143,14 @@ export default function MatchResultContent({ params }: { params: Promise<{ match
                 
                 <p className="text-gray-600 text-center mb-6">{match.bio}</p>
                 
-                <Link href={`/chat/${match.id}`}>
-                  <GradientButton className="w-full" size="md">
-                    <MessageCircle className="inline-block w-5 h-5 mr-2" />
-                    开始聊天
-                  </GradientButton>
-                </Link>
+                <GradientButton 
+                  className="w-full" 
+                  size="md"
+                  onClick={() => router.push(`/chat/${match.id}`)}
+                >
+                  <MessageCircle className="inline-block w-5 h-5 mr-2" />
+                  开始聊天
+                </GradientButton>
               </div>
             </GlassCard>
           </FadeIn>

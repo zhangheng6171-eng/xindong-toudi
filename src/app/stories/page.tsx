@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Heart, Star, ArrowRight, Sparkles, Quote, MapPin, Briefcase } from 'lucide-react'
-import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, AnimatedCounter, StarRating } from '@/components/animated-background'
+import { AnimatedBackground, GlassCard, GradientText, FadeIn, AnimatedCounter, StarRating } from '@/components/animated-background'
 
 // 故事卡片
 function StoryCard({ name, location, role, content, rating, date, avatarColor, delay }: {
@@ -162,12 +162,25 @@ export default function StoriesPage() {
               <GradientText>心动投递</GradientText>
             </span>
           </Link>
-          <GradientButton size="sm">
+          <Link href="/register" className="inline-flex" style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '10px 20px',
+            borderRadius: '9999px',
+            fontWeight: 600,
+            fontSize: '14px',
+            background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+            color: 'white',
+            boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}>
             <span className="flex items-center gap-1">
               立即开始
               <ArrowRight className="w-4 h-4" />
             </span>
-          </GradientButton>
+          </Link>
         </div>
       </nav>
 
@@ -234,12 +247,25 @@ export default function StoriesPage() {
             <p className="text-gray-600 mb-6">
               每天都有新的心动故事在上演，下一个主角可能就是
             </p>
-            <GradientButton>
+            <Link href="/register" className="inline-flex" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '16px 32px',
+              borderRadius: '9999px',
+              fontWeight: 600,
+              fontSize: '16px',
+              background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+              color: 'white',
+              boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+            }}>
               <span className="flex items-center gap-2">
                 加入心动投递
                 <Sparkles className="w-5 h-5" />
               </span>
-            </GradientButton>
+            </Link>
           </GlassCard>
         </div>
       </section>
@@ -262,12 +288,25 @@ export default function StoriesPage() {
                 <p className="text-gray-600 text-lg mb-8">
                   就是你的故事
                 </p>
-                <GradientButton size="lg">
+                <Link href="/register" className="inline-flex" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '20px 40px',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+                  color: 'white',
+                  boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                }}>
                   <span className="flex items-center gap-2">
                     立即开始
                     <ArrowRight className="w-5 h-5" />
                   </span>
-                </GradientButton>
+                </Link>
               </div>
             </GlassCard>
           </motion.div>

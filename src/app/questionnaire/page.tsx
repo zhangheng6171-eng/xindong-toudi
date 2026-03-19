@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Sparkles, Heart, Check, GripVertical } from 'lucide-react'
 import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, Tag } from '@/components/animated-background'
@@ -173,6 +174,7 @@ const fadeInUp = {
 }
 
 export default function QuestionnairePage() {
+  const router = useRouter()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, any>>({})
   const [sliderValue, setSliderValue] = useState(50)
@@ -199,6 +201,13 @@ export default function QuestionnairePage() {
     if (currentQuestion > 0) {
       setCurrentQuestion(prev => prev - 1)
     }
+  }
+
+  const handleSubmit = () => {
+    // 保存答案到 localStorage
+    localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
+    // 跳转到 dashboard
+    router.push('/dashboard')
   }
 
   const moveRankingItem = (fromIndex: number, toIndex: number) => {
@@ -575,7 +584,7 @@ export default function QuestionnairePage() {
             </motion.button>
             
             {currentQuestion === questions.length - 1 ? (
-              <GradientButton size="lg">
+              <GradientButton size="lg" onClick={handleSubmit}>
                 <span className="flex items-center gap-2">
                   <Heart className="w-5 h-5" fill="white" />
                   完成问卷

@@ -26,6 +26,21 @@ export default function LoginPage() {
     window.location.href = '/dashboard'
   }
 
+  const handleForgotPassword = () => {
+    // 忘记密码功能 - 跳转到忘记密码页面
+    alert('忘记密码功能开发中，请联系客服：support@xindong.com')
+  }
+
+  const handleGoogleLogin = () => {
+    // Google 登录功能
+    alert('Google 登录功能开发中，敬请期待！')
+  }
+
+  const handleWechatLogin = () => {
+    // 微信登录功能
+    alert('微信登录功能开发中，敬请期待！')
+  }
+
   return (
     <div className="min-h-screen flex">
       {/* 左侧装饰区域 */}
@@ -247,9 +262,13 @@ export default function LoginPage() {
                     />
                     <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">记住我</span>
                   </label>
-                  <a href="#" className="text-sm text-rose-500 hover:text-rose-600 font-medium transition-colors">
+                  <button 
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-rose-500 hover:text-rose-600 font-medium transition-colors"
+                  >
                     忘记密码？
-                  </a>
+                  </button>
                 </div>
 
                 {/* 提交按钮 */}
@@ -287,6 +306,8 @@ export default function LoginPage() {
               {/* 社交登录 */}
               <div className="grid grid-cols-2 gap-4">
                 <motion.button
+                  type="button"
+                  onClick={handleGoogleLogin}
                   className="py-3 bg-white border border-gray-200 rounded-2xl font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -300,6 +321,8 @@ export default function LoginPage() {
                   Google
                 </motion.button>
                 <motion.button
+                  type="button"
+                  onClick={handleWechatLogin}
                   className="py-3 bg-[#07C160] text-white rounded-2xl font-medium hover:bg-[#06AD56] transition-colors flex items-center justify-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
   User, Camera, Heart, MapPin, Briefcase, GraduationCap,
@@ -15,6 +16,7 @@ import {
 } from '@/components/animated-background'
 
 export default function EditProfilePage() {
+  const router = useRouter()
   const [profile, setProfile] = useState({
     nickname: '小明',
     age: 28,
@@ -45,7 +47,8 @@ export default function EditProfilePage() {
   const handleSave = () => {
     // TODO: 保存到后端
     console.log('Saving profile:', profile)
-    alert('保存成功！')
+    // 保存成功后返回个人主页
+    router.push('/profile')
   }
 
   return (
@@ -54,7 +57,10 @@ export default function EditProfilePage() {
         {/* Header */}
         <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-            <button className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <button 
+              onClick={() => router.back()}
+              className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
               <X className="w-6 h-6" />
             </button>
             <h1 className="text-lg font-bold text-gray-900">编辑资料</h1>

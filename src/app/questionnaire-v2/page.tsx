@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Sparkles, ChevronLeft, ChevronRight, Check, SkipForward, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
 import { questions, Question } from '@/lib/questionnaire-data-v2'
@@ -18,12 +19,19 @@ interface QuestionnaireProps {
 }
 
 export default function Questionnaire() {
+  const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [isCompleted, setIsCompleted] = useState(false)
   
   const onComplete = (answers: Record<string, any>) => {
     console.log('Questionnaire completed:', answers)
+    // 保存答案到 localStorage
+    localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
+  }
+
+  const handleViewResults = () => {
+    router.push('/dashboard')
   }
 
   const currentQuestion = questions[currentIndex]
@@ -83,7 +91,7 @@ export default function Questionnaire() {
               <p className="text-gray-600 mb-8 leading-relaxed">
                 感谢你的用心回答。现在让我们开始为你寻找命中注定的那个人～
               </p>
-              <GradientButton size="lg" className="w-full">
+              <GradientButton size="lg" className="w-full" onClick={handleViewResults}>
                 <span className="flex items-center justify-center gap-2">
                   <Sparkles className="w-5 h-5" />
                   查看匹配结果

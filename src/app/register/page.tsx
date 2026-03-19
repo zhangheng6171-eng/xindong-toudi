@@ -6,8 +6,19 @@ import { Heart, Eye, EyeOff, Mail, Lock, User, Calendar, ArrowRight, Check, Load
 import Link from 'next/link'
 import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, StepIndicator, Tag } from '@/components/animated-background'
 
+// 表单数据类型
+interface FormData {
+  nickname: string
+  email: string
+  password: string
+  gender: 'male' | 'female' | null
+  age: string
+  city: string
+  agreedToTerms: boolean
+}
+
 // 步骤组件
-function StepContent({ step }: { step: number }) {
+function StepContent({ step, formData, setFormData }: { step: number, formData: FormData, setFormData: React.Dispatch<React.SetStateAction<FormData>> }) {
   return (
     <AnimatePresence mode="wait">
       {step === 1 && (
@@ -27,6 +38,8 @@ function StepContent({ step }: { step: number }) {
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
+                  value={formData.nickname}
+                  onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
                   placeholder="你的昵称"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
                 />
@@ -39,6 +52,8 @@ function StepContent({ step }: { step: number }) {
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="your@email.com"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
                 />
@@ -51,6 +66,8 @@ function StepContent({ step }: { step: number }) {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="至少8位字符"
                   className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
                 />
@@ -76,7 +93,12 @@ function StepContent({ step }: { step: number }) {
               <div className="grid grid-cols-2 gap-4">
                 <motion.button
                   type="button"
-                  className="py-4 rounded-2xl font-medium transition-all flex items-center justify-center gap-2 bg-gray-50 border-2 border-gray-200 hover:border-rose-300"
+                  onClick={() => setFormData({ ...formData, gender: 'male' })}
+                  className={`py-4 rounded-2xl font-medium transition-all flex items-center justify-center gap-2 ${
+                    formData.gender === 'male'
+                      ? 'bg-rose-50 border-2 border-rose-500 text-rose-600'
+                      : 'bg-gray-50 border-2 border-gray-200 hover:border-rose-300'
+                  }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -85,7 +107,12 @@ function StepContent({ step }: { step: number }) {
                 </motion.button>
                 <motion.button
                   type="button"
-                  className="py-4 rounded-2xl font-medium transition-all flex items-center justify-center gap-2 bg-gray-50 border-2 border-gray-200 hover:border-rose-300"
+                  onClick={() => setFormData({ ...formData, gender: 'female' })}
+                  className={`py-4 rounded-2xl font-medium transition-all flex items-center justify-center gap-2 ${
+                    formData.gender === 'female'
+                      ? 'bg-rose-50 border-2 border-rose-500 text-rose-600'
+                      : 'bg-gray-50 border-2 border-gray-200 hover:border-rose-300'
+                  }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -101,6 +128,8 @@ function StepContent({ step }: { step: number }) {
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="number"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                   placeholder="你的年龄"
                   min="18"
                   max="100"
@@ -114,6 +143,8 @@ function StepContent({ step }: { step: number }) {
               <div className="relative">
                 <input
                   type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   placeholder="例如：北京"
                   className="w-full px-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
                 />
@@ -134,16 +165,40 @@ function StepContent({ step }: { step: number }) {
           <p className="text-gray-500 mb-6">完成注册开始匹配</p>
 
           <div className="space-y-5">
-            <label className="flex items-start cursor-pointer p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
+            <label 
+              className={`flex items-start cursor-pointer p-4 rounded-2xl transition-colors ${
+                formData.agreedToTerms ? 'bg-rose-50 border border-rose-200' : 'bg-gray-50 hover:bg-gray-100'
+              }`}
+            >
               <input
                 type="checkbox"
+                checked={formData.agreedToTerms}
+                onChange={(e) => setFormData({ ...formData, agreedToTerms: e.target.checked })}
                 className="mt-1 w-5 h-5 text-rose-500 border-gray-300 rounded focus:ring-rose-300"
               />
               <span className="ml-3 text-sm text-gray-600">
                 我已阅读并同意
-                <a href="#" className="text-rose-500 hover:underline font-medium">用户协议</a>
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    alert('用户协议：\n1. 您同意遵守平台规则\n2. 您保证提供的信息真实有效\n3. 您同意我们的隐私政策')
+                  }}
+                  className="text-rose-500 hover:underline font-medium mx-1"
+                >
+                  用户协议
+                </button>
                 和
-                <a href="#" className="text-rose-500 hover:underline font-medium">隐私政策</a>
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    alert('隐私政策：\n我们重视您的隐私，保护您的个人信息安全。')
+                  }}
+                  className="text-rose-500 hover:underline font-medium ml-1"
+                >
+                  隐私政策
+                </button>
               </span>
             </label>
 
@@ -189,17 +244,68 @@ function StepContent({ step }: { step: number }) {
 export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [formData, setFormData] = useState<FormData>({
+    nickname: '',
+    email: '',
+    password: '',
+    gender: null,
+    age: '',
+    city: '',
+    agreedToTerms: false
+  })
 
   const handleNext = () => {
+    // 验证第一步
+    if (step === 1) {
+      if (!formData.nickname.trim()) {
+        alert('请填写昵称')
+        return
+      }
+      if (!formData.email.trim()) {
+        alert('请填写邮箱')
+        return
+      }
+      if (!formData.password || formData.password.length < 8) {
+        alert('密码至少需要8位字符')
+        return
+      }
+    }
+    
+    // 验证第二步
+    if (step === 2) {
+      if (!formData.gender) {
+        alert('请选择性别')
+        return
+      }
+      if (!formData.age || parseInt(formData.age) < 18) {
+        alert('请填写有效年龄（18岁以上）')
+        return
+      }
+      if (!formData.city.trim()) {
+        alert('请填写所在城市')
+        return
+      }
+    }
+
     if (step < 3) {
       setStep(step + 1)
     }
   }
 
   const handleSubmit = async () => {
+    // 验证第三步
+    if (!formData.agreedToTerms) {
+      alert('请阅读并同意用户协议和隐私政策')
+      return
+    }
+
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
     window.location.href = '/questionnaire'
+  }
+
+  const handleGenderSelect = (gender: 'male' | 'female') => {
+    setFormData({ ...formData, gender })
   }
 
   return (
@@ -237,7 +343,7 @@ export default function RegisterPage() {
 
           {/* 表单卡片 */}
           <GlassCard className="p-8">
-            <StepContent step={step} />
+            <StepContent step={step} formData={formData} setFormData={setFormData} />
 
             {/* 按钮 */}
             <div className="mt-8">

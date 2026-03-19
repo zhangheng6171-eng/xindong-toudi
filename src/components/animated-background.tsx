@@ -10,33 +10,109 @@ interface AnimatedBackgroundProps {
   showFloatingHearts?: boolean
 }
 
-// 粒子组件
-function Particles() {
-  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; size: number; duration: number; delay: number }>>([])
+// CSS动画样式
+const fallbackStyles = `
+  @keyframes float-particle {
+    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+    50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+  }
+  @keyframes float-up {
+    0% { transform: translateY(0); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { transform: translateY(-100vh); opacity: 0; }
+  }
+  .css-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(251, 113, 133, 0.3), rgba(168, 85, 247, 0.3));
+    animation: float-particle 8s ease-in-out infinite;
+  }
+  .css-heart {
+    position: absolute;
+    color: rgba(251, 113, 133, 0.4);
+    animation: float-up 12s linear infinite;
+  }
+`
 
+// 使用CSS动画的粒子（兼容性更好）
+function CSSParticles() {
+  return (
+    <>
+      <style>{fallbackStyles}</style>
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        {Array.from({ length: 15 }).map((_, i) => (
+          <div
+            key={i}
+            className="css-particle"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${Math.random() * 6 + 2}px`,
+              height: `${Math.random() * 6 + 2}px`,
+              animationDelay: `${Math.random() * 5}s`,
+              animationDuration: `${Math.random() * 10 + 10}s`,
+            }}
+          />
+        ))}
+      </div>
+    </>
+  )
+}
+
+// 使用CSS动画的漂浮心形
+function CSSHearts() {
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="css-heart"
+          style={{
+            left: `${Math.random() * 100}%`,
+            bottom: '-30px',
+            fontSize: `${Math.random() * 20 + 10}px`,
+            animationDelay: `${Math.random() * 10}s`,
+            animationDuration: `${Math.random() * 8 + 8}s`,
+          }}
+        >
+          <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 粒子组件（使用 framer-motion，如果不支持则降级）
+function Particles() {
+  const [useCSS, setUseCSS] = useState(false)
+  
   useEffect(() => {
-    const newParticles = Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 6 + 2,
-      duration: Math.random() * 20 + 15,
-      delay: Math.random() * 5,
-    }))
-    setParticles(newParticles)
+    // 检测是否支持 framer-motion
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    if (isMobile) {
+      setUseCSS(true)
+    }
   }, [])
+
+  if (useCSS) {
+    return <CSSParticles />
+  }
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-      {particles.map((p) => (
+      {Array.from({ length: 20 }).map((_, i) => (
         <motion.div
-          key={p.id}
-          className="absolute rounded-full bg-gradient-to-br from-rose-300/30 to-purple-300/30"
+          key={i}
+          className="absolute rounded-full"
           style={{
-            left: `${p.x}%`,
-            top: `${p.y}%`,
-            width: p.size,
-            height: p.size,
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            width: Math.random() * 6 + 2,
+            height: Math.random() * 6 + 2,
+            background: 'linear-gradient(135deg, rgba(251, 113, 133, 0.3), rgba(168, 85, 247, 0.3))',
           }}
           animate={{
             y: [-20, 20, -20],
@@ -45,8 +121,8 @@ function Particles() {
             scale: [1, 1.2, 1],
           }}
           transition={{
-            duration: p.duration,
-            delay: p.delay,
+            duration: Math.random() * 20 + 15,
+            delay: Math.random() * 5,
             repeat: Infinity,
             ease: "easeInOut",
           }}
@@ -58,48 +134,54 @@ function Particles() {
 
 // 漂浮心形组件
 function FloatingHearts() {
-  const [hearts, setHearts] = useState<Array<{ id: number; x: number; size: number; duration: number; delay: number; opacity: number }>>([])
-
+  const [useCSS, setUseCSS] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  
   useEffect(() => {
-    const newHearts = Array.from({ length: 8 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      size: Math.random() * 20 + 10,
-      duration: Math.random() * 10 + 10,
-      delay: Math.random() * 8,
-      opacity: Math.random() * 0.3 + 0.1,
-    }))
-    setHearts(newHearts)
+    setMounted(true)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    if (isMobile) {
+      setUseCSS(true)
+    }
   }, [])
+
+  if (!mounted) return null
+  
+  if (useCSS) {
+    return <CSSHearts />
+  }
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-      {hearts.map((h) => (
-        <motion.div
-          key={h.id}
-          className="absolute"
-          style={{
-            left: `${h.x}%`,
-            bottom: '-50px',
-          }}
-          animate={{
-            y: [0, -window.innerHeight - 100],
-            x: [0, Math.sin(h.id) * 50, 0],
-            rotate: [0, 10, -10, 0],
-            opacity: [0, h.opacity, h.opacity, 0],
-          }}
-          transition={{
-            duration: h.duration,
-            delay: h.delay,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        >
-          <svg width={h.size} height={h.size} viewBox="0 0 24 24" fill="currentColor" className="text-rose-400">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-          </svg>
-        </motion.div>
-      ))}
+      {Array.from({ length: 8 }).map((_, i) => {
+        const size = Math.random() * 20 + 10
+        return (
+          <motion.div
+            key={i}
+            className="absolute"
+            style={{
+              left: `${Math.random() * 100}%`,
+              bottom: '-50px',
+            }}
+            animate={{
+              y: [0, -1000],
+              x: [0, Math.sin(i) * 50, 0],
+              rotate: [0, 10, -10, 0],
+              opacity: [0, 0.4, 0.4, 0],
+            }}
+            transition={{
+              duration: Math.random() * 10 + 10,
+              delay: Math.random() * 8,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          >
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ color: '#fb7185' }}>
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </motion.div>
+        )
+      })}
     </div>
   )
 }
@@ -107,11 +189,11 @@ function FloatingHearts() {
 // 装饰圆圈组件
 function DecorativeCircles({ variant }: { variant: string }) {
   const gradients: Record<string, string[]> = {
-    default: ['from-rose-200/40', 'from-pink-200/30', 'from-purple-200/20'],
-    romance: ['from-rose-300/50', 'from-pink-300/40', 'from-rose-200/30'],
-    dream: ['from-purple-200/40', 'from-indigo-200/30', 'from-blue-200/20'],
-    purple: ['from-purple-300/40', 'from-violet-200/30', 'from-fuchsia-200/20'],
-    sunset: ['from-orange-200/40', 'from-rose-200/30', 'from-pink-200/20'],
+    default: ['#fecdd3', '#fbcfe8', '#f5d0fe'],
+    romance: ['#fda4af', '#f9a8d4', '#fecdd3'],
+    dream: ['#e9d5ff', '#c7d2fe', '#bfdbfe'],
+    purple: ['#d8b4fe', '#ddd6fe', '#f0abfc'],
+    sunset: ['#fed7aa', '#fecdd3', '#fbcfe8'],
   }
 
   const colors = gradients[variant] || gradients.default
@@ -119,14 +201,36 @@ function DecorativeCircles({ variant }: { variant: string }) {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
       {/* 大圆圈 */}
-      <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full bg-gradient-to-br ${colors[0]} to-transparent blur-3xl`} />
-      <div className={`absolute top-1/3 -left-20 w-72 h-72 rounded-full bg-gradient-to-br ${colors[1]} to-transparent blur-3xl`} />
-      <div className={`absolute -bottom-20 right-1/4 w-80 h-80 rounded-full bg-gradient-to-br ${colors[2]} to-transparent blur-3xl`} />
-      
-      {/* 小装饰 */}
-      <div className="absolute top-20 right-1/4 w-4 h-4 rounded-full bg-rose-300/50 animate-pulse" />
-      <div className="absolute top-40 left-1/3 w-3 h-3 rounded-full bg-pink-300/40 animate-pulse delay-300" />
-      <div className="absolute bottom-40 right-1/3 w-5 h-5 rounded-full bg-purple-300/30 animate-pulse delay-700" />
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        right: '-10%',
+        width: '400px',
+        height: '400px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${colors[0]}40 0%, transparent 70%)`,
+        filter: 'blur(40px)',
+      }} />
+      <div style={{
+        position: 'absolute',
+        top: '30%',
+        left: '-10%',
+        width: '300px',
+        height: '300px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${colors[1]}40 0%, transparent 70%)`,
+        filter: 'blur(40px)',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-10%',
+        right: '20%',
+        width: '350px',
+        height: '350px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${colors[2]}30 0%, transparent 70%)`,
+        filter: 'blur(40px)',
+      }} />
     </div>
   )
 }
@@ -137,23 +241,35 @@ export function AnimatedBackground({
   showParticles = true,
   showFloatingHearts = true,
 }: AnimatedBackgroundProps) {
-  const bgGradients: Record<string, string> = {
-    default: 'from-rose-50/80 via-pink-50/60 to-purple-50/80',
-    romance: 'from-rose-100/60 via-pink-50/50 to-rose-50/60',
-    dream: 'from-purple-50/80 via-indigo-50/60 to-blue-50/50',
-    purple: 'from-purple-50/80 via-violet-50/60 to-fuchsia-50/50',
-    sunset: 'from-orange-50/60 via-rose-50/50 to-pink-50/60',
+  const bgColors: Record<string, string> = {
+    default: 'linear-gradient(180deg, #fff1f2 0%, #fdf2f8 50%, #faf5ff 100%)',
+    romance: 'linear-gradient(180deg, #ffe4e6 0%, #fdf2f8 50%, #fff1f2 100%)',
+    dream: 'linear-gradient(180deg, #f3e8ff 0%, #e0e7ff 50%, #dbeafe 100%)',
+    purple: 'linear-gradient(180deg, #fae8ff 0%, #f5f3ff 50%, #fdf4ff 100%)',
+    sunset: 'linear-gradient(180deg, #ffedd5 0%, #ffe4e6 50%, #fce7f3 100%)',
   }
 
   return (
-    <div className={`relative min-h-screen bg-gradient-to-br ${bgGradients[variant]}`}>
+    <div style={{
+      minHeight: '100vh',
+      background: bgColors[variant],
+      position: 'relative',
+    }}>
       {/* 背景装饰 */}
       <DecorativeCircles variant={variant} />
       {showParticles && <Particles />}
       {showFloatingHearts && <FloatingHearts />}
       
       {/* 玻璃拟态叠加层 */}
-      <div className="fixed inset-0 bg-white/30 backdrop-blur-[1px] pointer-events-none z-0" />
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+        backdropFilter: 'blur(1px)',
+        WebkitBackdropFilter: 'blur(1px)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
       
       {/* 内容 */}
       <div className="relative z-10">
@@ -174,21 +290,23 @@ export function GlassCard({
   hover?: boolean
 }) {
   return (
-    <motion.div
-      className={`
-        bg-white/70 backdrop-blur-xl 
-        border border-white/50 
-        rounded-3xl 
-        shadow-[0_8px_32px_rgba(236,72,153,0.08)]
-        ${hover ? 'hover:shadow-[0_20px_60px_rgba(236,72,153,0.15)] hover:bg-white/80' : ''}
-        transition-all duration-500
-        ${className}
-      `}
-      whileHover={hover ? { y: -4, scale: 1.01 } : undefined}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+    <div
+      className={className}
+      style={{
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.5)',
+        borderRadius: '24px',
+        boxShadow: '0 8px 32px rgba(236, 72, 153, 0.08)',
+        transition: 'all 0.3s ease',
+        ...(hover && {
+          cursor: 'pointer',
+        }),
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 
@@ -201,39 +319,58 @@ export function GradientButton({
   variant = 'primary',
 }: { 
   children: ReactNode
-  onClick?: () => void
+  onClick?: (e?: React.MouseEvent) => void
   className?: string
   size?: 'sm' | 'md' | 'lg'
   variant?: 'primary' | 'secondary' | 'outline'
 }) {
   const sizes = {
-    sm: 'px-5 py-2.5 text-sm',
-    md: 'px-8 py-4 text-base',
-    lg: 'px-10 py-5 text-lg',
+    sm: { padding: '10px 20px', fontSize: '14px' },
+    md: { padding: '16px 32px', fontSize: '16px' },
+    lg: { padding: '20px 40px', fontSize: '18px' },
+  }
+
+  const baseStyle = {
+    ...sizes[size],
+    borderRadius: '9999px',
+    fontWeight: 600,
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
   }
 
   const variants = {
-    primary: 'bg-gradient-to-r from-rose-500 via-pink-500 to-rose-500 text-white shadow-lg shadow-rose-500/30 hover:shadow-rose-500/50',
-    secondary: 'bg-white text-rose-600 border-2 border-rose-200 hover:border-rose-300 hover:bg-rose-50',
-    outline: 'bg-transparent border-2 border-white/50 text-white hover:bg-white/10',
+    primary: {
+      ...baseStyle,
+      background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+      color: 'white',
+      boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+    },
+    secondary: {
+      ...baseStyle,
+      backgroundColor: 'white',
+      color: '#e11d48',
+      border: '2px solid #fda4af',
+    },
+    outline: {
+      ...baseStyle,
+      backgroundColor: 'transparent',
+      border: '2px solid rgba(255, 255, 255, 0.5)',
+      color: 'white',
+    },
   }
 
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      className={`
-        ${sizes[size]}
-        ${variants[variant]}
-        rounded-full font-semibold
-        transition-all duration-300
-        active:scale-95
-        ${className}
-      `}
-      whileHover={{ scale: 1.03, y: -2 }}
-      whileTap={{ scale: 0.97 }}
+      className={className}
+      style={variants[variant]}
     >
       {children}
-    </motion.button>
+    </button>
   )
 }
 
@@ -241,23 +378,287 @@ export function GradientButton({
 export function GradientText({ 
   children, 
   className = '',
-  animate = false,
 }: { 
   children: ReactNode
   className?: string
-  animate?: boolean
 }) {
   return (
     <span 
-      className={`
-        bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500
-        bg-clip-text text-transparent
-        ${animate ? 'animate-gradient bg-[length:200%_auto]' : ''}
-        ${className}
-      `}
+      className={className}
+      style={{
+        background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #a855f7 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      }}
     >
       {children}
     </span>
+  )
+}
+
+// 渐入动画包装器
+export function FadeIn({ 
+  children, 
+  delay = 0,
+  direction = 'up',
+  className = '',
+}: { 
+  children: ReactNode
+  delay?: number
+  direction?: 'up' | 'down' | 'left' | 'right'
+  className?: string
+}) {
+  const directions = {
+    up: { initial: { y: 30, x: 0 } },
+    down: { initial: { y: -30, x: 0 } },
+    left: { initial: { x: 30, y: 0 } },
+    right: { initial: { x: -30, y: 0 } },
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, ...directions[direction].initial }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ 
+        duration: 0.6, 
+        delay,
+        ease: [0.25, 0.1, 0.25, 1],
+      }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// 统计数字动画
+export function AnimatedCounter({ 
+  end, 
+  suffix = '',
+  prefix = '',
+  duration = 2,
+}: { 
+  end: number
+  suffix?: string
+  prefix?: string
+  duration?: number
+}) {
+  const [count, setCount] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    let startTime: number
+    let animationFrame: number
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp
+      const progress = Math.min((timestamp - startTime) / (duration * 1000), 1)
+      
+      // Easing function
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
+      setCount(Math.floor(easeOutQuart * end))
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate)
+      }
+    }
+
+    animationFrame = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animationFrame)
+  }, [end, duration])
+
+  if (!mounted) {
+    return <span>{prefix}{end}{suffix}</span>
+  }
+
+  return (
+    <span style={{ fontWeight: 'bold' }}>
+      {prefix}{count.toLocaleString()}{suffix}
+    </span>
+  )
+}
+
+// 步骤指示器
+export function StepIndicator({ 
+  steps, 
+  currentStep,
+  className = '',
+}: { 
+  steps: number
+  currentStep: number
+  className?: string
+}) {
+  return (
+    <div className={`flex items-center justify-center gap-2 ${className}`}>
+      {Array.from({ length: steps }, (_, i) => {
+        const step = i + 1
+        const isActive = step <= currentStep
+        const isCurrent = step === currentStep
+
+        return (
+          <div key={step} className="flex items-center">
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                background: isActive 
+                  ? 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)' 
+                  : '#f3f4f6',
+                color: isActive ? 'white' : '#9ca3af',
+                boxShadow: isActive ? '0 4px 15px rgba(236, 72, 153, 0.3)' : 'none',
+              }}
+            >
+              {isActive && step < currentStep ? '✓' : step}
+            </div>
+            {step < steps && (
+              <div 
+                style={{
+                  width: 48,
+                  height: 4,
+                  margin: '0 8px',
+                  borderRadius: 2,
+                  background: isActive 
+                    ? 'linear-gradient(90deg, #f43f5e 0%, #ec4899 100%)' 
+                    : '#f3f4f6',
+                }}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// 标签组件
+export function Tag({ 
+  children, 
+  color = 'rose',
+  className = '',
+}: { 
+  children: ReactNode
+  color?: 'rose' | 'purple' | 'blue' | 'green' | 'orange'
+  className?: string
+}) {
+  const colors = {
+    rose: { bg: '#ffe4e6', text: '#be123c', border: '#fecdd3' },
+    purple: { bg: '#f3e8ff', text: '#7c3aed', border: '#ddd6fe' },
+    blue: { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
+    green: { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
+    orange: { bg: '#ffedd5', text: '#c2410c', border: '#fed7aa' },
+  }
+
+  const c = colors[color]
+
+  return (
+    <span 
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 12px',
+        borderRadius: '9999px',
+        fontSize: '12px',
+        fontWeight: 500,
+        backgroundColor: c.bg,
+        color: c.text,
+        border: `1px solid ${c.border}`,
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+// 星级评分组件
+export function StarRating({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = {
+    sm: 12,
+    md: 16,
+    lg: 24,
+  }
+
+  const s = sizes[size]
+
+  return (
+    <div style={{ display: 'flex', gap: '2px' }}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <svg
+          key={i}
+          width={s}
+          height={s}
+          viewBox="0 0 20 20"
+          fill={i < rating ? '#fbbf24' : '#e5e7eb'}
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  )
+}
+
+// 装饰分隔线
+export function DecorativeDivider({ className = '' }: { className?: string }) {
+  return (
+    <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '32px 0' }}>
+      <div style={{ height: 1, width: 64, background: 'linear-gradient(90deg, transparent, #fda4af, transparent)' }} />
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#fda4af">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+      </svg>
+      <div style={{ height: 1, width: 64, background: 'linear-gradient(90deg, transparent, #fda4af, transparent)' }} />
+    </div>
+  )
+}
+
+// 脉冲光环效果
+export function PulseRing({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #fb7185, #ec4899)',
+        animation: 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite',
+        opacity: 0.2,
+      }} />
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #fb7185, #ec4899)',
+        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        opacity: 0.4,
+        transform: 'scale(1.1)',
+      }} />
+      <div style={{ position: 'relative' }}>
+        {children}
+      </div>
+      <style>{`
+        @keyframes ping {
+          75%, 100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 0.4;
+          }
+          50% {
+            opacity: 0.2;
+          }
+        }
+      `}</style>
+    </div>
   )
 }
 
@@ -287,210 +688,3 @@ export function FloatAnimation({
     </motion.div>
   )
 }
-
-// 渐入动画包装器
-export function FadeIn({ 
-  children, 
-  delay = 0,
-  direction = 'up',
-  className = '',
-}: { 
-  children: ReactNode
-  delay?: number
-  direction?: 'up' | 'down' | 'left' | 'right'
-  className?: string
-}) {
-  const directions = {
-    up: { y: 30, x: 0 },
-    down: { y: -30, x: 0 },
-    left: { x: 30, y: 0 },
-    right: { x: -30, y: 0 },
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, ...directions[direction] }}
-      animate={{ opacity: 1, x: 0, y: 0 }}
-      transition={{ 
-        duration: 0.6, 
-        delay,
-        ease: [0.25, 0.1, 0.25, 1],
-      }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  )
-}
-
-// 脉冲光环效果
-export function PulseRing({ children }: { children: ReactNode }) {
-  return (
-    <div className="relative">
-      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-400 to-pink-400 animate-ping opacity-20" />
-      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-400 to-pink-400 animate-pulse opacity-40 scale-110" />
-      <div className="relative">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-// 统计数字动画
-export function AnimatedCounter({ 
-  end, 
-  suffix = '',
-  prefix = '',
-  duration = 2,
-}: { 
-  end: number
-  suffix?: string
-  prefix?: string
-  duration?: number
-}) {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    let startTime: number
-    let animationFrame: number
-
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp
-      const progress = Math.min((timestamp - startTime) / (duration * 1000), 1)
-      
-      // Easing function
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
-      setCount(Math.floor(easeOutQuart * end))
-
-      if (progress < 1) {
-        animationFrame = requestAnimationFrame(animate)
-      }
-    }
-
-    animationFrame = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(animationFrame)
-  }, [end, duration])
-
-  return (
-    <span className="font-bold tabular-nums">
-      {prefix}{count.toLocaleString()}{suffix}
-    </span>
-  )
-}
-
-// 步骤指示器
-export function StepIndicator({ 
-  steps, 
-  currentStep,
-  className = '',
-}: { 
-  steps: number
-  currentStep: number
-  className?: string
-}) {
-  return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
-      {Array.from({ length: steps }, (_, i) => {
-        const step = i + 1
-        const isActive = step <= currentStep
-        const isCurrent = step === currentStep
-
-        return (
-          <div key={step} className="flex items-center">
-            <motion.div
-              className={`
-                w-10 h-10 rounded-full flex items-center justify-center
-                text-sm font-bold transition-all duration-300
-                ${isActive 
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/30' 
-                  : 'bg-gray-100 text-gray-400'
-                }
-              `}
-              animate={isCurrent ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ repeat: Infinity, duration: 2 }}
-            >
-              {isActive && step < currentStep ? '✓' : step}
-            </motion.div>
-            {step < steps && (
-              <div 
-                className={`w-12 h-1 mx-2 rounded-full transition-all duration-500 ${
-                  isActive ? 'bg-gradient-to-r from-rose-500 to-pink-500' : 'bg-gray-100'
-                }`} 
-              />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// 标签组件
-export function Tag({ 
-  children, 
-  color = 'rose',
-  className = '',
-}: { 
-  children: ReactNode
-  color?: 'rose' | 'purple' | 'blue' | 'green' | 'orange'
-  className?: string
-}) {
-  const colors = {
-    rose: 'bg-rose-100 text-rose-700 border-rose-200',
-    purple: 'bg-purple-100 text-purple-700 border-purple-200',
-    blue: 'bg-blue-100 text-blue-700 border-blue-200',
-    green: 'bg-green-100 text-green-700 border-green-200',
-    orange: 'bg-orange-100 text-orange-700 border-orange-200',
-  }
-
-  return (
-    <span className={`
-      inline-flex items-center px-3 py-1 rounded-full
-      text-xs font-medium border
-      ${colors[color]}
-      ${className}
-    `}>
-      {children}
-    </span>
-  )
-}
-
-// 星级评分组件
-export function StarRating({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
-  const sizes = {
-    sm: 'w-3 h-3',
-    md: 'w-4 h-4',
-    lg: 'w-6 h-6',
-  }
-
-  return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: 5 }, (_, i) => (
-        <motion.svg
-          key={i}
-          className={`${sizes[size]} ${i < rating ? 'text-amber-400' : 'text-gray-200'}`}
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ delay: i * 0.1, type: "spring" }}
-        >
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </motion.svg>
-      ))}
-    </div>
-  )
-}
-
-// 装饰分隔线
-export function DecorativeDivider({ className = '' }: { className?: string }) {
-  return (
-    <div className={`flex items-center justify-center gap-4 my-8 ${className}`}>
-      <div className="h-px w-16 bg-gradient-to-r from-transparent via-rose-300 to-transparent" />
-      <Heart className="w-4 h-4 text-rose-300" />
-      <div className="h-px w-16 bg-gradient-to-r from-transparent via-rose-300 to-transparent" />
-    </div>
-  )
-}
-
-import { Heart } from 'lucide-react'

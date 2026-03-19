@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Heart, Users, Target, Clock, MessageCircle, ArrowRight, Check, Sparkles, Zap, Brain, Shield, HeartHandshake } from 'lucide-react'
-import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, Tag } from '@/components/animated-background'
+import { AnimatedBackground, GlassCard, GradientText, FadeIn, Tag } from '@/components/animated-background'
 
 // 步骤卡片
 function StepCard({ number, icon: Icon, title, desc, details, color, delay }: {
@@ -140,12 +140,25 @@ export default function HowItWorksPage() {
               <GradientText>心动投递</GradientText>
             </span>
           </Link>
-          <GradientButton size="sm">
+          <Link href="/register" className="inline-flex" style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '10px 20px',
+            borderRadius: '9999px',
+            fontWeight: 600,
+            fontSize: '14px',
+            background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
+            color: 'white',
+            boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}>
             <span className="flex items-center gap-1">
               立即开始
               <ArrowRight className="w-4 h-4" />
             </span>
-          </GradientButton>
+          </Link>
         </div>
       </nav>
 
@@ -306,16 +319,25 @@ export default function HowItWorksPage() {
                 <p className="text-white/90 text-lg mb-8">
                   开启心动之旅，遇见对的人
                 </p>
-                <motion.button
-                  className="px-8 py-4 bg-white text-purple-600 font-bold rounded-full shadow-xl hover:shadow-2xl transition-all"
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                >
+                <Link href="/register" className="inline-flex" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '16px 32px',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '16px',
+                  background: 'white',
+                  color: '#9333ea',
+                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                }}>
                   <span className="flex items-center gap-2">
                     立即开始
                     <ArrowRight className="w-5 h-5" />
                   </span>
-                </motion.button>
+                </Link>
               </div>
             </GlassCard>
           </motion.div>
