@@ -448,7 +448,7 @@ function LoggedInHome() {
     }
     // 跳转到聊天页面
     setSelectedUser(null) // 关闭详情弹窗
-    router.push(`/chat/${user.id}`)
+    router.push(`/chat/conversation?userId=${user.id}`)
   }
 
   // 如果没有真实用户，显示模拟用户

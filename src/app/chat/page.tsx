@@ -251,7 +251,7 @@ export default function ChatListPage() {
             {filteredConversations.length > 0 ? (
               filteredConversations.map((conv, index) => (
                 <FadeIn key={conv.id} delay={index * 0.1}>
-                  <Link href={`/chat/${conv.matchId}?conversationId=${conv.id}`}>
+                  <Link href={`/chat/conversation?userId=${conv.matchId}&conversationId=${conv.id}`}>
                     <GlassCard className="p-4 hover:shadow-lg transition-all cursor-pointer" hover={true}>
                       <div className="flex items-center gap-4">
                         {/* 头像 */}
