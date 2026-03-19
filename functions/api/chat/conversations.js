@@ -5,6 +5,40 @@
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
+// 获取用户信息缓存
+const userCache = new Map()
+
+async function getUserInfo(userId) {
+  // 先检查缓存
+  if (userCache.has(userId)) {
+    return userCache.get(userId)
+  }
+  
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=id,nickname,avatar`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      }
+    )
+    
+    const users = await response.json()
+    
+    if (Array.isArray(users) && users.length > 0) {
+      const userInfo = users[0]
+      userCache.set(userId, userInfo)
+      return userInfo
+    }
+  } catch (e) {
+    console.error('Failed to get user info:', e)
+  }
+  
+  return null
+}
+
 export async function onRequestGet(context) {
   const { request } = context
   
@@ -56,7 +90,7 @@ export async function onRequestGet(context) {
           matchId: msg.receiver_id,
           otherUser: {
             id: msg.receiver_id,
-            nickname: '心动对象',
+            nickname: '心动对象', // 暂时默认值，后续会更新
             isOnline: true
           },
           lastMessage: msg.content,
@@ -75,7 +109,7 @@ export async function onRequestGet(context) {
           matchId: msg.sender_id,
           otherUser: {
             id: msg.sender_id,
-            nickname: '心动对象',
+            nickname: '心动对象', // 暂时默认值，后续会更新
             isOnline: true
           },
           lastMessage: msg.content,
@@ -91,6 +125,18 @@ export async function onRequestGet(context) {
           conv.lastMessageAt = msg.created_at
           conv.unreadCount = 1
         }
+      }
+    }
+    
+    // 获取所有其他用户的昵称
+    const otherUserIds = Array.from(conversationMap.keys())
+    
+    for (const otherUserId of otherUserIds) {
+      const userInfo = await getUserInfo(otherUserId)
+      if (userInfo && userInfo.nickname) {
+        const conv = conversationMap.get(otherUserId)
+        conv.otherUser.nickname = userInfo.nickname
+        conv.otherUser.avatar = userInfo.avatar || null
       }
     }
     

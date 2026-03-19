@@ -39,30 +39,27 @@ export default function LoginPage() {
 
     setIsLoading(true)
     
-    // 查找用户
-    const users: UserData[] = JSON.parse(localStorage.getItem('xindong_users') || '[]')
-    const user = users.find(u => u.email === formData.email.trim())
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
-    if (!user) {
+    try {
+      // 调用登录 API
+      const response = await fetch(`/api/auth/user?email=${encodeURIComponent(formData.email.trim())}&password=${encodeURIComponent(formData.password)}`)
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // 登录成功，保存当前用户到 localStorage
+        localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
+        
+        // 跳转到仪表盘
+        window.location.href = '/dashboard'
+      } else {
+        setIsLoading(false)
+        setError(data.error || '登录失败，请重试')
+      }
+    } catch (e) {
+      console.error('Login error:', e)
       setIsLoading(false)
-      setError('该邮箱未注册，请先注册账号')
-      return
+      setError('网络错误，请检查网络连接')
     }
-    
-    if (user.password !== formData.password) {
-      setIsLoading(false)
-      setError('密码错误，请重试')
-      return
-    }
-    
-    // 登录成功，设置当前用户
-    localStorage.setItem('xindong_current_user', JSON.stringify(user))
-    
-    // 跳转到仪表盘
-    window.location.href = '/dashboard'
   }
 
   const handleForgotPassword = () => {

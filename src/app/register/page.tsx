@@ -267,7 +267,7 @@ export default function RegisterPage() {
     agreedToTerms: false
   })
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // 验证第一步
     if (step === 1) {
       if (!formData.nickname.trim()) {
@@ -278,16 +278,11 @@ export default function RegisterPage() {
         alert('请填写邮箱')
         return
       }
-      // 检查邮箱是否已注册
-      const users = JSON.parse(localStorage.getItem('xindong_users') || '[]')
-      if (users.some((u: UserData) => u.email === formData.email.trim())) {
-        alert('该邮箱已被注册，请直接登录')
-        return
-      }
       if (!formData.password || formData.password.length < 8) {
         alert('密码至少需要8位字符')
         return
       }
+      // 不再在客户端检查邮箱，让服务端处理
     }
     
     // 验证第二步
@@ -320,48 +315,57 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     
-    // 创建新用户
-    const newUser: UserData = {
-      id: 'user_' + Date.now(),
-      email: formData.email.trim(),
-      nickname: formData.nickname.trim(),
-      password: formData.password,
-      gender: formData.gender,
-      age: parseInt(formData.age),
-      city: formData.city.trim(),
-      createdAt: new Date().toISOString()
-    }
-
-    // 保存到用户列表
-    const users = JSON.parse(localStorage.getItem('xindong_users') || '[]')
-    users.push(newUser)
-    localStorage.setItem('xindong_users', JSON.stringify(users))
-
-    // 设置当前登录用户
-    localStorage.setItem('xindong_current_user', JSON.stringify(newUser))
-
-    // 初始化该用户的个人资料
-    const userProfile = {
-      nickname: newUser.nickname,
-      age: newUser.age,
-      gender: newUser.gender || 'male',
-      city: newUser.city,
-      occupation: '',
-      education: '',
-      height: 175,
-      bio: '',
-      interests: [],
-      lookingFor: {
-        minAge: 18,
-        maxAge: 35,
-        cities: [newUser.city],
-        relationship: 'serious'
+    try {
+      // 调用注册 API
+      const response = await fetch('/api/auth/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email.trim(),
+          password: formData.password,
+          nickname: formData.nickname.trim(),
+          gender: formData.gender,
+          age: parseInt(formData.age),
+          city: formData.city.trim()
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        // 保存到 localStorage（本地缓存）
+        localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
+        
+        // 初始化该用户的个人资料
+        const userProfile = {
+          nickname: data.user.nickname,
+          age: data.user.age,
+          gender: data.user.gender || 'male',
+          city: data.user.city,
+          occupation: '',
+          education: '',
+          height: 175,
+          bio: '',
+          interests: [],
+          lookingFor: {
+            minAge: 18,
+            maxAge: 35,
+            cities: [data.user.city],
+            relationship: 'serious'
+          }
+        }
+        localStorage.setItem(`xindong_profile_${data.user.id}`, JSON.stringify(userProfile))
+        
+        window.location.href = '/questionnaire'
+      } else {
+        alert(data.error || '注册失败，请重试')
+        setIsLoading(false)
       }
+    } catch (e) {
+      console.error('Register error:', e)
+      alert('网络错误，请检查网络连接')
+      setIsLoading(false)
     }
-    localStorage.setItem(`xindong_profile_${newUser.id}`, JSON.stringify(userProfile))
-
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    window.location.href = '/questionnaire'
   }
 
   const handleGenderSelect = (gender: 'male' | 'female') => {
