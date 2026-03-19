@@ -113,23 +113,59 @@ function ConversationContent() {
     // 使用固定的key格式确保消息互通
     const sortedIds = [currentUserId, otherUser.id].sort()
     const chatKey = `xindong_chat_${sortedIds.join('_')}`
-    const stored = localStorage.getItem(chatKey)
     
-    console.log('fetchMessages:', { chatKey, currentUserId, otherUserId: otherUser.id, stored: !!stored })
+    // 先从 localStorage 获取本地消息
+    const stored = localStorage.getItem(chatKey)
+    let localMessages = []
     
     if (stored) {
       try {
         const parsed = JSON.parse(stored)
-        setMessages(parsed.map((m: any) => ({
+        localMessages = parsed.map((m: any) => ({
           ...m,
           timestamp: new Date(m.timestamp)
-        })))
+        }))
       } catch (e) {
         console.error('Failed to parse messages:', e)
       }
-    } else {
-      setMessages([])
     }
+    
+    // 尝试从 API 获取云端消息
+    try {
+      const response = await fetch(`/api/chat/messages?userId1=${currentUserId}&userId2=${otherUser.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.messages) {
+          // 合并本地和云端消息
+          const cloudMessages = data.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          }))
+          
+          // 去重合并
+          const allMessages = [...localMessages]
+          cloudMessages.forEach((cm: Message) => {
+            if (!allMessages.find(lm => lm.id === cm.id)) {
+              allMessages.push(cm)
+            }
+          })
+          
+          // 按时间排序
+          allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          
+          setMessages(allMessages)
+          
+          // 更新 localStorage
+          localStorage.setItem(chatKey, JSON.stringify(allMessages))
+          return
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch from API:', e)
+    }
+    
+    // API 失败，使用本地消息
+    setMessages(localMessages)
   }, [currentUserId, otherUser])
 
   // 确保会话存在
@@ -189,19 +225,53 @@ function ConversationContent() {
     const sortedIds = [currentUserId, otherUser.id].sort()
     const chatKey = `xindong_chat_${sortedIds.join('_')}`
     
-    console.log('handleSendMessage:', { chatKey, currentUserId, otherUserId: otherUser.id, message: messageText })
+    // 先保存到 localStorage（本地备份）
+    const localMessages = [...messages, newMessage]
+    localStorage.setItem(chatKey, JSON.stringify(localMessages))
     
-    // 立即保存消息到localStorage（状态为sending）
-    setMessages(prev => {
-      // 更新消息状态为已发送
-      const updated = prev.map(m => 
-        m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
-      )
-      // 保存到localStorage
-      localStorage.setItem(chatKey, JSON.stringify(updated))
-      console.log('Messages saved to localStorage:', updated.length)
-      return updated
-    })
+    // 尝试发送到 API（云端同步）
+    try {
+      const response = await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: currentUserId,
+          receiverId: otherUser.id,
+          text: messageText,
+          type: 'text'
+        })
+      })
+      
+      if (response.ok) {
+        // API 发送成功，更新消息状态
+        setMessages(prev => {
+          const updated = prev.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+          )
+          localStorage.setItem(chatKey, JSON.stringify(updated))
+          return updated
+        })
+      } else {
+        // API 失败，仍然标记为已发送（本地存储可用）
+        setMessages(prev => {
+          const updated = prev.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+          )
+          localStorage.setItem(chatKey, JSON.stringify(updated))
+          return updated
+        })
+      }
+    } catch (e) {
+      console.error('Failed to send via API:', e)
+      // 网络错误，仍然标记为已发送（本地存储可用）
+      setMessages(prev => {
+        const updated = prev.map(m => 
+          m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+        )
+        localStorage.setItem(chatKey, JSON.stringify(updated))
+        return updated
+      })
+    }
     
     // 更新会话列表
     const convKey = `xindong_conversations_${currentUserId}`

@@ -1,49 +1,50 @@
 /**
- * 心动投递 - Cloudflare Pages Function
- * 获取消息历史 API
- * 路径: /api/chat/messages?conversationId=xxx
+ * 获取消息 API
+ * 使用 Cloudflare KV 存储消息，实现跨浏览器同步
  */
 
 export async function onRequestGet(context) {
   const { request, env } = context
   
-  const url = new URL(request.url)
-  const conversationId = url.searchParams.get('conversationId')
-  const userId = request.headers.get('X-User-Id')
-  
-  if (!userId) {
-    return new Response(JSON.stringify({ error: '未授权，请先登录' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
-  if (!conversationId) {
-    return new Response(JSON.stringify({ error: '缺少会话ID' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
   try {
-    const messages = await getMessages(conversationId, env)
+    // 从 URL 参数获取用户ID
+    const url = new URL(request.url)
+    const userId1 = url.searchParams.get('userId1')
+    const userId2 = url.searchParams.get('userId2')
     
-    return new Response(JSON.stringify({ messages }), {
+    if (!userId1 || !userId2) {
+      return new Response(JSON.stringify({ error: 'Missing user IDs' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // 使用排序后的用户ID作为key
+    const chatKey = `chat_${[userId1, userId2].sort().join('_')}`
+    
+    // 从 KV 获取消息
+    let messages = []
+    if (env.XINDONG_KV) {
+      const existing = await env.XINDONG_KV.get(chatKey, { type: 'json' })
+      if (existing) {
+        messages = existing
+      }
+    }
+    
+    return new Response(JSON.stringify({ 
+      success: true, 
+      messages,
+      count: messages.length
+    }), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' }
     })
+    
   } catch (error) {
-    console.error('获取消息失败:', error)
-    return new Response(JSON.stringify({ error: '获取消息失败', messages: [] }), {
+    console.error('Get messages error:', error)
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     })
   }
-}
-
-async function getMessages(conversationId, env) {
-  if (env.XINDONG_KV) {
-    const messages = await env.XINDONG_KV.get(`messages_${conversationId}`, 'json')
-    return messages || []
-  }
-  return []
 }

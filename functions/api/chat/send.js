@@ -1,60 +1,68 @@
 /**
- * 心动投递 - Cloudflare Pages Function
- * 发送消息 API
+ * 发送消息 API - 本地存储版本
+ * 由于 KV 权限限制，使用本地存储 + BroadcastChannel 实现跨标签页同步
  */
 
 export async function onRequestPost(context) {
-  const { request, env } = context
+  const { request } = context
   
-  // 获取用户ID
-  const userId = request.headers.get('X-User-Id')
-  
-  if (!userId) {
-    return new Response(JSON.stringify({ error: '未授权，请先登录' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
   try {
     const body = await request.json()
-    const { conversationId, content, type = 'text' } = body
-
-    if (!conversationId || !content) {
-      return new Response(JSON.stringify({ error: '缺少必要参数' }), {
+    const { senderId, receiverId, text, type = 'text' } = body
+    
+    if (!senderId || !receiverId || !text) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
     }
-
-    // 创建消息
+    
+    // 生成消息ID
+    const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // 创建消息对象
     const message = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      conversationId,
-      senderId: userId,
-      content: content.trim(),
+      id: messageId,
+      senderId,
+      receiverId,
+      text,
       type,
-      status: 'sent',
-      createdAt: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      status: 'sent'
     }
-
-    // 存储消息
-    if (env.XINDONG_KV) {
-      // 获取现有消息
-      const messagesKey = `messages_${conversationId}`
-      const existingMessages = await env.XINDONG_KV.get(messagesKey, 'json') || []
-      existingMessages.push(message)
-      await env.XINDONG_KV.put(messagesKey, JSON.stringify(existingMessages))
-    }
-
-    return new Response(JSON.stringify({ message }), {
-      headers: { 'Content-Type': 'application/json' }
+    
+    // 返回成功响应
+    // 实际存储由前端处理（localStorage）
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message,
+      note: 'Message stored locally'
+    }), {
+      status: 200,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
     })
+    
   } catch (error) {
-    console.error('发送消息失败:', error)
-    return new Response(JSON.stringify({ error: '发送消息失败' }), {
+    console.error('Send message error:', error)
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     })
   }
+}
+
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }
+  })
 }

@@ -43,21 +43,21 @@ export default function ChatListPage() {
     setError(null)
 
     try {
-      // 先尝试从 Supabase API 获取
-      const response = await fetch('/api/chat/conversations', {
-        headers: {
-          'X-User-Id': currentUser.id,
-        },
-      })
-
+      // 优先尝试从 API 获取（云端）
+      const response = await fetch(`/api/chat/conversations?userId=${currentUser.id}`)
+      
       if (response.ok) {
         const data = await response.json()
-        setConversations(data.conversations || [])
-      } else {
-        // API 失败，从 localStorage 获取本地数据作为后备
-        const localConversations = getLocalConversations(currentUser.id)
-        setConversations(localConversations)
+        if (data.success && data.conversations) {
+          setConversations(data.conversations)
+          setIsLoading(false)
+          return
+        }
       }
+      
+      // API 失败，从 localStorage 获取本地数据作为后备
+      const localConversations = getLocalConversations(currentUser.id)
+      setConversations(localConversations)
     } catch (err) {
       console.error('获取会话失败:', err)
       // 网络错误，使用本地数据
