@@ -54,6 +54,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isOtherTyping, setIsOtherTyping] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -341,6 +342,57 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
       handleSendMessage()
     }
   }
+  
+  // 输入状态变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value)
+    
+    // 广播输入状态
+    broadcastTypingStatus(true)
+    
+    // 清除之前的定时器
+    if (typingTimeout) {
+      clearTimeout(typingTimeout)
+    }
+    
+    // 3秒后停止显示输入状态
+    const timeout = setTimeout(() => {
+      broadcastTypingStatus(false)
+    }, 3000)
+    setTypingTimeout(timeout)
+  }
+  
+  // 广播输入状态
+  const broadcastTypingStatus = (isTyping: boolean) => {
+    if (!currentUser || !matchId) return
+    localStorage.setItem(`xindong_typing_${currentUser.id}_${matchId}`, JSON.stringify({
+      isTyping,
+      timestamp: Date.now()
+    }))
+  }
+  
+  // 监听对方输入状态
+  useEffect(() => {
+    if (!matchId || !currentUser) return
+    
+    const checkTyping = () => {
+      const typingJson = localStorage.getItem(`xindong_typing_${matchId}_${currentUser.id}`)
+      if (typingJson) {
+        const typing = JSON.parse(typingJson)
+        // 只有5秒内的输入状态才有效
+        if (typing.isTyping && Date.now() - typing.timestamp < 5000) {
+          setIsOtherTyping(true)
+        } else {
+          setIsOtherTyping(false)
+        }
+      } else {
+        setIsOtherTyping(false)
+      }
+    }
+    
+    const interval = setInterval(checkTyping, 1000)
+    return () => clearInterval(interval)
+  }, [matchId, currentUser])
 
   // 请求通知权限
   useEffect(() => {
@@ -367,9 +419,54 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 定时刷新消息（简单轮询）
   useEffect(() => {
-    const interval = setInterval(fetchMessages, 5000) // 每5秒刷新
+    const interval = setInterval(() => {
+      fetchMessages()
+      // 检查消息已读状态
+      checkReadStatus()
+    }, 3000) // 每3秒刷新
     return () => clearInterval(interval)
   }, [fetchMessages])
+  
+  // 检查消息已读状态
+  const checkReadStatus = () => {
+    if (!currentUser || !matchId) return
+    
+    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+    const chatJson = localStorage.getItem(chatKey)
+    if (!chatJson) return
+    
+    const chatMessages: Message[] = JSON.parse(chatJson)
+    const otherUserLastRead = localStorage.getItem(`xindong_last_read_${matchId}_${currentUser.id}`)
+    
+    if (otherUserLastRead) {
+      const lastReadTime = new Date(otherUserLastRead).getTime()
+      
+      // 更新消息状态为已读
+      setMessages(prev => 
+        prev.map(m => {
+          if (m.senderId === currentUser.id && m.timestamp.getTime() <= lastReadTime && m.status !== 'read') {
+            return { ...m, status: 'read' as const }
+          }
+          return m
+        })
+      )
+    }
+  }
+  
+  // 标记消息为已读（当对方打开聊天时）
+  const markMessagesAsRead = () => {
+    if (!currentUser || !matchId) return
+    localStorage.setItem(`xindong_last_read_${currentUser.id}_${matchId}`, new Date().toISOString())
+  }
+  
+  // 进入聊天时标记已读
+  useEffect(() => {
+    markMessagesAsRead()
+    // 离开时清除标记
+    return () => {
+      markMessagesAsRead()
+    }
+  }, [currentUser, matchId])
 
   // 话题建议
   const topicSuggestions = [
@@ -678,7 +775,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
               <textarea
                 ref={inputRef}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="发送消息..."
                 rows={1}
