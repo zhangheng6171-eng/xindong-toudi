@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp, X, Camera, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
@@ -20,8 +20,10 @@ interface DisplayUser {
   bio: string
   interests: string[]
   avatar: string | null
+  photos: (string | null)[]
   matchScore: number
   isLiked: boolean
+  isMutualLike: boolean
 }
 
 // 用户卡片组件
@@ -125,8 +127,48 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
   )
 }
 
+// 提示弹窗
+function AlertModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <motion.div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div 
+        className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-8 h-8 text-rose-500" />
+        </div>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">温馨提示</h3>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-full hover:shadow-lg transition-all"
+        >
+          我知道了
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // 用户详情弹窗
-function UserDetailModal({ user, onClose, onLike }: { user: DisplayUser; onClose: () => void; onLike: (userId: string) => void }) {
+function UserDetailModal({ user, onClose, onLike, onSendMessage }: { 
+  user: DisplayUser; 
+  onClose: () => void; 
+  onLike: (userId: string) => void;
+  onSendMessage: (user: DisplayUser) => void;
+}) {
+  // 过滤出真实照片
+  const realPhotos = user.photos.filter(p => p !== null)
+  
   return (
     <motion.div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -136,7 +178,7 @@ function UserDetailModal({ user, onClose, onLike }: { user: DisplayUser; onClose
       onClick={onClose}
     >
       <motion.div 
-        className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+        className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl"
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
@@ -202,6 +244,30 @@ function UserDetailModal({ user, onClose, onLike }: { user: DisplayUser; onClose
             <div className="text-gray-600 text-sm">匹配度</div>
           </div>
 
+          {/* 照片墙 */}
+          {realPhotos.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Camera className="w-4 h-4" />
+                照片墙
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {realPhotos.slice(0, 6).map((photo, index) => (
+                  <div key={index} className="aspect-square rounded-xl overflow-hidden">
+                    <img 
+                      src={photo!} 
+                      alt={`${user.nickname}的照片${index + 1}`}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform"
+                    />
+                  </div>
+                ))}
+              </div>
+              {realPhotos.length > 6 && (
+                <p className="text-xs text-gray-400 mt-2 text-center">共 {realPhotos.length} 张照片</p>
+              )}
+            </div>
+          )}
+
           {/* 个人简介 */}
           {user.bio && (
             <div className="mb-6">
@@ -237,11 +303,25 @@ function UserDetailModal({ user, onClose, onLike }: { user: DisplayUser; onClose
               <Heart className={`w-5 h-5 inline mr-2 ${user.isLiked ? 'fill-current' : ''}`} />
               {user.isLiked ? '已喜欢' : '喜欢'}
             </button>
-            <button className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-full font-medium hover:bg-gray-200 transition-colors">
+            <button 
+              onClick={() => onSendMessage(user)}
+              className={`flex-1 py-3 rounded-full font-medium transition-all ${
+                user.isMutualLike 
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
               <MessageCircle className="w-5 h-5 inline mr-2" />
               发消息
             </button>
           </div>
+          
+          {/* 互相喜欢提示 */}
+          {user.isMutualLike && (
+            <p className="text-center text-sm text-rose-500 mt-3">
+              💕 你们互相喜欢，可以发消息了
+            </p>
+          )}
         </div>
       </motion.div>
     </motion.div>
@@ -254,6 +334,7 @@ function LoggedInHome() {
   const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
   const [mounted, setMounted] = useState(false)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
+  const [alertMessage, setAlertMessage] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -279,6 +360,15 @@ function LoggedInHome() {
             // 读取头像
             const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
             
+            // 读取照片墙
+            const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
+            const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
+            
+            // 检查对方是否也喜欢了当前用户（互相喜欢）
+            const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
+            const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+            const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
+            
             return {
               id: u.id,
               nickname: profile.nickname || u.nickname,
@@ -291,8 +381,10 @@ function LoggedInHome() {
               bio: profile.bio || '',
               interests: profile.interests || [],
               avatar: avatar,
+              photos: photos,
               matchScore: Math.floor(Math.random() * 30) + 70,
               isLiked: likedUsers.includes(u.id),
+              isMutualLike: isMutualLike,
             }
           })
         
@@ -322,14 +414,38 @@ function LoggedInHome() {
     localStorage.setItem(likedKey, JSON.stringify(likedUsers))
     
     // 更新界面状态
-    setAllUsers(prev => prev.map(u => 
-      u.id === userId ? { ...u, isLiked: likedUsers.includes(userId) } : u
-    ))
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const isLiked = likedUsers.includes(userId)
+        // 检查互相喜欢
+        const theirLikesJson = localStorage.getItem(`xindong_likes_${userId}`)
+        const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+        const isMutualLike = isLiked && theirLikes.includes(currentUser?.id || '')
+        return { ...u, isLiked, isMutualLike }
+      }
+      return u
+    }))
     
     // 如果详情弹窗打开，也更新弹窗状态
     if (selectedUser && selectedUser.id === userId) {
-      setSelectedUser(prev => prev ? { ...prev, isLiked: likedUsers.includes(userId) } : null)
+      setAllUsers(prev => {
+        const updatedUser = prev.find(u => u.id === userId)
+        if (updatedUser) {
+          setSelectedUser(updatedUser)
+        }
+        return prev
+      })
     }
+  }
+
+  // 处理发消息
+  const handleSendMessage = (user: DisplayUser) => {
+    if (!user.isMutualLike) {
+      setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～')
+      return
+    }
+    // TODO: 跳转到聊天页面
+    setAlertMessage('聊天功能开发中，敬请期待！')
   }
 
   // 如果没有真实用户，显示模拟用户
@@ -347,7 +463,9 @@ function LoggedInHome() {
       interests: ['摄影', '旅行', '美食', '艺术'],
       matchScore: 92,
       avatar: null,
+      photos: [],
       isLiked: false,
+      isMutualLike: false,
     },
     {
       id: 'demo2',
@@ -362,7 +480,9 @@ function LoggedInHome() {
       interests: ['健身', '阅读', '投资', '电影'],
       matchScore: 88,
       avatar: null,
+      photos: [],
       isLiked: false,
+      isMutualLike: false,
     },
   ]
   
@@ -461,6 +581,17 @@ function LoggedInHome() {
               user={selectedUser} 
               onClose={() => setSelectedUser(null)}
               onLike={handleLike}
+              onSendMessage={handleSendMessage}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* 提示弹窗 */}
+        <AnimatePresence>
+          {alertMessage && (
+            <AlertModal 
+              message={alertMessage}
+              onClose={() => setAlertMessage(null)}
             />
           )}
         </AnimatePresence>
