@@ -341,60 +341,123 @@ function LoggedInHome() {
   useEffect(() => {
     setMounted(true)
     
-    // 从 localStorage 读取所有注册用户
-    const usersJson = localStorage.getItem('xindong_users')
-    // 读取当前用户的喜欢列表
-    const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
-    const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
-    
-    if (usersJson) {
+    const loadUsers = async () => {
       try {
-        const users = JSON.parse(usersJson)
+        // 先尝试从 API 获取所有用户（云端）
+        const response = await fetch('/api/users/list')
         
-        // 转换为显示格式，排除当前用户
-        const displayUsers: DisplayUser[] = users
-          .filter((u: any) => u.id !== currentUser?.id)
-          .map((u: any) => {
-            // 读取用户资料
-            const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
-            const profile = profileJson ? JSON.parse(profileJson) : {}
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.success && data.users && data.users.length > 0) {
+            // 读取当前用户的喜欢列表
+            const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
+            const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
             
-            // 读取头像
-            const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
+            // 转换为显示格式
+            const displayUsers: DisplayUser[] = data.users
+              .filter((u: any) => u.id !== currentUser?.id)
+              .map((u: any) => {
+                // 读取用户资料
+                const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
+                const profile = profileJson ? JSON.parse(profileJson) : {}
+                
+                // 读取头像
+                const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
+                
+                // 读取照片墙
+                const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
+                const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
+                
+                // 检查对方是否也喜欢了当前用户（互相喜欢）
+                const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
+                const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+                const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
+                
+                return {
+                  id: u.id,
+                  nickname: profile.nickname || u.nickname,
+                  age: profile.age || u.age,
+                  gender: profile.gender || u.gender || 'male',
+                  city: profile.city || u.city || '未知',
+                  occupation: profile.occupation || '',
+                  education: profile.education || '',
+                  height: profile.height || 0,
+                  bio: profile.bio || '',
+                  interests: profile.interests || [],
+                  avatar: avatar || u.avatar,
+                  photos: photos,
+                  matchScore: Math.floor(Math.random() * 30) + 70,
+                  isLiked: likedUsers.includes(u.id),
+                  isMutualLike: isMutualLike,
+                }
+              })
             
-            // 读取照片墙
-            const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
-            const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
-            
-            // 检查对方是否也喜欢了当前用户（互相喜欢）
-            const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
-            const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
-            const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
-            
-            return {
-              id: u.id,
-              nickname: profile.nickname || u.nickname,
-              age: profile.age || u.age,
-              gender: profile.gender || u.gender || 'male',
-              city: profile.city || u.city || '未知',
-              occupation: profile.occupation || '',
-              education: profile.education || '',
-              height: profile.height || 0,
-              bio: profile.bio || '',
-              interests: profile.interests || [],
-              avatar: avatar,
-              photos: photos,
-              matchScore: Math.floor(Math.random() * 30) + 70,
-              isLiked: likedUsers.includes(u.id),
-              isMutualLike: isMutualLike,
-            }
-          })
-        
-        setAllUsers(displayUsers)
+            setAllUsers(displayUsers)
+            return
+          }
+        }
       } catch (e) {
-        console.error('Failed to parse users:', e)
+        console.error('Failed to fetch users from API:', e)
+      }
+      
+      // API 失败，从 localStorage 读取作为后备
+      const usersJson = localStorage.getItem('xindong_users')
+      // 读取当前用户的喜欢列表
+      const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
+      const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
+      
+      if (usersJson) {
+        try {
+          const users = JSON.parse(usersJson)
+          
+          // 转换为显示格式，排除当前用户
+          const displayUsers: DisplayUser[] = users
+            .filter((u: any) => u.id !== currentUser?.id)
+            .map((u: any) => {
+              // 读取用户资料
+              const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
+              const profile = profileJson ? JSON.parse(profileJson) : {}
+              
+              // 读取头像
+              const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
+              
+              // 读取照片墙
+              const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
+              const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
+              
+              // 检查对方是否也喜欢了当前用户（互相喜欢）
+              const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
+              const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+              const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
+              
+              return {
+                id: u.id,
+                nickname: profile.nickname || u.nickname,
+                age: profile.age || u.age,
+                gender: profile.gender || u.gender || 'male',
+                city: profile.city || u.city || '未知',
+                occupation: profile.occupation || '',
+                education: profile.education || '',
+                height: profile.height || 0,
+                bio: profile.bio || '',
+                interests: profile.interests || [],
+                avatar: avatar,
+                photos: photos,
+                matchScore: Math.floor(Math.random() * 30) + 70,
+                isLiked: likedUsers.includes(u.id),
+                isMutualLike: isMutualLike,
+              }
+            })
+          
+          setAllUsers(displayUsers)
+        } catch (e) {
+          console.error('Failed to parse users:', e)
+        }
       }
     }
+    
+    loadUsers()
   }, [currentUser])
 
   // 处理喜欢/取消喜欢

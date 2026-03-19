@@ -41,22 +41,29 @@ export default function LoginPage() {
     
     try {
       // 调用登录 API
-      const response = await fetch(`/api/auth/user?email=${encodeURIComponent(formData.email.trim())}&password=${encodeURIComponent(formData.password)}`)
+      const url = `/api/auth/user?email=${encodeURIComponent(formData.email.trim())}&password=${encodeURIComponent(formData.password)}`
+      console.log('[Login] Calling API:', url)
+      
+      const response = await fetch(url)
+      console.log('[Login] Response status:', response.status)
       
       const data = await response.json()
+      console.log('[Login] Response data:', data)
       
       if (response.ok && data.success) {
         // 登录成功，保存当前用户到 localStorage
+        console.log('[Login] Success, saving user to localStorage')
         localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
         
         // 跳转到仪表盘
         window.location.href = '/dashboard'
       } else {
         setIsLoading(false)
+        console.error('[Login] Failed:', data.error)
         setError(data.error || '登录失败，请重试')
       }
     } catch (e) {
-      console.error('Login error:', e)
+      console.error('[Login] Error:', e)
       setIsLoading(false)
       setError('网络错误，请检查网络连接')
     }
