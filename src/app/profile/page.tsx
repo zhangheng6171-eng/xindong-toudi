@@ -72,7 +72,7 @@ export default function ProfilePage() {
   const handleLogout = () => {
     if (confirm('确定要退出登录吗？')) {
       logout()
-      window.location.href = '/login'
+      window.location.href = '/'
     }
   }
 

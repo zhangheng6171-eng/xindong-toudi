@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Camera, X, Upload, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -31,6 +31,11 @@ export function ImageUploader({
   const [preview, setPreview] = useState<string | null>(value || null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 同步外部 value 变化
+  useEffect(() => {
+    setPreview(value || null)
+  }, [value])
 
   const sizeClasses = {
     sm: 'w-16 h-16',
