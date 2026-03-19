@@ -446,10 +446,10 @@ function LoggedInHome() {
       setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～')
       return
     }
-    // 跳转到聊天页面
+    // 跳转到聊天页面，传递用户ID和昵称
     setSelectedUser(null) // 关闭详情弹窗
     // 使用 window.location.href 确保正确跳转
-    window.location.href = `/chat/conversation/?userId=${user.id}`
+    window.location.href = `/chat/conversation/?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`
   }
 
   // 如果没有真实用户，显示模拟用户

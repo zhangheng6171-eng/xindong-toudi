@@ -79,20 +79,27 @@ function ConversationContent() {
   const fetchOtherUser = useCallback(async () => {
     if (!userId) return
 
-    // 模拟获取用户信息
+    // 从localStorage获取用户信息
+    const usersJson = localStorage.getItem('xindong_users')
+    const users = usersJson ? JSON.parse(usersJson) : []
+    const userProfile = users.find((u: any) => u.id === userId)
+    
+    // 从URL参数获取昵称
+    const urlNickname = searchParams.get('nickname')
+    
     const mockUser: OtherUser = {
       id: userId,
-      nickname: userId === 'demo1' ? '小雨' : userId === 'demo2' ? '小晴' : '心动对象',
-      age: 26,
-      city: '北京',
-      score: 92,
-      isOnline: Math.random() > 0.5,
-      avatar: null,
-      lastActive: '刚刚在线'
+      nickname: urlNickname || userProfile?.nickname || (userId === 'demo1' ? '小雨' : userId === 'demo2' ? '小晴' : '心动对象'),
+      age: userProfile?.age || 26,
+      city: userProfile?.city || '北京',
+      score: userProfile?.matchScore || 92,
+      isOnline: true, // 固定为在线，避免跳动
+      avatar: userProfile?.avatar || null,
+      lastActive: '在线'
     }
     
     setOtherUser(mockUser)
-  }, [userId])
+  }, [userId, searchParams])
 
   // 获取消息
   const fetchMessages = useCallback(async () => {
@@ -159,22 +166,28 @@ function ConversationContent() {
       type: 'text'
     }
 
+    // 添加到UI
     setMessages(prev => [...prev, newMessage])
+    const messageText = inputText
     setInputText('')
     setShowSuggestions(false)
     
     sendMessageFeedback()
 
-    // 保存到本地存储
+    // 保存到本地存储（使用函数式更新确保获取最新状态）
     const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
-    const updatedMessages = [...messages, newMessage]
-    localStorage.setItem(chatKey, JSON.stringify(updatedMessages))
-
+    
     // 模拟发送成功
     setTimeout(() => {
-      setMessages(prev => prev.map(m => 
-        m.id === newMessage.id ? { ...m, status: 'sent' } : m
-      ))
+      // 更新消息状态
+      setMessages(prev => {
+        const updated = prev.map(m => 
+          m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+        )
+        // 保存到localStorage
+        localStorage.setItem(chatKey, JSON.stringify(updated))
+        return updated
+      })
       
       // 更新会话列表
       const convKey = `xindong_conversations_${currentUser.id}`
@@ -182,11 +195,11 @@ function ConversationContent() {
       const conversations = stored ? JSON.parse(stored) : []
       const updatedConvs = conversations.map((c: any) => 
         c.matchId === otherUser.id 
-          ? { ...c, lastMessage: newMessage.text, lastMessageAt: newMessage.timestamp }
+          ? { ...c, lastMessage: messageText, lastMessageAt: new Date().toISOString() }
           : c
       )
       localStorage.setItem(convKey, JSON.stringify(updatedConvs))
-    }, 500)
+    }, 300)
   }
 
   // 发送图片
