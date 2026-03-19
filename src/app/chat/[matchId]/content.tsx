@@ -120,7 +120,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     try {
       // 尝试从 API 获取
       if (conversationId) {
-        const response = await fetch(`/api/chat/${conversationId}/messages`, {
+        const response = await fetch(`/api/chat/messages?conversationId=${conversationId}`, {
           headers: {
             'X-User-Id': currentUser.id,
           },
