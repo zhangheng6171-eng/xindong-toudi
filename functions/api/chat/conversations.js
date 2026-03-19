@@ -1,13 +1,13 @@
 /**
- * 获取会话列表 API
- * 返回用户的所有会话，包括其他用户发来的消息
+ * 获取会话列表 API - 使用 Supabase
  */
 
+import { createClient } from '@supabase/supabase-js'
+
 export async function onRequestGet(context) {
-  const { request, env } = context
+  const { request } = context
   
   try {
-    // 从 URL 参数获取用户ID
     const url = new URL(request.url)
     const userId = url.searchParams.get('userId')
     
@@ -18,113 +18,51 @@ export async function onRequestGet(context) {
       })
     }
     
-    // 获取所有用户数据（从 KV）
-    const usersKey = 'xindong_users'
-    let users = []
-    if (env.XINDONG_KV) {
-      const usersData = await env.XINDONG_KV.get(usersKey, { type: 'json' })
-      if (usersData) {
-        users = usersData
-      }
+    // 创建 Supabase 客户端
+    const supabase = createClient(
+      'https://ntaqnyegiiwtzdyqjiwy.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+    )
+    
+    // 查询用户发送或接收的所有消息
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      console.error('Supabase query error:', error)
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
     
-    // 获取用户的喜欢列表
-    const likesKey = `likes_${userId}`
-    let likes = []
-    if (env.XINDONG_KV) {
-      const likesData = await env.XINDONG_KV.get(likesKey, { type: 'json' })
-      if (likesData) {
-        likes = likesData
-      }
-    }
+    // 按对话分组，找出所有对话用户
+    const conversationMap = new Map()
     
-    // 获取所有聊天记录
-    const conversations = []
-    const chatPrefix = 'chat_'
-    
-    // 扫描所有以 chat_ 开头的 key
-    // 注意：KV 的 list 操作有局限性，这里使用另一种方法
-    // 我们先尝试获取所有可能和该用户相关的聊天
-    
-    // 方法1：遍历所有用户，尝试获取和当前用户的聊天记录
-    for (const otherUser of users) {
-      if (otherUser.id === userId) continue
+    for (const msg of data || []) {
+      const otherUserId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id
       
-      const chatKey = `chat_${[userId, otherUser.id].sort().join('_')}`
-      let messages = []
-      
-      if (env.XINDONG_KV) {
-        const chatData = await env.XINDONG_KV.get(chatKey, { type: 'json' })
-        if (chatData && chatData.length > 0) {
-          messages = chatData
-        }
-      }
-      
-      if (messages.length > 0) {
-        const lastMessage = messages[messages.length - 1]
-        
-        // 获取对方用户信息
-        const otherUserProfile = users.find(u => u.id === otherUser.id)
-        
-        conversations.push({
-          id: chatKey,
-          matchId: otherUser.id,
+      if (!conversationMap.has(otherUserId)) {
+        conversationMap.set(otherUserId, {
+          id: `conv_${otherUserId}`,
+          matchId: otherUserId,
           otherUser: {
-            id: otherUser.id,
-            nickname: otherUserProfile?.nickname || otherUser.nickname || '心动对象',
-            avatar: null,
+            id: otherUserId,
+            nickname: '心动对象',
             isOnline: true
           },
-          lastMessage: lastMessage.text,
-          lastMessageAt: lastMessage.timestamp,
+          lastMessage: msg.content,
+          lastMessageAt: msg.created_at,
           unreadCount: 0,
-          matchScore: 92,
-          createdAt: new Date().toISOString()
+          matchScore: 92
         })
       }
     }
     
-    // 方法2：也检查互相喜欢的用户（即使没有消息）
-    for (const likedUserId of likes) {
-      // 检查是否已经有会话
-      if (conversations.find(c => c.matchId === likedUserId)) continue
-      
-      // 检查是否互相喜欢
-      const theirLikesKey = `likes_${likedUserId}`
-      let theirLikes = []
-      if (env.XINDONG_KV) {
-        const theirLikesData = await env.XINDONG_KV.get(theirLikesKey, { type: 'json' })
-        if (theirLikesData) {
-          theirLikes = theirLikesData
-        }
-      }
-      
-      if (theirLikes.includes(userId)) {
-        const otherUser = users.find(u => u.id === likedUserId)
-        conversations.push({
-          id: `conv_${likedUserId}`,
-          matchId: likedUserId,
-          otherUser: {
-            id: likedUserId,
-            nickname: otherUser?.nickname || '心动对象',
-            avatar: null,
-            isOnline: true
-          },
-          lastMessage: '开始聊天吧～',
-          lastMessageAt: null,
-          unreadCount: 0,
-          matchScore: 92,
-          createdAt: new Date().toISOString()
-        })
-      }
-    }
-    
-    // 按最后消息时间排序
-    conversations.sort((a, b) => {
-      if (!a.lastMessageAt) return 1
-      if (!b.lastMessageAt) return -1
-      return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-    })
+    const conversations = Array.from(conversationMap.values())
     
     return new Response(JSON.stringify({ 
       success: true, 
@@ -132,7 +70,10 @@ export async function onRequestGet(context) {
       count: conversations.length
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
     })
     
   } catch (error) {
@@ -142,4 +83,15 @@ export async function onRequestGet(context) {
       headers: { 'Content-Type': 'application/json' }
     })
   }
+}
+
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }
+  })
 }

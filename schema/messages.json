@@ -1,0 +1,12 @@
+{
+  "tableName": "messages",
+  "columns": [
+    { "name": "id", "type": "TEXT", "primaryKey": true },
+    { "name": "sender_id", "type": "TEXT", "notNull": true },
+    { "name": "receiver_id", "type": "TEXT", "notNull": true },
+    { "name": "text", "type": "TEXT", "notNull": true },
+    { "name": "type", "type": "TEXT", "defaultValue": "text" },
+    { "name": "status", "type": "TEXT", "defaultValue": "sent" },
+    { "name": "created_at", "type": "TEXT" }
+  ]
+}

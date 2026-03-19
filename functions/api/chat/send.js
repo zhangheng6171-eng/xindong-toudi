@@ -1,7 +1,8 @@
 /**
- * 发送消息 API - 本地存储版本
- * 由于 KV 权限限制，使用本地存储 + BroadcastChannel 实现跨标签页同步
+ * 发送消息 API - 使用 Supabase
  */
+
+import { createClient } from '@supabase/supabase-js'
 
 export async function onRequestPost(context) {
   const { request } = context
@@ -17,33 +18,49 @@ export async function onRequestPost(context) {
       })
     }
     
-    // 生成消息ID
-    const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // 创建 Supabase 客户端
+    const supabase = createClient(
+      'https://ntaqnyegiiwtzdyqjiwy.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+    )
     
-    // 创建消息对象
-    const message = {
-      id: messageId,
-      senderId,
-      receiverId,
-      text,
-      type,
-      timestamp: new Date().toISOString(),
-      status: 'sent'
+    // 保存消息到 Supabase
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: text,
+        type,
+        status: 'sent'
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Supabase insert error:', error)
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
     
-    // 返回成功响应
-    // 实际存储由前端处理（localStorage）
     return new Response(JSON.stringify({ 
       success: true, 
-      message,
-      note: 'Message stored locally'
+      message: {
+        id: data.id,
+        senderId: data.sender_id,
+        receiverId: data.receiver_id,
+        text: data.content,
+        type: data.type,
+        timestamp: data.created_at,
+        status: data.status
+      }
     }), {
       status: 200,
       headers: { 
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Origin': '*'
       }
     })
     
@@ -61,7 +78,7 @@ export async function onRequestOptions() {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     }
   })
