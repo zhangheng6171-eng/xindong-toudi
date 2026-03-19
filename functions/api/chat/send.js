@@ -1,8 +1,9 @@
 /**
- * 发送消息 API - 使用 Supabase
+ * 发送消息 API - 使用 Supabase REST API
  */
 
-import { createClient } from '@supabase/supabase-js'
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
 export async function onRequestPost(context) {
   const { request } = context
@@ -18,43 +19,46 @@ export async function onRequestPost(context) {
       })
     }
     
-    // 创建 Supabase 客户端
-    const supabase = createClient(
-      'https://ntaqnyegiiwtzdyqjiwy.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
-    )
-    
-    // 保存消息到 Supabase
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
+    // 使用 REST API 插入消息
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
         sender_id: senderId,
         receiver_id: receiverId,
         content: text,
         type,
         status: 'sent'
       })
-      .select()
-      .single()
+    })
     
-    if (error) {
+    if (!response.ok) {
+      const error = await response.text()
       console.error('Supabase insert error:', error)
-      return new Response(JSON.stringify({ error: error.message }), {
+      return new Response(JSON.stringify({ error }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
     
+    const data = await response.json()
+    const message = Array.isArray(data) ? data[0] : data
+    
     return new Response(JSON.stringify({ 
       success: true, 
       message: {
-        id: data.id,
-        senderId: data.sender_id,
-        receiverId: data.receiver_id,
-        text: data.content,
-        type: data.type,
-        timestamp: data.created_at,
-        status: data.status
+        id: message.id,
+        senderId: message.sender_id,
+        receiverId: message.receiver_id,
+        text: message.content,
+        type: message.type,
+        timestamp: message.created_at,
+        status: message.status
       }
     }), {
       status: 200,
