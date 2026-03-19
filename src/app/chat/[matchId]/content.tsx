@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, use, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Image, Mic, ArrowLeft, Smile, MoreVertical,
-  Heart, Sparkles, ChevronDown, Phone, Video, RefreshCw
+  Heart, Sparkles, ChevronDown, Phone, Video, RefreshCw, Paperclip
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -48,9 +48,19 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(urlConversationId)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // 常用表情
+  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '😘', '🤗', '😎', '🥰', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💔', '❤️‍🔥', '❤️‍🩹']
+
+  // 添加表情到输入框
+  const addEmoji = (emoji: string) => {
+    setInputText(prev => prev + emoji)
+    inputRef.current?.focus()
+  }
 
   // 创建或获取会话
   const ensureConversation = useCallback(async () => {
@@ -492,14 +502,41 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
         {/* Input Area */}
         <div className="bg-white/80 backdrop-blur-xl border-t border-rose-100/50 px-4 py-3">
+          {/* Emoji Picker */}
+          <AnimatePresence>
+            {showEmojiPicker && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-3 overflow-hidden"
+              >
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-rose-100/30">
+                  <div className="grid grid-cols-10 gap-1.5">
+                    {commonEmojis.map((emoji, index) => (
+                      <button
+                        key={index}
+                        onClick={() => addEmoji(emoji)}
+                        className="w-8 h-8 text-xl hover:bg-rose-50 rounded-lg transition-colors flex items-center justify-center"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex items-end space-x-3">
             <div className="flex space-x-2">
               <motion.button
-                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className={`p-2 transition-colors ${showEmojiPicker ? 'text-rose-500' : 'text-gray-400 hover:text-rose-500'}`}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Image className="w-6 h-6" />
+                <Smile className="w-6 h-6" />
               </motion.button>
             </div>
 
@@ -514,9 +551,6 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
                 className="w-full px-4 py-3 bg-gray-100/80 backdrop-blur-sm rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 focus:bg-white transition-all border border-transparent focus:border-rose-200"
                 style={{ minHeight: '44px', maxHeight: '120px' }}
               />
-              <button className="absolute right-2 bottom-2 p-1 text-gray-400 hover:text-rose-500 transition-colors">
-                <Smile className="w-5 h-5" />
-              </button>
             </div>
 
             <motion.button
