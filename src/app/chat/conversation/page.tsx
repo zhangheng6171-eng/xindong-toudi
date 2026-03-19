@@ -40,7 +40,7 @@ interface OtherUser {
 function ConversationContent() {
   const searchParams = useSearchParams()
   const userId = searchParams.get('userId')
-  const { currentUser } = useAuth()
+  const { currentUser, isLoading: authLoading } = useAuth()
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
@@ -54,9 +54,13 @@ function ConversationContent() {
   const [isOtherTyping, setIsOtherTyping] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  
+  // 获取当前用户ID（如果未登录则使用临时ID）
+  const currentUserId = currentUser?.id || 'guest_user'
   
   const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '😘', '🤗', '😎', '🥰', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💔', '❤️🔥', '❤️🩹']
 
@@ -75,9 +79,9 @@ function ConversationContent() {
     lavender: 'from-purple-100/50 via-violet-100/50 to-indigo-100/50',
   }
 
-  // 获取对方用户信息
-  const fetchOtherUser = useCallback(async () => {
-    if (!userId) return
+  // 获取对方用户信息 - 只在初始化时调用一次
+  useEffect(() => {
+    if (!userId || initialized) return
 
     // 从localStorage获取用户信息
     const usersJson = localStorage.getItem('xindong_users')
@@ -87,25 +91,26 @@ function ConversationContent() {
     // 从URL参数获取昵称
     const urlNickname = searchParams.get('nickname')
     
-    const mockUser: OtherUser = {
+    const user: OtherUser = {
       id: userId,
-      nickname: urlNickname || userProfile?.nickname || (userId === 'demo1' ? '小雨' : userId === 'demo2' ? '小晴' : '心动对象'),
+      nickname: urlNickname || userProfile?.nickname || '心动对象',
       age: userProfile?.age || 26,
       city: userProfile?.city || '北京',
       score: userProfile?.matchScore || 92,
-      isOnline: true, // 固定为在线，避免跳动
+      isOnline: true,
       avatar: userProfile?.avatar || null,
       lastActive: '在线'
     }
     
-    setOtherUser(mockUser)
-  }, [userId, searchParams])
+    setOtherUser(user)
+    setInitialized(true)
+  }, [userId, searchParams, initialized])
 
   // 获取消息
   const fetchMessages = useCallback(async () => {
-    if (!currentUser || !otherUser) return
+    if (!otherUser) return
 
-    const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
     const stored = localStorage.getItem(chatKey)
     
     if (stored) {
@@ -119,13 +124,13 @@ function ConversationContent() {
         console.error('Failed to parse messages:', e)
       }
     }
-  }, [currentUser, otherUser])
+  }, [currentUserId, otherUser])
 
   // 确保会话存在
   const ensureConversation = useCallback(async () => {
-    if (!currentUser || !otherUser) return
+    if (!otherUser) return
 
-    const convKey = `xindong_conversations_${currentUser.id}`
+    const convKey = `xindong_conversations_${currentUserId}`
     const stored = localStorage.getItem(convKey)
     const conversations = stored ? JSON.parse(stored) : []
     
@@ -151,15 +156,15 @@ function ConversationContent() {
     }
     
     setConversationId(existingConv?.id || `conv_${Date.now()}`)
-  }, [currentUser, otherUser])
+  }, [currentUserId, otherUser])
 
   // 发送消息
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !currentUser || !otherUser) return
+    if (!inputText.trim() || !otherUser) return
 
     const newMessage: Message = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      senderId: currentUser.id,
+      senderId: currentUserId,
       text: inputText,
       timestamp: new Date(),
       status: 'sending',
@@ -174,8 +179,8 @@ function ConversationContent() {
     
     sendMessageFeedback()
 
-    // 保存到本地存储（使用函数式更新确保获取最新状态）
-    const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+    // 保存到本地存储
+    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
     
     // 模拟发送成功
     setTimeout(() => {
@@ -190,7 +195,7 @@ function ConversationContent() {
       })
       
       // 更新会话列表
-      const convKey = `xindong_conversations_${currentUser.id}`
+      const convKey = `xindong_conversations_${currentUserId}`
       const stored = localStorage.getItem(convKey)
       const conversations = stored ? JSON.parse(stored) : []
       const updatedConvs = conversations.map((c: any) => 
@@ -204,7 +209,7 @@ function ConversationContent() {
 
   // 发送图片
   const handleSendImage = async () => {
-    if (!currentUser || !otherUser) return
+    if (!otherUser) return
 
     try {
       const file = await selectImage()
@@ -224,7 +229,7 @@ function ConversationContent() {
       
       const newMessage: Message = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        senderId: currentUser.id,
+        senderId: currentUserId,
         text: dataUrl,
         timestamp: new Date(),
         status: 'sending',
@@ -233,7 +238,7 @@ function ConversationContent() {
 
       setMessages(prev => [...prev, newMessage])
       
-      const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+      const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
       const updatedMessages = [...messages, newMessage]
       localStorage.setItem(chatKey, JSON.stringify(updatedMessages))
     } catch (error) {
@@ -265,8 +270,6 @@ function ConversationContent() {
   }
 
   const handleRecallMessage = async (messageId: string) => {
-    if (!currentUser) return
-
     const message = messages.find(m => m.id === messageId)
     if (!message) return
 
@@ -282,28 +285,28 @@ function ConversationContent() {
     ))
 
     if (otherUser) {
-      const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+      const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
       localStorage.setItem(chatKey, JSON.stringify(messages))
     }
   }
 
   const clearChatHistory = () => {
-    if (!currentUser || !otherUser) return
+    if (!otherUser) return
 
-    const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+    const chatKey = `xindong_chat_${[currentUserId, otherUser.id].sort().join('_')}`
     localStorage.removeItem(chatKey)
     setMessages([])
   }
 
   const handleExportChat = () => {
-    if (!currentUser || !otherUser || messages.length === 0) {
+    if (!otherUser || messages.length === 0) {
       alert('暂无聊天记录可导出')
       return
     }
     
     const exportContent = messages
       .filter(m => m.type !== 'system')
-      .map(m => `[${new Date(m.timestamp).toLocaleString('zh-CN')}] ${m.senderId === currentUser.id ? '我' : otherUser.nickname}: ${m.text}`)
+      .map(m => `[${new Date(m.timestamp).toLocaleString('zh-CN')}] ${m.senderId === currentUserId ? '我' : otherUser.nickname}: ${m.text}`)
       .join('\n')
 
     const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' })
@@ -328,29 +331,25 @@ function ConversationContent() {
     requestNotificationPermission()
   }, [])
 
-  // 初始化会话
+  // 初始化会话和消息
   useEffect(() => {
-    ensureConversation()
-  }, [ensureConversation])
-
-  // 初始化
-  useEffect(() => {
-    fetchOtherUser()
-    if (conversationId) {
+    if (initialized && otherUser) {
+      ensureConversation()
       fetchMessages()
     }
-  }, [conversationId, fetchOtherUser, fetchMessages])
+  }, [initialized, otherUser, ensureConversation, fetchMessages])
 
   // 滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 定时刷新消息
+  // 定时刷新消息（每10秒）
   useEffect(() => {
-    const interval = setInterval(fetchMessages, 5000)
+    if (!otherUser) return
+    const interval = setInterval(fetchMessages, 10000)
     return () => clearInterval(interval)
-  }, [fetchMessages])
+  }, [otherUser, fetchMessages])
 
   if (!userId) {
     return (
@@ -525,7 +524,7 @@ function ConversationContent() {
           <MessageBubble
             key={message.id}
             message={message}
-            isOwn={currentUser ? message.senderId === currentUser.id : false}
+            isOwn={message.senderId === currentUserId}
             onRetry={handleRetry}
             onRecall={handleRecallMessage}
           />
