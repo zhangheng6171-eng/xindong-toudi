@@ -2,26 +2,30 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp } from 'lucide-react'
+import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
-import { useAuth, UserProfile } from '@/hooks/useAuth'
+import { useAuth } from '@/hooks/useAuth'
 
 // 用户数据类型
 interface DisplayUser {
   id: string
   nickname: string
   age: number
+  gender: string
   city: string
   occupation: string
   education: string
+  height: number
   bio: string
   interests: string[]
   avatar: string | null
   matchScore: number
+  isLiked: boolean
 }
 
 // 用户卡片组件
-function UserCard({ user, index }: { user: DisplayUser; index: number }) {
+function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; index: number; onViewDetail: (user: DisplayUser) => void; onLike: (userId: string) => void }) {
   return (
     <FadeIn delay={index * 0.1}>
       <GlassCard className="p-5 hover:shadow-xl transition-all cursor-pointer group" hover={true}>
@@ -48,8 +52,15 @@ function UserCard({ user, index }: { user: DisplayUser; index: number }) {
           {/* 信息 */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="font-bold text-gray-900 text-lg">{user.nickname}</h3>
-              <span className="text-sm text-gray-500">{user.age}岁</span>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-gray-900 text-lg">{user.nickname}</h3>
+                <span className="text-sm text-gray-400">·</span>
+                <span className="text-sm text-gray-500">{user.age}岁</span>
+                <span className="text-sm text-gray-400">·</span>
+                <span className={`text-sm font-medium ${user.gender === 'male' ? 'text-blue-500' : 'text-pink-500'}`}>
+                  {user.gender === 'male' ? '♂ 男' : '♀ 女'}
+                </span>
+              </div>
             </div>
             
             <div className="flex items-center gap-3 text-sm text-gray-500 mb-2">
@@ -84,17 +95,156 @@ function UserCard({ user, index }: { user: DisplayUser; index: number }) {
         
         {/* 悬停操作 */}
         <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <button 
+            onClick={(e) => {
+              e.preventDefault()
+              onViewDetail(user)
+            }}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-rose-500 transition-colors"
+          >
             <Eye className="w-4 h-4" />
             <span>查看完整资料</span>
-          </div>
-          <button className="px-4 py-1.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-sm font-medium rounded-full hover:shadow-lg transition-all">
-            <Heart className="w-4 h-4 inline mr-1" />
-            喜欢
+          </button>
+          <button 
+            onClick={(e) => {
+              e.preventDefault()
+              onLike(user.id)
+            }}
+            className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
+              user.isLiked 
+                ? 'bg-rose-100 text-rose-600 border-2 border-rose-500' 
+                : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:shadow-lg'
+            }`}
+          >
+            <Heart className={`w-4 h-4 inline mr-1 ${user.isLiked ? 'fill-current' : ''}`} />
+            {user.isLiked ? '已喜欢' : '喜欢'}
           </button>
         </div>
       </GlassCard>
     </FadeIn>
+  )
+}
+
+// 用户详情弹窗
+function UserDetailModal({ user, onClose, onLike }: { user: DisplayUser; onClose: () => void; onLike: (userId: string) => void }) {
+  return (
+    <motion.div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div 
+        className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 头部背景 */}
+        <div className="relative h-40 bg-gradient-to-br from-rose-400 via-pink-400 to-purple-400">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="absolute -bottom-12 left-6">
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.nickname}
+                className="w-24 h-24 rounded-2xl object-cover shadow-xl border-4 border-white"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-4xl font-bold shadow-xl border-4 border-white">
+                {user.nickname[0]}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 内容 */}
+        <div className="pt-16 px-6 pb-6">
+          {/* 基本信息 */}
+          <div className="text-center mb-6">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <h2 className="text-2xl font-bold text-gray-900">{user.nickname}</h2>
+              <span className={`text-lg font-medium ${user.gender === 'male' ? 'text-blue-500' : 'text-pink-500'}`}>
+                {user.gender === 'male' ? '♂' : '♀'}
+              </span>
+            </div>
+            <p className="text-gray-500">{user.age}岁 · {user.city}</p>
+            <div className="flex items-center justify-center gap-4 mt-2 text-sm text-gray-500">
+              {user.occupation && (
+                <span className="flex items-center gap-1">
+                  <Briefcase className="w-4 h-4" />
+                  {user.occupation}
+                </span>
+              )}
+              {user.education && (
+                <span className="flex items-center gap-1">
+                  <GraduationCap className="w-4 h-4" />
+                  {user.education}
+                </span>
+              )}
+              {user.height > 0 && (
+                <span>{user.height}cm</span>
+              )}
+            </div>
+          </div>
+
+          {/* 匹配度 */}
+          <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-4 mb-6 text-center">
+            <div className="text-3xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+              {user.matchScore}%
+            </div>
+            <div className="text-gray-600 text-sm">匹配度</div>
+          </div>
+
+          {/* 个人简介 */}
+          {user.bio && (
+            <div className="mb-6">
+              <h3 className="font-bold text-gray-900 mb-2">关于我</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">{user.bio}</p>
+            </div>
+          )}
+
+          {/* 兴趣爱好 */}
+          {user.interests.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-bold text-gray-900 mb-2">兴趣爱好</h3>
+              <div className="flex flex-wrap gap-2">
+                {user.interests.map((interest) => (
+                  <span key={interest} className="px-3 py-1.5 bg-rose-50 text-rose-600 text-sm font-medium rounded-full">
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 操作按钮 */}
+          <div className="flex gap-3">
+            <button 
+              onClick={() => onLike(user.id)}
+              className={`flex-1 py-3 rounded-full font-medium transition-all ${
+                user.isLiked 
+                  ? 'bg-rose-100 text-rose-600 border-2 border-rose-500' 
+                  : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/30 hover:shadow-xl'
+              }`}
+            >
+              <Heart className={`w-5 h-5 inline mr-2 ${user.isLiked ? 'fill-current' : ''}`} />
+              {user.isLiked ? '已喜欢' : '喜欢'}
+            </button>
+            <button className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-full font-medium hover:bg-gray-200 transition-colors">
+              <MessageCircle className="w-5 h-5 inline mr-2" />
+              发消息
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -103,12 +253,17 @@ function LoggedInHome() {
   const { currentUser } = useAuth()
   const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
   const [mounted, setMounted] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
 
   useEffect(() => {
     setMounted(true)
     
     // 从 localStorage 读取所有注册用户
     const usersJson = localStorage.getItem('xindong_users')
+    // 读取当前用户的喜欢列表
+    const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
+    const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
+    
     if (usersJson) {
       try {
         const users = JSON.parse(usersJson)
@@ -128,13 +283,16 @@ function LoggedInHome() {
               id: u.id,
               nickname: profile.nickname || u.nickname,
               age: profile.age || u.age,
+              gender: profile.gender || u.gender || 'male',
               city: profile.city || u.city || '未知',
               occupation: profile.occupation || '',
               education: profile.education || '',
+              height: profile.height || 0,
               bio: profile.bio || '',
               interests: profile.interests || [],
               avatar: avatar,
-              matchScore: Math.floor(Math.random() * 30) + 70, // 模拟匹配度
+              matchScore: Math.floor(Math.random() * 30) + 70,
+              isLiked: likedUsers.includes(u.id),
             }
           })
         
@@ -145,31 +303,66 @@ function LoggedInHome() {
     }
   }, [currentUser])
 
+  // 处理喜欢/取消喜欢
+  const handleLike = (userId: string) => {
+    if (!currentUser) return
+    
+    const likedKey = `xindong_likes_${currentUser.id}`
+    const likedJson = localStorage.getItem(likedKey) || '[]'
+    let likedUsers: string[] = JSON.parse(likedJson)
+    
+    if (likedUsers.includes(userId)) {
+      // 取消喜欢
+      likedUsers = likedUsers.filter(id => id !== userId)
+    } else {
+      // 添加喜欢
+      likedUsers.push(userId)
+    }
+    
+    localStorage.setItem(likedKey, JSON.stringify(likedUsers))
+    
+    // 更新界面状态
+    setAllUsers(prev => prev.map(u => 
+      u.id === userId ? { ...u, isLiked: likedUsers.includes(userId) } : u
+    ))
+    
+    // 如果详情弹窗打开，也更新弹窗状态
+    if (selectedUser && selectedUser.id === userId) {
+      setSelectedUser(prev => prev ? { ...prev, isLiked: likedUsers.includes(userId) } : null)
+    }
+  }
+
   // 如果没有真实用户，显示模拟用户
   const displayUsers = allUsers.length > 0 ? allUsers : [
     {
       id: 'demo1',
       nickname: '小雨',
       age: 26,
+      gender: 'female',
       city: '北京',
       occupation: '产品设计师',
       education: '硕士',
+      height: 165,
       bio: '热爱生活，喜欢摄影和旅行。周末喜欢探店、看展，期待遇见有趣的灵魂～',
       interests: ['摄影', '旅行', '美食', '艺术'],
       matchScore: 92,
       avatar: null,
+      isLiked: false,
     },
     {
       id: 'demo2',
       nickname: '云云',
       age: 27,
+      gender: 'female',
       city: '上海',
       occupation: '市场经理',
       education: '本科',
+      height: 168,
       bio: '喜欢健身和阅读，相信坚持的力量。希望找到一个一起成长的人。',
       interests: ['健身', '阅读', '投资', '电影'],
       matchScore: 88,
       avatar: null,
+      isLiked: false,
     },
   ]
   
@@ -242,7 +435,13 @@ function LoggedInHome() {
             {displayUsers.length > 0 ? (
               <div className="grid gap-4">
                 {displayUsers.map((user, index) => (
-                  <UserCard key={user.id} user={user} index={index} />
+                  <UserCard 
+                    key={user.id} 
+                    user={user} 
+                    index={index}
+                    onViewDetail={setSelectedUser}
+                    onLike={handleLike}
+                  />
                 ))}
               </div>
             ) : (
@@ -254,6 +453,17 @@ function LoggedInHome() {
             )}
           </div>
         </div>
+
+        {/* 用户详情弹窗 */}
+        <AnimatePresence>
+          {selectedUser && (
+            <UserDetailModal 
+              user={selectedUser} 
+              onClose={() => setSelectedUser(null)}
+              onLike={handleLike}
+            />
+          )}
+        </AnimatePresence>
 
         {/* 底部导航 */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3 z-50">
@@ -323,7 +533,6 @@ function LandingPage() {
 
       {/* Hero 区域 */}
       <section className="relative z-10 max-w-5xl mx-auto px-4 pt-16 pb-20 text-center">
-        {/* 标签 */}
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full shadow-sm mb-6">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           <span className="text-sm text-gray-600">AI 驱动的智能匹配平台</span>
@@ -357,7 +566,6 @@ function LandingPage() {
           </Link>
         </div>
 
-        {/* 统计数据 */}
         <div className="flex justify-center gap-8 md:gap-16">
           {[
             { value: '10万+', label: '成功匹配' },
@@ -431,7 +639,6 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="relative z-10 border-t border-gray-100 py-8">
         <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-500">
           <p>© 2024 心动投递 · 用 AI 算法，找到那个懂你的人</p>
@@ -457,6 +664,5 @@ export default function HomePage() {
     )
   }
 
-  // 根据登录状态显示不同的首页
   return currentUser ? <LoggedInHome /> : <LandingPage />
 }
