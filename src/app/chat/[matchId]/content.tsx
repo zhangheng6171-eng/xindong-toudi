@@ -51,10 +51,11 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   const [conversationId, setConversationId] = useState<string | null>(urlConversationId)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isOtherTyping, setIsOtherTyping] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-
+  
   // 常用表情
   const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '😘', '🤗', '😎', '🥰', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💔', '❤️‍🔥', '❤️‍🩹']
 
@@ -62,6 +63,33 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   const addEmoji = (emoji: string) => {
     setInputText(prev => prev + emoji)
     inputRef.current?.focus()
+  }
+  
+  // 导出聊天记录
+  const handleExportChat = () => {
+    if (!currentUser || !otherUser || messages.length === 0) {
+      alert('暂无聊天记录可导出')
+      return
+    }
+    
+    const exportMessages = messages
+      .filter(m => m.type !== 'system')
+      .map(m => ({
+        timestamp: m.timestamp.toISOString(),
+        sender: m.senderId === currentUser.id ? '我' : otherUser.nickname,
+        content: m.text,
+      }))
+    
+    const { exportChat } = require('@/lib/chat-export')
+    exportChat(currentUser.nickname || '我', otherUser.nickname, exportMessages, 'txt')
+  }
+  
+  // 清空聊天记录
+  const clearChatHistory = () => {
+    if (!currentUser || !matchId) return
+    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+    localStorage.removeItem(chatKey)
+    setMessages([])
   }
 
   // 创建或获取会话
@@ -375,6 +403,46 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 text-gray-400 hover:text-rose-500 transition-colors"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+
+              {/* 更多菜单 */}
+              <AnimatePresence>
+                {showMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="absolute top-16 right-4 bg-white rounded-xl shadow-xl py-2 min-w-[150px] z-50"
+                  >
+                    <button
+                      onClick={() => {
+                        handleExportChat()
+                        setShowMenu(false)
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 text-gray-700"
+                    >
+                      📥 导出聊天记录
+                    </button>
+                    <button
+                      onClick={() => {
+                        // 清空聊天记录
+                        if (confirm('确定要清空聊天记录吗？此操作不可恢复。')) {
+                          clearChatHistory()
+                        }
+                        setShowMenu(false)
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600"
+                    >
+                      🗑️ 清空聊天记录
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </header>
         </FadeIn>
@@ -416,9 +484,9 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
           <AnimatePresence initial={false}>
             {messages.map((message) => (
-              <MessageBubble 
-                key={message.id} 
-                message={message} 
+              <MessageBubble
+                key={message.id}
+                message={message}
                 isOwn={message.senderId === currentUser?.id}
                 onRetry={handleRetry}
               />
@@ -579,7 +647,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: boolean; onRetry?: (id: string) => void }) {
   const [showActions, setShowActions] = useState(false)
   const [copied, setCopied] = useState(false)
-  
+
   const formatTime = (date: Date) => date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const handleCopy = () => {
@@ -597,13 +665,13 @@ function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: b
   }
 
   return (
-    <motion.div 
-      className={`flex items-start ${isOwn ? 'flex-row-reverse' : ''}`} 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      className={`flex items-start ${isOwn ? 'flex-row-reverse' : ''}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div 
+      <div
         className={`max-w-[70%] relative ${isOwn ? 'ml-2' : 'mr-2'}`}
         onClick={() => setShowActions(!showActions)}
       >
@@ -611,32 +679,32 @@ function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: b
             ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white rounded-br-none shadow-lg shadow-rose-500/20'
             : 'bg-white/80 backdrop-blur-sm text-gray-900 shadow-sm rounded-bl-none border border-rose-100/30'
           } ${message.status === 'sending' ? 'opacity-70' : ''}`}>
-          
+
           {/* 发送中状态 */}
           {message.status === 'sending' && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             </div>
           )}
-          
+
           <p className="whitespace-pre-wrap">{message.text}</p>
         </div>
-        
+
         {/* 操作菜单 */}
         {showActions && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`absolute bg-white rounded-lg shadow-lg py-1 z-10 ${isOwn ? 'right-0' : 'left-0'}`}
           >
-            <button 
+            <button
               onClick={handleCopy}
               className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
             >
               {copied ? '✅ 已复制' : '📋 复制'}
             </button>
             {message.status === 'sending' && onRetry && (
-              <button 
+              <button
                 onClick={() => onRetry(message.id)}
                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
               >
@@ -645,7 +713,7 @@ function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: b
             )}
           </motion.div>
         )}
-        
+
         <div className={`flex items-center mt-1 text-xs text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
           <span>{formatTime(message.timestamp)}</span>
           {isOwn && message.status !== 'sending' && (
