@@ -22,7 +22,7 @@ interface Message {
   senderId: string
   text: string
   timestamp: Date
-  status: 'sending' | 'sent' | 'read'
+  status: 'sending' | 'sent' | 'read' | 'recalled'
   type: 'text' | 'image' | 'system'
 }
 
@@ -93,6 +93,41 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
     localStorage.removeItem(chatKey)
     setMessages([])
+  }
+  
+  // 撤回消息（2分钟内）
+  const handleRecallMessage = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId)
+    if (!message || !currentUser) return
+    
+    // 只能撤回自己发的消息
+    if (message.senderId !== currentUser.id) return
+    
+    // 检查是否在2分钟内
+    const now = Date.now()
+    const messageTime = message.timestamp.getTime()
+    if (now - messageTime > 2 * 60 * 1000) {
+      setError('超过2分钟无法撤回')
+      setTimeout(() => setError(null), 2000)
+      return
+    }
+    
+    // 更新消息状态为已撤回
+    const updatedMessages = messages.map(m => {
+      if (m.id === messageId) {
+        return { ...m, text: '消息已撤回', status: 'recalled' as const }
+      }
+      return m
+    })
+    
+    setMessages(updatedMessages)
+    
+    // 保存到本地
+    if (!currentUser || !matchId) return
+    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+    localStorage.setItem(chatKey, JSON.stringify(
+      updatedMessages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() }))
+    ))
   }
   
   // 发送图片
@@ -636,6 +671,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
                 message={message}
                 isOwn={message.senderId === currentUser?.id}
                 onRetry={handleRetry}
+                onRecall={handleRecallMessage}
               />
             ))}
           </AnimatePresence>
@@ -800,7 +836,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   )
 }
 
-function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: boolean; onRetry?: (id: string) => void }) {
+function MessageBubble({ message, isOwn, onRetry, onRecall }: { message: Message; isOwn: boolean; onRetry?: (id: string) => void; onRecall?: (id: string) => void }) {
   const [showActions, setShowActions] = useState(false)
   const [copied, setCopied] = useState(false)
 
