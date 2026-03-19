@@ -37,29 +37,43 @@ export default function ChatListPage() {
 
   // 获取会话列表
   const fetchConversations = useCallback(async () => {
-    if (!currentUser) return
+    if (!currentUser) {
+      console.log('[ChatList] No current user, skipping fetch')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
 
+    console.log('[ChatList] Fetching conversations for user:', currentUser.id)
+
     try {
       // 优先尝试从 API 获取（云端）
-      const response = await fetch(`/api/chat/conversations?userId=${currentUser.id}`)
+      const url = `/api/chat/conversations?userId=${currentUser.id}`
+      console.log('[ChatList] API URL:', url)
+      
+      const response = await fetch(url)
+      console.log('[ChatList] API response status:', response.status)
       
       if (response.ok) {
         const data = await response.json()
-        if (data.success && data.conversations) {
+        console.log('[ChatList] API response data:', data)
+        
+        if (data.success && Array.isArray(data.conversations)) {
+          console.log('[ChatList] Setting conversations:', data.conversations.length)
           setConversations(data.conversations)
           setIsLoading(false)
           return
         }
       }
       
+      console.log('[ChatList] API failed, falling back to localStorage')
       // API 失败，从 localStorage 获取本地数据作为后备
       const localConversations = getLocalConversations(currentUser.id)
+      console.log('[ChatList] Local conversations:', localConversations.length)
       setConversations(localConversations)
     } catch (err) {
-      console.error('获取会话失败:', err)
+      console.error('[ChatList] 获取会话失败:', err)
       // 网络错误，使用本地数据
       const localConversations = getLocalConversations(currentUser.id)
       setConversations(localConversations)

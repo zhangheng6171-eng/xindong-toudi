@@ -231,6 +231,12 @@ function ConversationContent() {
     
     // 尝试发送到 API（云端同步）
     try {
+      console.log('[SendMessage] Sending to API:', {
+        senderId: currentUserId,
+        receiverId: otherUser.id,
+        text: messageText
+      })
+      
       const response = await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,7 +248,11 @@ function ConversationContent() {
         })
       })
       
+      console.log('[SendMessage] API response status:', response.status)
+      
       if (response.ok) {
+        const data = await response.json()
+        console.log('[SendMessage] API response data:', data)
         // API 发送成功，更新消息状态
         setMessages(prev => {
           const updated = prev.map(m => 
@@ -252,6 +262,8 @@ function ConversationContent() {
           return updated
         })
       } else {
+        const errorText = await response.text()
+        console.error('[SendMessage] API failed:', errorText)
         // API 失败，仍然标记为已发送（本地存储可用）
         setMessages(prev => {
           const updated = prev.map(m => 
@@ -262,7 +274,7 @@ function ConversationContent() {
         })
       }
     } catch (e) {
-      console.error('Failed to send via API:', e)
+      console.error('[SendMessage] Failed to send via API:', e)
       // 网络错误，仍然标记为已发送（本地存储可用）
       setMessages(prev => {
         const updated = prev.map(m => 
