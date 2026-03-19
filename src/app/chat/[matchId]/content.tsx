@@ -15,6 +15,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { requestNotificationPermission, notifyNewMessage } from '@/lib/notifications'
 import { compressImage, selectImage, isValidImageType, isValidImageSize } from '@/lib/image-utils'
+import { sendMessageFeedback, receiveMessageFeedback, errorFeedback } from '@/lib/haptics'
 
 interface Message {
   id: string
@@ -262,6 +263,9 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     setMessages(prev => [...prev, newMessage])
     setInputText('')
     setShowSuggestions(false)
+    
+    // 触觉反馈
+    sendMessageFeedback()
 
     // 清除错误
     setError(null)
