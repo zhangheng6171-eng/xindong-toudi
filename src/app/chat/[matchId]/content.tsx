@@ -177,6 +177,9 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     setInputText('')
     setShowSuggestions(false)
 
+    // 清除错误
+    setError(null)
+
     try {
       // 尝试通过 API 发送
       if (conversationId) {
@@ -194,6 +197,8 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         })
 
         if (response.ok) {
+          // 更新本地存储
+          saveMessageToLocal(newMessage)
           setMessages(prev =>
             prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
           )
@@ -202,14 +207,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
       }
 
       // 保存到 localStorage（后备方案）
-      const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
-      const chatJson = localStorage.getItem(chatKey)
-      const chatMessages = chatJson ? JSON.parse(chatJson) : []
-      chatMessages.push({
-        ...newMessage,
-        timestamp: newMessage.timestamp.toISOString(),
-      })
-      localStorage.setItem(chatKey, JSON.stringify(chatMessages))
+      saveMessageToLocal(newMessage)
 
       // 更新状态
       setMessages(prev =>
@@ -217,11 +215,33 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
       )
     } catch (err) {
       console.error('发送消息失败:', err)
-      setError('发送失败，请重试')
-      // 标记消息失败
+      // 离线模式：仍然保存消息
+      saveMessageToLocal(newMessage)
       setMessages(prev =>
-        prev.map(m => m.id === newMessage.id ? { ...m, status: 'sending' as const } : m)
+        prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
       )
+    }
+  }
+
+  // 保存消息到本地存储
+  const saveMessageToLocal = (message: Message) => {
+    if (!currentUser || !matchId) return
+    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+    const chatJson = localStorage.getItem(chatKey)
+    const chatMessages = chatJson ? JSON.parse(chatJson) : []
+    chatMessages.push({
+      ...message,
+      timestamp: message.timestamp.toISOString(),
+    })
+    localStorage.setItem(chatKey, JSON.stringify(chatMessages))
+  }
+
+  // 重发失败的消息
+  const handleRetry = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId)
+    if (message && message.status === 'sending') {
+      setInputText(message.text)
+      setMessages(prev => prev.filter(m => m.id !== messageId))
     }
   }
 
@@ -379,7 +399,12 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
           <AnimatePresence initial={false}>
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} isOwn={message.senderId === currentUser?.id} />
+              <MessageBubble 
+                key={message.id} 
+                message={message} 
+                isOwn={message.senderId === currentUser?.id}
+                onRetry={handleRetry}
+              />
             ))}
           </AnimatePresence>
 
@@ -510,8 +535,17 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   )
 }
 
-function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean }) {
+function MessageBubble({ message, isOwn, onRetry }: { message: Message; isOwn: boolean; onRetry?: (id: string) => void }) {
+  const [showActions, setShowActions] = useState(false)
+  const [copied, setCopied] = useState(false)
+  
   const formatTime = (date: Date) => date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   if (message.type === 'system') {
     return (
@@ -522,18 +556,64 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
   }
 
   return (
-    <motion.div className={`flex items-start ${isOwn ? 'flex-row-reverse' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      <div className={`max-w-[70%] ${isOwn ? 'ml-2' : 'mr-2'}`}>
+    <motion.div 
+      className={`flex items-start ${isOwn ? 'flex-row-reverse' : ''}`} 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      transition={{ duration: 0.3 }}
+    >
+      <div 
+        className={`max-w-[70%] relative ${isOwn ? 'ml-2' : 'mr-2'}`}
+        onClick={() => setShowActions(!showActions)}
+      >
         <div className={`px-4 py-3 rounded-2xl ${isOwn
             ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white rounded-br-none shadow-lg shadow-rose-500/20'
             : 'bg-white/80 backdrop-blur-sm text-gray-900 shadow-sm rounded-bl-none border border-rose-100/30'
-          }`}>
+          } ${message.status === 'sending' ? 'opacity-70' : ''}`}>
+          
+          {/* 发送中状态 */}
+          {message.status === 'sending' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          
           <p className="whitespace-pre-wrap">{message.text}</p>
         </div>
+        
+        {/* 操作菜单 */}
+        {showActions && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`absolute bg-white rounded-lg shadow-lg py-1 z-10 ${isOwn ? 'right-0' : 'left-0'}`}
+          >
+            <button 
+              onClick={handleCopy}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+            >
+              {copied ? '✅ 已复制' : '📋 复制'}
+            </button>
+            {message.status === 'sending' && onRetry && (
+              <button 
+                onClick={() => onRetry(message.id)}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+              >
+                🔄 重试
+              </button>
+            )}
+          </motion.div>
+        )}
+        
         <div className={`flex items-center mt-1 text-xs text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
           <span>{formatTime(message.timestamp)}</span>
           {isOwn && message.status !== 'sending' && (
-            <span className="ml-1">{message.status === 'read' ? <span className="text-rose-500">✓✓</span> : '✓'}</span>
+            <span className="ml-1">
+              {message.status === 'read' ? <span className="text-rose-500">✓✓</span> : '✓'}
+            </span>
+          )}
+          {message.status === 'sending' && (
+            <span className="ml-1">发送中...</span>
           )}
         </div>
       </div>
