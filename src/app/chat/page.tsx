@@ -14,6 +14,7 @@ interface Conversation {
     id: string
     nickname: string
     avatar: string | null
+    isOnline?: boolean
   }
   lastMessage: string | null
   lastMessageAt: string | null
@@ -22,6 +23,9 @@ interface Conversation {
   createdAt: string
 }
 
+// 模拟在线用户列表（实际应用中应该从服务器获取）
+const onlineUsers = new Set<string>()
+
 export default function ChatListPage() {
   const { currentUser, isLoading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
@@ -29,6 +33,7 @@ export default function ChatListPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showOnlineOnly, setShowOnlineOnly] = useState(false)
 
   // 获取会话列表
   const fetchConversations = useCallback(async () => {
@@ -96,6 +101,9 @@ export default function ChatListPage() {
           const chatMessages = chatJson ? JSON.parse(chatJson) : []
           const lastMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
 
+          // 模拟在线状态（实际应用中从服务器获取）
+          const isOnline = Math.random() > 0.5
+
           mutualLikes.push({
             id: chatKey,
             matchId: likedUserId,
@@ -103,6 +111,7 @@ export default function ChatListPage() {
               id: likedUserId,
               nickname: profile.nickname || otherUser.nickname,
               avatar: avatar,
+              isOnline,
             },
             lastMessage: lastMessage?.content || '开始聊天吧～',
             lastMessageAt: lastMessage?.timestamp || null,
@@ -146,12 +155,19 @@ export default function ChatListPage() {
   }
 
   // 过滤会话
-  const filteredConversations = conversations.filter(conv =>
-    conv.otherUser.nickname.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredConversations = conversations.filter(conv => {
+    // 搜索过滤
+    const matchesSearch = conv.otherUser.nickname.toLowerCase().includes(searchQuery.toLowerCase())
+    // 在线状态过滤
+    const matchesOnline = !showOnlineOnly || conv.otherUser.isOnline
+    return matchesSearch && matchesOnline
+  })
 
   // 计算总未读数
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0)
+  
+  // 计算在线人数
+  const onlineCount = conversations.filter(conv => conv.otherUser.isOnline).length
 
   return (
     <AnimatedBackground variant="romance" showFloatingHearts={false}>
@@ -202,6 +218,26 @@ export default function ChatListPage() {
               </div>
             </FadeIn>
           )}
+
+          {/* 在线状态切换 */}
+          <FadeIn delay={0.1}>
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setShowOnlineOnly(!showOnlineOnly)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  showOnlineOnly 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-white/80 text-gray-600 border border-gray-200'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${showOnlineOnly ? 'bg-white' : 'bg-green-500'} animate-pulse`} />
+                在线 {onlineCount} 人
+              </button>
+              <span className="text-sm text-gray-500">
+                共 {conversations.length} 个会话
+              </span>
+            </div>
+          </FadeIn>
 
           {/* 加载状态 */}
           {isLoading && conversations.length === 0 && (

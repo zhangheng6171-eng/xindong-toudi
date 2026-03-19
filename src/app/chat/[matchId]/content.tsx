@@ -13,6 +13,7 @@ import {
   FadeIn
 } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
+import { requestNotificationPermission, notifyNewMessage } from '@/lib/notifications'
 
 interface Message {
   id: string
@@ -49,6 +50,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   const [error, setError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(urlConversationId)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isOtherTyping, setIsOtherTyping] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -261,6 +263,11 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
       handleSendMessage()
     }
   }
+
+  // 请求通知权限
+  useEffect(() => {
+    requestNotificationPermission()
+  }, [])
 
   // 初始化会话
   useEffect(() => {
