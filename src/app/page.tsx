@@ -1,465 +1,456 @@
-// 移除 'use client' 以支持静态渲染
+'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp } from 'lucide-react'
+import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
+import { useAuth } from '@/hooks/useAuth'
 
-// 内联样式定义
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: 'linear-gradient(180deg, #fff1f2 0%, #ffffff 30%, #fce7f3 70%, #fdf2f8 100%)',
-    fontFamily: 'PingFang SC, Microsoft YaHei, -apple-system, sans-serif',
-  } as React.CSSProperties,
-  nav: {
-    position: 'sticky' as const,
-    top: 0,
-    zIndex: 50,
-    background: 'rgba(255, 255, 255, 0.9)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    borderBottom: '1px solid rgba(251, 113, 133, 0.1)',
-    padding: '12px 16px',
-  } as React.CSSProperties,
-  navInner: {
-    maxWidth: '1024px',
-    margin: '0 auto',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+// 模拟推荐用户数据
+const recommendedUsers = [
+  {
+    id: '1',
+    nickname: '小雨',
+    age: 26,
+    city: '北京',
+    occupation: '产品设计师',
+    education: '硕士',
+    height: 165,
+    bio: '热爱生活，喜欢摄影和旅行。周末喜欢探店、看展，期待遇见有趣的灵魂～',
+    interests: ['摄影', '旅行', '美食', '艺术'],
+    matchScore: 92,
+    avatar: null,
   },
-  logo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    textDecoration: 'none',
+  {
+    id: '2',
+    nickname: '云云',
+    age: 27,
+    city: '上海',
+    occupation: '市场经理',
+    education: '本科',
+    height: 168,
+    bio: '喜欢健身和阅读，相信坚持的力量。希望找到一个一起成长的人。',
+    interests: ['健身', '阅读', '投资', '电影'],
+    matchScore: 88,
+    avatar: null,
   },
-  logoIcon: {
-    width: '40px',
-    height: '40px',
-    background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-    borderRadius: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
+  {
+    id: '3',
+    nickname: '小晴',
+    age: 25,
+    city: '北京',
+    occupation: '教师',
+    education: '硕士',
+    height: 162,
+    bio: '温柔善良，喜欢小孩和宠物。周末喜欢烘焙和追剧～',
+    interests: ['烘焙', '宠物', '音乐', '旅行'],
+    matchScore: 85,
+    avatar: null,
   },
-  logoText: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
+  {
+    id: '4',
+    nickname: '阿杰',
+    age: 29,
+    city: '深圳',
+    occupation: '软件工程师',
+    education: '硕士',
+    height: 178,
+    bio: '技术宅，但也喜欢户外运动。热爱编程，也热爱生活。',
+    interests: ['编程', '跑步', '游戏', '科技'],
+    matchScore: 82,
+    avatar: null,
   },
-  btnPrimary: {
-    padding: '10px 24px',
-    background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-    color: 'white',
-    fontWeight: 600,
-    borderRadius: '9999px',
-    border: 'none',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 15px rgba(236, 72, 153, 0.3)',
-    transition: 'all 0.3s ease',
-  },
-  btnLarge: {
-    padding: '16px 40px',
-    background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-    color: 'white',
-    fontWeight: 600,
-    fontSize: '18px',
-    borderRadius: '9999px',
-    border: 'none',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 20px rgba(236, 72, 153, 0.4)',
-    transition: 'all 0.3s ease',
-    width: '100%',
-    maxWidth: '300px',
-  },
-  section: {
-    padding: '60px 16px',
-    maxWidth: '1024px',
-    margin: '0 auto',
-  },
-  card: {
-    background: 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    borderRadius: '24px',
-    padding: '24px',
-    boxShadow: '0 8px 32px rgba(236, 72, 153, 0.08)',
-    border: '1px solid rgba(255, 255, 255, 0.5)',
-  },
-  gradientText: {
-    background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #a855f7 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  },
-  featureIcon: {
-    width: '56px',
-    height: '56px',
-    borderRadius: '16px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: '16px',
-  },
-  tag: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '4px 12px',
-    borderRadius: '9999px',
-    fontSize: '12px',
-    fontWeight: 500,
-    background: '#ffe4e6',
-    color: '#be123c',
-    marginRight: '8px',
-    marginBottom: '8px',
-  },
-}
+]
 
-// 特性卡片
-function FeatureCard({ icon, title, desc, color }: { icon: string; title: string; desc: string; color: string }) {
-  const gradients: Record<string, string> = {
-    rose: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-    orange: 'linear-gradient(135deg, #f97316 0%, #f43f5e 100%)',
-    green: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
-    purple: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-    pink: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
-    violet: 'linear-gradient(135deg, #a855f7 0%, #8b5cf6 100%)',
-  }
-  
-  const icons: Record<string, JSX.Element> = {
-    target: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
-    clock: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-    shield: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-    message: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-    heart: <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
-    eye: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-  }
-
+// 用户卡片组件
+function UserCard({ user, index }: { user: typeof recommendedUsers[0]; index: number }) {
   return (
-    <div style={styles.card}>
-      <div style={{ ...styles.featureIcon, background: gradients[color] }}>
-        {icons[icon]}
-      </div>
-      <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>{title}</h3>
-      <p style={{ color: '#6b7280', lineHeight: 1.6 }}>{desc}</p>
-    </div>
-  )
-}
-
-// 步骤卡片
-function StepCard({ num, title, desc, tags }: { num: string; title: string; desc: string; tags: string[] }) {
-  return (
-    <div style={styles.card}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '18px',
-          flexShrink: 0,
-        }}>
-          {num}
-        </div>
-        <div>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>{title}</h3>
-          <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '12px' }}>{desc}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-            {tags.map((tag, i) => (
-              <span key={i} style={styles.tag}>{tag}</span>
-            ))}
+    <FadeIn delay={index * 0.1}>
+      <GlassCard className="p-5 hover:shadow-xl transition-all cursor-pointer group" hover={true}>
+        <div className="flex items-start gap-4">
+          {/* 头像 */}
+          <div className="relative flex-shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-rose-500/30">
+              {user.nickname[0]}
+            </div>
+            {/* 匹配度标签 */}
+            <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg">
+              {user.matchScore}%
+            </div>
+          </div>
+          
+          {/* 信息 */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-gray-900 text-lg">{user.nickname}</h3>
+              <span className="text-sm text-gray-500">{user.age}岁</span>
+            </div>
+            
+            <div className="flex items-center gap-3 text-sm text-gray-500 mb-2">
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" />
+                {user.city}
+              </span>
+              <span className="flex items-center gap-1">
+                <Briefcase className="w-3.5 h-3.5" />
+                {user.occupation}
+              </span>
+            </div>
+            
+            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{user.bio}</p>
+            
+            {/* 兴趣标签 */}
+            <div className="flex flex-wrap gap-1.5">
+              {user.interests.slice(0, 3).map((interest) => (
+                <span key={interest} className="px-2 py-0.5 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">{interest}</span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+        
+        {/* 悬停操作 */}
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Eye className="w-4 h-4" />
+            <span>查看完整资料</span>
+          </div>
+          <button className="px-4 py-1.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-sm font-medium rounded-full hover:shadow-lg transition-all">
+            <Heart className="w-4 h-4 inline mr-1" />
+            喜欢
+          </button>
+        </div>
+      </GlassCard>
+    </FadeIn>
   )
 }
 
-// 用户评价
-function TestimonialCard({ name, location, content, avatar }: { name: string; location: string; content: string; avatar: string }) {
-  const avatarColors: Record<string, string> = {
-    S: 'linear-gradient(135deg, #fb7185 0%, #ec4899 100%)',
-    M: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
-    L: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)',
-  }
-
+// 已登录用户的首页
+function LoggedInHome() {
+  const { currentUser } = useAuth()
+  
   return (
-    <div style={styles.card}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: '16px',
-          background: avatarColors[avatar],
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '20px',
-        }}>
-          {avatar}
+    <AnimatedBackground variant="purple" showFloatingHearts={true}>
+      <div className="min-h-screen pb-20">
+        {/* 顶部导航栏 */}
+        <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50">
+          <div className="max-w-4xl mx-auto px-4">
+            <div className="flex items-center justify-between h-14">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <Heart className="w-4 h-4 text-white" fill="white" />
+                </div>
+                <span className="font-bold text-lg">
+                  <GradientText>心动投递</GradientText>
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Link href="/match" className="text-sm text-gray-600 hover:text-rose-500 transition-colors">
+                  我的匹配
+                </Link>
+                <Link href="/dashboard" className="text-sm font-medium text-rose-500">
+                  我的主页
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          {/* 欢迎横幅 */}
+          <FadeIn delay={0}>
+            <div className="relative overflow-hidden rounded-3xl mb-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500" />
+              <div className="relative p-6 text-white">
+                <div className="flex items-center gap-3 mb-3">
+                  <Sparkles className="w-6 h-6" />
+                  <h2 className="text-xl font-bold">发现你的心动匹配</h2>
+                </div>
+                <p className="text-white/90 mb-4">
+                  基于 AI 算法，为你推荐最合适的潜在伴侣
+                </p>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>已为你推荐 24 人</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Heart className="w-4 h-4" />
+                    <span>3 人互相喜欢</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+
+          {/* 推荐用户列表 */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">今日推荐</h3>
+              <button className="text-sm text-rose-500 font-medium hover:underline">
+                查看更多
+              </button>
+            </div>
+            
+            <div className="grid gap-4">
+              {recommendedUsers.map((user, index) => (
+                <UserCard key={user.id} user={user} index={index} />
+              ))}
+            </div>
+          </div>
         </div>
-        <div>
-          <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{name}</div>
-          <div style={{ fontSize: '14px', color: '#6b7280' }}>{location}</div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
-          {[1,2,3,4,5].map(i => (
-            <svg key={i} width="16" height="16" viewBox="0 0 20 20" fill="#fbbf24">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-            </svg>
-          ))}
-        </div>
+
+        {/* 底部导航 */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3 z-50">
+          <div className="max-w-md mx-auto flex justify-around">
+            <Link href="/" className="flex flex-col items-center text-rose-500">
+              <Heart className="w-6 h-6 fill-current" />
+              <span className="text-xs mt-1 font-medium">首页</span>
+            </Link>
+            <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+              <Heart className="w-6 h-6" />
+              <span className="text-xs mt-1">匹配</span>
+            </Link>
+            <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+              <MessageCircle className="w-6 h-6" />
+              <span className="text-xs mt-1">消息</span>
+            </Link>
+            <Link href="/dashboard" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+              <Star className="w-6 h-6" />
+              <span className="text-xs mt-1">我的</span>
+            </Link>
+          </div>
+        </nav>
       </div>
-      <p style={{ color: '#4b5563', lineHeight: 1.6 }}>"{content}"</p>
-    </div>
+    </AnimatedBackground>
   )
 }
 
-export default function HomePage() {
+// 未登录用户的首页（营销页）
+function LandingPage() {
   return (
-    <div style={styles.page}>
+    <div className="min-h-screen" style={{
+      background: 'linear-gradient(180deg, #fff1f2 0%, #ffffff 30%, #fce7f3 70%, #fdf2f8 100%)',
+    }}>
       {/* 背景装饰 */}
-      <div style={{
-        position: 'fixed',
-        top: '-10%',
-        right: '-10%',
-        width: '500px',
-        height: '500px',
+      <div className="fixed top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full pointer-events-none z-0" style={{
         background: 'radial-gradient(circle, rgba(251, 113, 133, 0.2) 0%, transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-        zIndex: 0,
       }} />
-      <div style={{
-        position: 'fixed',
-        bottom: '-10%',
-        left: '-10%',
-        width: '400px',
-        height: '400px',
+      <div className="fixed bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full pointer-events-none z-0" style={{
         background: 'radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-        zIndex: 0,
       }} />
 
       {/* 导航栏 */}
-      <nav style={styles.nav}>
-        <div style={styles.navInner}>
-          <a href="/" style={styles.logo}>
-            <div style={styles.logoIcon}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-              </svg>
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-rose-200/10">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-rose-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/30">
+              <Heart className="w-5 h-5 text-white" fill="white" />
             </div>
-            <span style={styles.logoText}>心动投递</span>
-          </a>
+            <span className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+              心动投递
+            </span>
+          </Link>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <a href="/login" style={{ color: '#6b7280', fontWeight: 500, textDecoration: 'none' }}>
+          <div className="flex items-center gap-4">
+            <Link href="/login" className="text-gray-600 font-medium hover:text-gray-900 transition-colors">
               登录
-            </a>
-            <a href="/register" style={styles.btnPrimary}>
+            </Link>
+            <Link 
+              href="/register" 
+              className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-semibold rounded-full shadow-lg shadow-rose-500/30 hover:shadow-xl transition-all"
+            >
               立即开始
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </a>
+            </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero 区域 */}
-      <section style={{ ...styles.section, textAlign: 'center', paddingTop: '48px' }}>
-        {/* 状态标签 */}
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 20px',
-          background: 'rgba(255, 255, 255, 0.8)',
-          borderRadius: '9999px',
-          marginBottom: '24px',
-          boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
-        }}>
-          <span style={{ width: 8, height: 8, background: '#22c55e', borderRadius: '50%' }} />
-          <span style={{ color: '#4b5563', fontSize: '14px' }}>
-            已有 <strong style={{ color: '#f43f5e' }}>128,946</strong> 人找到爱情
-          </span>
+      <section className="relative z-10 max-w-5xl mx-auto px-4 pt-16 pb-20 text-center">
+        {/* 标签 */}
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full shadow-sm mb-6">
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-sm text-gray-600">已有 10,000+ 用户找到真爱</span>
         </div>
-
-        {/* 主标题 */}
-        <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px', lineHeight: 1.3 }}>
-          找到那个让你
+        
+        <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          用<span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent"> AI 算法</span>
           <br />
-          <span style={styles.gradientText}>心动的TA</span>
+          找到那个懂你的人
         </h1>
-
-        {/* 副标题 */}
-        <p style={{ fontSize: '18px', color: '#6b7280', marginBottom: '32px', maxWidth: '500px', margin: '0 auto 32px' }}>
-          不是随意的滑动，而是 <span style={styles.gradientText}>深度灵魂</span> 的契合。
+        
+        <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          基于 66 道灵魂问卷，深度分析你的性格特质
           <br />
-          用科学的方式，遇见真正对的人
+          每周为你精准匹配最合适的潜在伴侣
         </p>
 
-        {/* CTA 按钮 */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '48px' }}>
-          <a href="/register" style={styles.btnLarge}>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+          <Link 
+            href="/register"
+            className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-bold text-lg rounded-full shadow-xl shadow-rose-500/40 hover:shadow-2xl hover:scale-105 transition-all"
+          >
             开始心动之旅
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </a>
-          <a href="/how-it-works" style={{ color: '#6b7280', fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
+            <Sparkles className="inline w-5 h-5 ml-2" />
+          </Link>
+          <Link 
+            href="/how-it-works"
+            className="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 font-medium text-lg rounded-full shadow-lg hover:shadow-xl transition-all"
+          >
             了解更多
-          </a>
+          </Link>
         </div>
 
-        {/* 统计卡片 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', maxWidth: '400px', margin: '0 auto' }}>
+        {/* 统计数据 */}
+        <div className="flex justify-center gap-8 md:gap-16">
           {[
-            { value: '85%', label: '成功率', icon: '❤️' },
-            { value: '66', label: '道问题', icon: '🎯' },
-            { value: '每周', label: '一匹配', icon: '⏰' },
+            { value: '10万+', label: '成功匹配' },
+            { value: '92%', label: '满意度' },
+            { value: '66', label: '灵魂问题' },
           ].map((stat, i) => (
-            <div key={i} style={styles.card}>
-              <div style={{ fontSize: '24px', marginBottom: '8px' }}>{stat.icon}</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937' }}>{stat.value}</div>
-              <div style={{ fontSize: '12px', color: '#6b7280' }}>{stat.label}</div>
+            <div key={i} className="text-center">
+              <div className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+                {stat.value}
+              </div>
+              <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* 特性区域 */}
-      <section style={{ ...styles.section, background: 'rgba(255, 255, 255, 0.5)' }}>
-        <h2 style={{ fontSize: '28px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px' }}>
-          为什么选择 <span style={styles.gradientText}>心动投递</span>
+      <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+          为什么选择<span className="bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">心动投递</span>？
         </h2>
-        <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '32px' }}>
-          我们相信，真正的缘分来自深度了解
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-          <FeatureCard icon="target" title="深度匹配" desc="66道精心设计的问题，从价值观到生活细节，AI全面分析你们契合度" color="rose" />
-          <FeatureCard icon="clock" title="慢节奏社交" desc="每周只匹配一位，没有选择焦虑，珍惜每一次相遇的可能性" color="orange" />
-          <FeatureCard icon="shield" title="真实认证" desc="严格身份验证系统，保护你的隐私，让你安心寻找真爱" color="green" />
-          <FeatureCard icon="message" title="AI聊天助手" desc="智能推荐聊天话题，帮助你打破沉默，让对话自然流畅" color="purple" />
-          <FeatureCard icon="heart" title="爱神模式" desc="成为月老，撮合身边的朋友，成人之美，收获祝福" color="pink" />
-          <FeatureCard icon="eye" title="暗恋告白" desc="如果有人暗恋你，系统会自动通知，双向暗恋自动匹配" color="violet" />
+        
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            {
+              icon: '🎯',
+              title: '科学匹配',
+              desc: '基于大五人格理论，深度分析你的性格特质，找到真正契合的另一半',
+              gradient: 'from-rose-400 to-pink-500',
+            },
+            {
+              icon: '⏰',
+              title: '每周匹配',
+              desc: '每周三推送新匹配，给你充足时间了解每一位推荐对象',
+              gradient: 'from-orange-400 to-rose-500',
+            },
+            {
+              icon: '🔒',
+              title: '隐私安全',
+              desc: '端到端加密，你的所有信息都受到严格保护，只有匹配对象可见',
+              gradient: 'from-purple-400 to-violet-500',
+            },
+          ].map((feature, i) => (
+            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all">
+              <div className={`w-14 h-14 bg-gradient-to-br ${feature.gradient} rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-lg`}>
+                {feature.icon}
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{feature.title}</h3>
+              <p className="text-gray-600">{feature.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* 工作原理 */}
-      <section style={styles.section}>
-        <h2 style={{ fontSize: '28px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px' }}>
-          简单四步，遇见缘分
+      {/* 流程区域 */}
+      <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+          三步开启心动之旅
         </h2>
-        <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '32px' }}>
-          告别繁琐，拥抱简单的相遇方式
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-          <StepCard num="01" title="注册账号" desc="手机号快速注册，开启心动之旅" tags={['手机验证', '创建资料', '上传照片']} />
-          <StepCard num="02" title="填写问卷" desc="66道深度问题，让AI真正了解你" tags={['人格测评', '风格分析', '价值观匹配']} />
-          <StepCard num="03" title="等待匹配" desc="每周二晚，AI为你精准匹配" tags={['智能算法', '多维分析', '性格互补']} />
-          <StepCard num="04" title="认识新朋友" desc="查看匹配理由，开启美好故事" tags={['匹配详解', '话题推荐', '破冰引导']} />
-        </div>
-      </section>
-
-      {/* 用户评价 */}
-      <section style={{ ...styles.section, background: 'rgba(255, 255, 255, 0.5)' }}>
-        <h2 style={{ fontSize: '28px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px' }}>
-          真实用户的 <span style={styles.gradientText}>心动故事</span>
-        </h2>
-        <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '32px' }}>
-          已有数万人找到属于他们的幸福
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-          <TestimonialCard name="Sarah" location="北京" content="遇到了我的未婚夫！66道问题让我们发现彼此太契合了，现在已经在一起一年多了！" avatar="S" />
-          <TestimonialCard name="Mike" location="上海" content="每周只看到一个匹配，反而让我更珍惜。现在和匹配的女生聊得非常好，准备见面了！" avatar="M" />
-          <TestimonialCard name="Lily" location="深圳" content="作为社恐，这个APP让我轻松很多。不用不停滑动，AI筛选真的很棒！" avatar="L" />
-        </div>
-
-        <div style={{ textAlign: 'center', marginTop: '24px' }}>
-          <a href="/stories" style={{ color: '#f43f5e', fontWeight: 600, textDecoration: 'none' }}>
-            查看更多故事 →
-          </a>
+        
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            {
+              num: '1',
+              title: '填写问卷',
+              desc: '完成 66 道灵魂问题',
+              tags: ['性格测试', '价值观', '生活习惯'],
+            },
+            {
+              num: '2',
+              title: '等待匹配',
+              desc: 'AI 算法每周推荐',
+              tags: ['精准匹配', '每周更新', '通知提醒'],
+            },
+            {
+              num: '3',
+              title: '开始互动',
+              desc: '遇见心动的人',
+              tags: ['匿名聊天', '互喜解锁', '真实身份'],
+            },
+          ].map((step, i) => (
+            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-pink-500 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                  {step.num}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">{step.title}</h3>
+                  <p className="text-sm text-gray-500">{step.desc}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {step.tags.map((tag, j) => (
+                  <span key={j} className="px-3 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* CTA 区域 */}
-      <section style={styles.section}>
-        <div style={{
-          ...styles.card,
-          background: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)',
-          textAlign: 'center',
-          padding: '48px 24px',
-        }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="white" style={{ margin: '0 auto 16px' }}>
-            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-          </svg>
-          <h2 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
-            开始你的心动之旅
+      <section className="relative z-10 max-w-3xl mx-auto px-4 py-16 text-center">
+        <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 rounded-3xl p-8 md:p-12 text-white">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">
+            准备好遇见那个对的人了吗？
           </h2>
-          <p style={{ color: 'rgba(255, 255, 255, 0.9)', marginBottom: '24px' }}>
-            下一个转角，遇见对的人
+          <p className="text-white/90 mb-8">
+            现在 registration，立即开启你的心动之旅
           </p>
-          <a href="/register" style={{
-            ...styles.btnLarge,
-            background: 'white',
-            color: '#f43f5e',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-          }}>
-            立即注册
-          </a>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginTop: '24px', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-            <span>✓ 免费注册</span>
-            <span>✓ 隐私保护</span>
-            <span>✓ 真诚相交</span>
-          </div>
+          <Link 
+            href="/register"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-rose-600 font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition-all"
+          >
+            立即开始
+            <Heart className="w-5 h-5" fill="currentColor" />
+          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer style={{ padding: '32px 16px', borderTop: '1px solid #f3f4f6', textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
-          <div style={{ ...styles.logoIcon, width: 32, height: 32 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-            </svg>
-          </div>
-          <span style={{ fontWeight: 'bold', color: '#1f2937' }}>心动投递</span>
+      <footer className="relative z-10 border-t border-gray-100 py-8">
+        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-500">
+          <p>© 2024 心动投递 · 用 AI 算法，找到那个懂你的人</p>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '16px' }}>
-          <a href="/about" style={{ color: '#6b7280', textDecoration: 'none' }}>关于我们</a>
-          <a href="/how-it-works" style={{ color: '#6b7280', textDecoration: 'none' }}>匹配原理</a>
-          <a href="/stories" style={{ color: '#6b7280', textDecoration: 'none' }}>用户故事</a>
-          <a href="/login" style={{ color: '#6b7280', textDecoration: 'none' }}>登录</a>
-        </div>
-        <p style={{ color: '#9ca3af', fontSize: '14px' }}>© 2024 心动投递 · 让心动有回响</p>
       </footer>
     </div>
   )
+}
+
+export default function HomePage() {
+  const { currentUser, isLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+        <div className="animate-pulse text-rose-500">加载中...</div>
+      </div>
+    )
+  }
+
+  // 根据登录状态显示不同的首页
+  return currentUser ? <LoggedInHome /> : <LandingPage />
 }
