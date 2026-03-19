@@ -15,64 +15,61 @@ import {
   FadeIn
 } from '@/components/animated-background'
 import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
+import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
 
 export default function EditProfilePage() {
   const router = useRouter()
+  const { currentUser, isLoading, getUserData, setUserData } = useAuth()
   const [mounted, setMounted] = useState(false)
   
-  const [profile, setProfile] = useState({
-    nickname: '小明',
-    age: 28,
-    gender: 'male',
-    city: '北京',
-    occupation: '产品经理',
-    education: '硕士',
-    height: 175,
-    bio: '热爱生活，喜欢探索新事物，周末喜欢骑行和看电影～',
-    interests: ['旅行', '美食', '摄影', '电影', '骑行', '阅读'],
-    lookingFor: {
-      minAge: 24,
-      maxAge: 30,
-      cities: ['北京'],
-      relationship: 'serious' // serious, casual, not_sure
-    }
-  })
-  
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
   const [activeSection, setActiveSection] = useState<string | null>(null)
 
-  // 从 localStorage 加载数据
+  // 从用户专属存储加载数据
   useEffect(() => {
     setMounted(true)
-    const savedAvatar = localStorage.getItem('user_avatar')
-    const savedPhotos = localStorage.getItem('user_photos')
-    const savedProfile = localStorage.getItem('user_profile')
     
-    if (savedAvatar) {
-      setAvatar(savedAvatar)
-    }
-    if (savedPhotos) {
-      try {
-        setPhotos(JSON.parse(savedPhotos))
-      } catch (e) {
-        console.error('Failed to parse photos:', e)
+    if (!isLoading && currentUser) {
+      // 加载用户资料
+      const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
+      setProfile(savedProfile)
+      
+      // 加载头像
+      const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
+      if (savedAvatar) {
+        setAvatar(savedAvatar)
+      }
+      
+      // 加载照片
+      const savedPhotos = localStorage.getItem(`xindong_photos_${currentUser.id}`)
+      if (savedPhotos) {
+        try {
+          setPhotos(JSON.parse(savedPhotos))
+        } catch (e) {
+          console.error('Failed to parse photos:', e)
+        }
       }
     }
-    if (savedProfile) {
-      try {
-        setProfile(JSON.parse(savedProfile))
-      } catch (e) {
-        console.error('Failed to parse profile:', e)
-      }
-    }
-  }, [])
+  }, [isLoading, currentUser, getUserData])
 
   const handleSave = () => {
-    // 保存所有数据到 localStorage
-    localStorage.setItem('user_profile', JSON.stringify(profile))
-    localStorage.setItem('user_avatar', avatar || '')
-    localStorage.setItem('user_photos', JSON.stringify(photos))
+    if (!currentUser) return
+    
+    // 保存用户资料到用户专属存储
+    const profileKey = `xindong_profile_${currentUser.id}`
+    localStorage.setItem(profileKey, JSON.stringify(profile))
+    
+    // 保存头像
+    if (avatar) {
+      localStorage.setItem(`xindong_avatar_${currentUser.id}`, avatar)
+    } else {
+      localStorage.removeItem(`xindong_avatar_${currentUser.id}`)
+    }
+    
+    // 保存照片
+    localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(photos))
     
     console.log('Saving profile:', { profile, avatar, photos })
     // 保存成功后返回个人主页
@@ -86,7 +83,21 @@ export default function EditProfilePage() {
     '投资', '创业', '科技', '汽车', '宠物', '园艺'
   ]
 
-  if (!mounted) {
+  if (isLoading || !mounted) {
+    return (
+      <AnimatedBackground variant="dream" showFloatingHearts={false}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-rose-500">加载中...</div>
+        </div>
+      </AnimatedBackground>
+    )
+  }
+
+  // 如果未登录，跳转到登录页
+  if (!currentUser) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
     return null
   }
 

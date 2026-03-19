@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Eye, EyeOff, Mail, Lock, User, Calendar, ArrowRight, Check, Loader2, Sparkles, Phone } from 'lucide-react'
 import Link from 'next/link'
@@ -15,6 +16,18 @@ interface FormData {
   age: string
   city: string
   agreedToTerms: boolean
+}
+
+// 用户数据类型
+interface UserData {
+  id: string
+  email: string
+  nickname: string
+  password: string
+  gender: 'male' | 'female' | null
+  age: number
+  city: string
+  createdAt: string
 }
 
 // 步骤组件
@@ -265,6 +278,12 @@ export default function RegisterPage() {
         alert('请填写邮箱')
         return
       }
+      // 检查邮箱是否已注册
+      const users = JSON.parse(localStorage.getItem('xindong_users') || '[]')
+      if (users.some((u: UserData) => u.email === formData.email.trim())) {
+        alert('该邮箱已被注册，请直接登录')
+        return
+      }
       if (!formData.password || formData.password.length < 8) {
         alert('密码至少需要8位字符')
         return
@@ -300,6 +319,47 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true)
+    
+    // 创建新用户
+    const newUser: UserData = {
+      id: 'user_' + Date.now(),
+      email: formData.email.trim(),
+      nickname: formData.nickname.trim(),
+      password: formData.password,
+      gender: formData.gender,
+      age: parseInt(formData.age),
+      city: formData.city.trim(),
+      createdAt: new Date().toISOString()
+    }
+
+    // 保存到用户列表
+    const users = JSON.parse(localStorage.getItem('xindong_users') || '[]')
+    users.push(newUser)
+    localStorage.setItem('xindong_users', JSON.stringify(users))
+
+    // 设置当前登录用户
+    localStorage.setItem('xindong_current_user', JSON.stringify(newUser))
+
+    // 初始化该用户的个人资料
+    const userProfile = {
+      nickname: newUser.nickname,
+      age: newUser.age,
+      gender: newUser.gender || 'male',
+      city: newUser.city,
+      occupation: '',
+      education: '',
+      height: 175,
+      bio: '',
+      interests: [],
+      lookingFor: {
+        minAge: 18,
+        maxAge: 35,
+        cities: [newUser.city],
+        relationship: 'serious'
+      }
+    }
+    localStorage.setItem(`xindong_profile_${newUser.id}`, JSON.stringify(userProfile))
+
     await new Promise(resolve => setTimeout(resolve, 1500))
     window.location.href = '/questionnaire'
   }

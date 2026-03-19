@@ -1,14 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Heart, Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { GlassCard, GradientButton, GradientText, FadeIn } from '@/components/animated-background'
+import { GlassCard, GradientText } from '@/components/animated-background'
+
+// 用户数据类型
+interface UserData {
+  id: string
+  email: string
+  nickname: string
+  password: string
+  gender: 'male' | 'female' | null
+  age: number
+  city: string
+  createdAt: string
+}
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -17,10 +30,36 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    
+    if (!formData.email.trim() || !formData.password) {
+      setError('请输入邮箱和密码')
+      return
+    }
+
     setIsLoading(true)
     
-    // 模拟登录
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // 查找用户
+    const users: UserData[] = JSON.parse(localStorage.getItem('xindong_users') || '[]')
+    const user = users.find(u => u.email === formData.email.trim())
+    
+    // 模拟网络延迟
+    await new Promise(resolve => setTimeout(resolve, 800))
+    
+    if (!user) {
+      setIsLoading(false)
+      setError('该邮箱未注册，请先注册账号')
+      return
+    }
+    
+    if (user.password !== formData.password) {
+      setIsLoading(false)
+      setError('密码错误，请重试')
+      return
+    }
+    
+    // 登录成功，设置当前用户
+    localStorage.setItem('xindong_current_user', JSON.stringify(user))
     
     // 跳转到仪表盘
     window.location.href = '/dashboard'
@@ -208,6 +247,17 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* 错误提示 */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 {/* 邮箱 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

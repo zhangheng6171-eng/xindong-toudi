@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Settings, Edit2, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap } from 'lucide-react'
+import { Settings, Edit2, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, LogOut } from 'lucide-react'
 import { 
   AnimatedBackground, 
   GlassCard, 
@@ -12,66 +12,85 @@ import {
   Tag
 } from '@/components/animated-background'
 import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
+import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
 
 export default function ProfilePage() {
+  const { currentUser, isLoading, getUserData, setUserData, logout } = useAuth()
   const [mounted, setMounted] = useState(false)
-  
-  const [profile, setProfile] = useState({
-    nickname: '小恒',
-    age: 28,
-    city: '北京',
-    occupation: '产品经理',
-    education: '硕士',
-    height: '175cm',
-    joinedDays: 92,
-    bio: '热爱生活，喜欢旅行和摄影。周末喜欢探店、看书、撸猫。相信爱情，期待遇到三观契合的那个她。',
-    tags: ['温柔', '上进', '顾家', '喜欢小孩', '爱运动'],
-    questionnaireProgress: 66,
-    stats: {
-      totalMatches: 12,
-      liked: 8,
-      mutualLikes: 3,
-    },
-  })
-  
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
 
-  // 从 localStorage 加载已保存的数据
+  // 从用户专属存储加载数据
   useEffect(() => {
     setMounted(true)
-    const savedAvatar = localStorage.getItem('user_avatar')
-    const savedPhotos = localStorage.getItem('user_photos')
     
-    if (savedAvatar) {
-      setAvatar(savedAvatar)
-    }
-    if (savedPhotos) {
-      try {
-        setPhotos(JSON.parse(savedPhotos))
-      } catch (e) {
-        console.error('Failed to parse photos:', e)
+    if (!isLoading && currentUser) {
+      // 加载用户资料
+      const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
+      setProfile(savedProfile)
+      
+      // 加载头像
+      const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
+      if (savedAvatar) {
+        setAvatar(savedAvatar)
+      }
+      
+      // 加载照片
+      const savedPhotos = localStorage.getItem(`xindong_photos_${currentUser.id}`)
+      if (savedPhotos) {
+        try {
+          setPhotos(JSON.parse(savedPhotos))
+        } catch (e) {
+          console.error('Failed to parse photos:', e)
+        }
       }
     }
-  }, [])
+  }, [isLoading, currentUser, getUserData])
 
-  // 保存头像到 localStorage
+  // 保存头像到用户专属存储
   const handleAvatarChange = (url: string | null) => {
     setAvatar(url)
-    if (url) {
-      localStorage.setItem('user_avatar', url)
-    } else {
-      localStorage.removeItem('user_avatar')
+    if (currentUser) {
+      if (url) {
+        localStorage.setItem(`xindong_avatar_${currentUser.id}`, url)
+      } else {
+        localStorage.removeItem(`xindong_avatar_${currentUser.id}`)
+      }
     }
   }
 
-  // 保存照片到 localStorage
+  // 保存照片到用户专属存储
   const handlePhotosChange = (newPhotos: (string | null)[]) => {
     setPhotos(newPhotos)
-    localStorage.setItem('user_photos', JSON.stringify(newPhotos))
+    if (currentUser) {
+      localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(newPhotos))
+    }
   }
 
-  if (!mounted) {
+  // 处理登出
+  const handleLogout = () => {
+    if (confirm('确定要退出登录吗？')) {
+      logout()
+      window.location.href = '/login'
+    }
+  }
+
+  if (isLoading || !mounted) {
+    return (
+      <AnimatedBackground variant="romance" showFloatingHearts={true}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-rose-500">加载中...</div>
+        </div>
+      </AnimatedBackground>
+    )
+  }
+
+  // 如果未登录，跳转到登录页
+  if (!currentUser) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
     return null
   }
 
@@ -84,8 +103,12 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-br from-rose-500 via-pink-500 to-purple-500 text-white">
             {/* Top Bar */}
             <div className="flex items-center justify-between px-4 py-4">
-              <button className="p-2 hover:bg-white/20 rounded-full transition-colors">
-                <Settings className="w-6 h-6" />
+              <button 
+                onClick={handleLogout}
+                className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                title="退出登录"
+              >
+                <LogOut className="w-6 h-6" />
               </button>
               <h1 className="text-xl font-bold">我的主页</h1>
               <Link href="/profile/edit" className="p-2 hover:bg-white/20 rounded-full transition-colors">
@@ -108,19 +131,19 @@ export default function ProfilePage() {
               <div className="flex gap-10 mt-5">
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={profile.stats.totalMatches} duration={1.5} />
+                    <AnimatedCounter end={12} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">匹配次数</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={profile.stats.liked} duration={1.5} />
+                    <AnimatedCounter end={8} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">喜欢</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={profile.stats.mutualLikes} duration={1.5} />
+                    <AnimatedCounter end={3} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">互相喜欢</div>
                 </div>
@@ -177,19 +200,19 @@ export default function ProfilePage() {
                   <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center">
                     <Briefcase className="w-4 h-4 text-pink-500" />
                   </div>
-                  <span className="text-sm text-gray-600">{profile.occupation}</span>
+                  <span className="text-sm text-gray-600">{profile.occupation || '未填写'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
                     <GraduationCap className="w-4 h-4 text-purple-500" />
                   </div>
-                  <span className="text-sm text-gray-600">{profile.education}</span>
+                  <span className="text-sm text-gray-600">{profile.education || '未填写'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                     <span className="text-sm">📏</span>
                   </div>
-                  <span className="text-sm text-gray-600">{profile.height}</span>
+                  <span className="text-sm text-gray-600">{profile.height}cm</span>
                 </div>
               </div>
             </GlassCard>
@@ -203,16 +226,20 @@ export default function ProfilePage() {
                 关于我
               </h3>
               <p className="text-gray-600 text-sm leading-relaxed">
-                {profile.bio}
+                {profile.bio || '还没有填写个人简介'}
               </p>
               
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mt-4">
-                {profile.tags.map((tag) => (
-                  <Tag key={tag} color="rose">
-                    {tag}
-                  </Tag>
-                ))}
+                {profile.interests.length > 0 ? (
+                  profile.interests.map((tag) => (
+                    <Tag key={tag} color="rose">
+                      {tag}
+                    </Tag>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-400">还没有添加兴趣爱好</span>
+                )}
               </div>
             </GlassCard>
           </FadeIn>
@@ -227,19 +254,22 @@ export default function ProfilePage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
                   <span className="text-gray-500">年龄</span>
-                  <span className="text-gray-800 font-medium">24-32岁</span>
+                  <span className="text-gray-800 font-medium">{profile.lookingFor.minAge}-{profile.lookingFor.maxAge}岁</span>
                 </div>
                 <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
                   <span className="text-gray-500">城市</span>
-                  <span className="text-gray-800 font-medium">北京 / 上海</span>
+                  <span className="text-gray-800 font-medium">{profile.lookingFor.cities.join(' / ') || '不限'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2.5 border-b border-gray-100/50">
                   <span className="text-gray-500">学历</span>
                   <span className="text-gray-800 font-medium">本科及以上</span>
                 </div>
                 <div className="flex justify-between items-center py-2.5">
-                  <span className="text-gray-500">性格</span>
-                  <span className="text-gray-800 font-medium">开朗、善良</span>
+                  <span className="text-gray-500">关系类型</span>
+                  <span className="text-gray-800 font-medium">
+                    {profile.lookingFor.relationship === 'serious' ? '认真恋爱' : 
+                     profile.lookingFor.relationship === 'casual' ? '轻松交往' : '随缘'}
+                  </span>
                 </div>
               </div>
             </GlassCard>
@@ -254,13 +284,13 @@ export default function ProfilePage() {
                   问卷完成度
                 </span>
                 <GradientText className="text-xl font-bold">
-                  {profile.questionnaireProgress}/66
+                  0/66
                 </GradientText>
               </div>
               <div className="w-full bg-gray-100/50 rounded-full h-3 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 h-3 rounded-full transition-all duration-1000"
-                  style={{ width: `${profile.questionnaireProgress}%` }}
+                  style={{ width: '0%' }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-3">完成更多问题，获得更精准的匹配 ✨</p>
