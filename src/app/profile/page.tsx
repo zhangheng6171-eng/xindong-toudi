@@ -26,34 +26,42 @@ export default function ProfilePage() {
     setMounted(true)
     
     if (!isLoading && currentUser) {
-      // 加载用户资料
-      const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
-      
-      // 如果 localStorage 中的昵称为空，使用 currentUser 的信息
-      if (!savedProfile.nickname && currentUser.nickname) {
-        const userProfile: UserProfile = {
-          nickname: currentUser.nickname,
-          age: currentUser.age || 25,
-          gender: currentUser.gender || 'male',
-          city: currentUser.city || '',
-          occupation: '',
-          education: '',
-          height: 175,
-          bio: '',
-          interests: [],
-          lookingFor: {
-            minAge: 18,
-            maxAge: 35,
-            cities: currentUser.city ? [currentUser.city] : [],
-            relationship: 'serious'
-          }
+      // 从 currentUser 获取最新的基本信息（数据库同步）
+      const userProfile: UserProfile = {
+        nickname: currentUser.nickname || '',
+        age: currentUser.age || 25,
+        gender: currentUser.gender || 'male',
+        city: currentUser.city || '',
+        occupation: '',
+        education: '',
+        height: 175,
+        bio: '',
+        interests: [],
+        lookingFor: {
+          minAge: 18,
+          maxAge: 35,
+          cities: currentUser.city ? [currentUser.city] : [],
+          relationship: 'serious'
         }
-        setProfile(userProfile)
-        // 保存到 localStorage
-        localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
-      } else {
-        setProfile(savedProfile)
       }
+      
+      // 合并 localStorage 中的用户编辑数据
+      const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
+      if (savedProfile.nickname) {
+        // 保留用户编辑的字段
+        userProfile.bio = savedProfile.bio || ''
+        userProfile.interests = savedProfile.interests || []
+        userProfile.occupation = savedProfile.occupation || ''
+        userProfile.education = savedProfile.education || ''
+        userProfile.height = savedProfile.height || 175
+        userProfile.lookingFor = savedProfile.lookingFor || userProfile.lookingFor
+      }
+      
+      // 强制使用数据库的最新昵称、年龄、城市、性别
+      setProfile(userProfile)
+      
+      // 保存到 localStorage
+      localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
       
       // 加载头像
       const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
