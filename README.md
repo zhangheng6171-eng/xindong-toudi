@@ -331,7 +331,7 @@ hotfix/*  - 紧急修复
 
 ## 许可证
 
-MIT License
+Copyright © 2024 临沂鲁曜同创 All rights reserved.
 
 ---
 
@@ -339,9 +339,10 @@ MIT License
 
 - 项目地址: `/root/.openclaw/workspace/心动投递`
 - 文档地址: 各 `architecture/`、`design/`、`research/` 目录
+- 版权所有: 临沂鲁曜同创
 
 ---
 
 **让每一次心动，都有回响** 💕
 
-_Made with ❤️ by AI Assistant_
+_Made with ❤️ by 临沂鲁曜同创_

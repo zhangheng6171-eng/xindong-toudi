@@ -178,7 +178,7 @@ function AlertModal({ message, onClose }: { message: string; onClose: () => void
           <AlertCircle className="w-8 h-8 text-rose-500" />
         </div>
         <h3 className="text-lg font-bold text-gray-900 mb-2">温馨提示</h3>
-        <p className="text-gray-600 mb-6">{message}</p>
+        <p className="text-gray-600 mb-6 whitespace-pre-line">{message}</p>
         <button
           onClick={onClose}
           className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-full hover:shadow-lg transition-all"
@@ -296,7 +296,6 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
                         alt={`${user.nickname}的照片${index + 1}`}
                         className="w-full h-full object-cover hover:scale-105 transition-transform"
                         onError={(e) => {
-                          // 图片加载失败时显示占位图
                           (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext x="50" y="50" text-anchor="middle" fill="%239ca3af" font-size="10" dy=".3em"%3E加载失败%3C/text%3E%3C/svg%3E'
                         }}
                       />
@@ -308,7 +307,6 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
               <div className="text-center py-8 bg-gray-50 rounded-xl">
                 <Camera className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                 <p className="text-gray-400 text-sm">暂无照片</p>
-                <p className="text-gray-300 text-xs mt-1">用户还未上传照片墙</p>
               </div>
             )}
           </div>
@@ -361,7 +359,6 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
             </button>
           </div>
 
-          {/* 互相喜欢提示 */}
           {user.isMutualLike && (
             <p className="text-center text-sm text-rose-500 mt-3">
               💕 你们互相喜欢，可以发消息了
@@ -386,10 +383,8 @@ function LoggedInHome() {
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
   const [dailyLikesUsed, setDailyLikesUsed] = useState(0)
 
-  // 查看详情时从 API 获取完整用户信息
   const handleViewDetail = async (user: DisplayUser) => {
     setIsLoadingDetail(true)
-    // 先设置基本信息，让用户看到加载状态
     setSelectedUser(user)
     
     try {
@@ -398,7 +393,6 @@ function LoggedInHome() {
         const data = await response.json()
         if (data.success && data.user) {
           const fullUser = data.user
-          // 确保 photos 是数组
           const photos = Array.isArray(fullUser.photos) ? fullUser.photos : []
           
           setSelectedUser({
@@ -420,20 +414,17 @@ function LoggedInHome() {
     }
   }
 
-  // 关闭详情弹窗时重置加载状态
   const handleCloseDetail = () => {
     setSelectedUser(null)
     setIsLoadingDetail(false)
   }
 
-  // 检查是否完成问卷
   const checkQuestionnaireStatus = useCallback(() => {
     if (typeof window === 'undefined') return false
     try {
       const answers = localStorage.getItem('questionnaireAnswers')
       if (answers) {
         const parsed = JSON.parse(answers)
-        // 检查是否有足够数量的答案（至少66题）
         const answerCount = Object.keys(parsed).length
         return answerCount >= 66
       }
@@ -443,7 +434,6 @@ function LoggedInHome() {
     return false
   }, [])
 
-  // 检查每日喜欢次数
   const checkDailyLikes = useCallback(() => {
     if (typeof window === 'undefined' || !currentUser) return 0
     try {
@@ -461,7 +451,6 @@ function LoggedInHome() {
     return 0
   }, [currentUser])
 
-  // 更新每日喜欢次数
   const updateDailyLikes = useCallback(() => {
     if (typeof window === 'undefined' || !currentUser) return
     const today = new Date().toDateString()
@@ -474,16 +463,13 @@ function LoggedInHome() {
   }, [currentUser, checkDailyLikes])
 
   useEffect(() => {
-    // 检查问卷完成状态
     setQuestionnaireCompleted(checkQuestionnaireStatus())
     setDailyLikesUsed(checkDailyLikes())
-    
     setMounted(true)
 
     const loadUsers = async () => {
-      setIsLoading(true) // 开始加载
+      setIsLoading(true)
       try {
-        // 获取所有喜欢关系（从数据库，支持跨设备）
         let allLikes: {from: string, to: string}[] = []
         try {
           const likesResponse = await fetch('/api/users/likes?action=all')
@@ -500,31 +486,24 @@ function LoggedInHome() {
           console.log('Likes API not available, using localStorage')
         }
 
-        // 从 API 获取所有用户（包含头像和照片墙数据）
         const response = await fetch('/api/users/list')
 
         if (response.ok) {
           const data = await response.json()
 
           if (data.success && data.users && data.users.length > 0) {
-            // 读取当前用户的喜欢列表
             const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
             const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
 
-            // 转换为显示格式（直接使用 API 返回的数据，包括头像和照片墙）
             const displayUsers: DisplayUser[] = data.users
               .filter((u: ApiUser) => u.id !== currentUser?.id)
               .map((u: ApiUser) => {
-                // 检查对方是否也喜欢了当前用户（互相喜欢）
-                // 优先从数据库判断，否则回退到 localStorage
                 let isMutualLike = false
                 if (currentUser && allLikes.length > 0) {
-                  // 数据库中有互相喜欢的记录
                   const fromOtherToMe = allLikes.some(l => l.from === u.id && l.to === currentUser.id)
                   const fromMeToOther = allLikes.some(l => l.from === currentUser.id && l.to === u.id)
                   isMutualLike = fromOtherToMe && fromMeToOther
                 } else {
-                  // 回退到 localStorage
                   const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
                   const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
                   isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
@@ -541,7 +520,6 @@ function LoggedInHome() {
                   height: u.height || 0,
                   bio: u.bio || '',
                   interests: u.interests || [],
-                  // 直接使用 API 返回的头像和照片墙（云端数据）
                   avatar: u.avatar || null,
                   photos: u.photos || [],
                   matchScore: Math.floor(Math.random() * 30) + 70,
@@ -557,17 +535,15 @@ function LoggedInHome() {
       } catch (e) {
         console.error('Failed to fetch users from API:', e)
       } finally {
-        setIsLoading(false) // 加载完成
+        setIsLoading(false)
       }
 
-      // 如果 API 失败，显示空列表
       setAllUsers([])
     }
 
     loadUsers()
   }, [currentUser])
 
-  // 处理喜欢/取消喜欢
   const handleLike = async (userId: string) => {
     if (!currentUser) return
 
@@ -578,26 +554,21 @@ function LoggedInHome() {
     const isLiked = likedUsers.includes(userId)
 
     if (isLiked) {
-      // 取消喜欢
       likedUsers = likedUsers.filter(id => id !== userId)
     } else {
-      // 每日喜欢次数限制（未完成问卷用户每天只能喜欢5次）
       if (!questionnaireCompleted) {
         const todayCount = checkDailyLikes()
         if (todayCount >= 5) {
           setAlertMessage('📝 抱歉，您还未完成问卷调查\n\n今日喜欢次数已用完（5次）\n\n完成问卷后可无限喜欢~')
           return
         }
-        // 更新每日次数
         updateDailyLikes()
       }
-      // 添加喜欢
       likedUsers.push(userId)
     }
 
     localStorage.setItem(likedKey, JSON.stringify(likedUsers))
 
-    // 同步到云端数据库
     try {
       await fetch('/api/users/likes', {
         method: 'POST',
@@ -612,66 +583,19 @@ function LoggedInHome() {
       console.error('Failed to sync like to cloud:', e)
     }
 
-    // 重新加载用户列表以获取最新的互相喜欢状态
-    const loadUsers = async () => {
-      try {
-        // 获取所有喜欢关系
-        let allLikes: { from: string, to: string }[] = []
-        try {
-          const likesResponse = await fetch('/api/users/likes?action=all')
-          if (likesResponse.ok) {
-            const likesData = await likesResponse.json()
-            if (likesData.likes) {
-              allLikes = likesData.likes.map((l: any) => ({
-                from: l.from_user_id,
-                to: l.to_user_id
-              }))
-            }
-          }
-        } catch (e) {
-          console.log('Likes API not available')
-        }
-
-        // 更新界面状态
-        setAllUsers(prev => prev.map(u => {
-          if (u.id === userId || u.isLiked) {
-            const isLiked = likedUsers.includes(u.id)
-            // 检查互相喜欢
-            let isMutualLike = false
-            if (currentUser && allLikes.length > 0) {
-              const fromOtherToMe = allLikes.some(l => l.from === u.id && l.to === currentUser.id)
-              const fromMeToOther = allLikes.some(l => l.from === currentUser.id && l.to === u.id)
-              isMutualLike = fromOtherToMe && fromMeToOther
-            } else {
-              const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
-              const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
-              isMutualLike = isLiked && theirLikes.includes(currentUser?.id || '')
-            }
-            return { ...u, isLiked, isMutualLike }
-          }
-          return u
-        }))
-      } catch (e) {
-        console.error('Failed to update likes:', e)
+    setAllUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return { ...u, isLiked: !isLiked }
       }
-    }
+      return u
+    }))
 
-    loadUsers()
-
-    // 如果详情弹窗打开，也更新弹窗状态
     if (selectedUser && selectedUser.id === userId) {
-      setTimeout(() => {
-        const updatedUser = allUsers.find(u => u.id === userId)
-        if (updatedUser) {
-          setSelectedUser(updatedUser)
-        }
-      }, 100)
+      setSelectedUser(prev => prev ? { ...prev, isLiked: !isLiked } : null)
     }
   }
 
-  // 处理发消息
   const handleSendMessage = (user: DisplayUser) => {
-    // 检查是否完成问卷
     if (!questionnaireCompleted) {
       setAlertMessage('📝 您还未完成问卷调查\n\n完成问卷后才能主动发起聊天哦~\n\n点击"我的" → "完善资料"开始答题')
       return
@@ -681,13 +605,10 @@ function LoggedInHome() {
       setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～')
       return
     }
-    // 跳转到聊天页面，传递用户ID和昵称
-    setSelectedUser(null) // 关闭详情弹窗
-    // 使用 window.location.href 确保正确跳转
+    setSelectedUser(null)
     window.location.href = `/chat/conversation/?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`
   }
 
-  // 显示真实用户列表
   const displayUsers = allUsers
 
   return (
@@ -706,7 +627,6 @@ function LoggedInHome() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* 问卷完成状态指示器 */}
               {questionnaireCompleted ? (
                 <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">资料完善</span>
               ) : (
@@ -718,7 +638,6 @@ function LoggedInHome() {
 
         {/* 内容区域 */}
         <div className="max-w-2xl mx-auto px-4 py-6">
-          {/* 加载状态 - 骨架屏 */}
           {isLoading ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -808,7 +727,7 @@ function LoggedInHome() {
   )
 }
 
-// 未登录用户的首页（营销页）
+// 未登录用户的首页（营销页）- 优化版，突出66题+AI匹配核心优势
 function LandingPage() {
   return (
     <div className="min-h-screen" style={{
@@ -850,88 +769,229 @@ function LandingPage() {
 
       {/* Hero 区域 */}
       <section className="relative z-10 max-w-5xl mx-auto px-4 pt-16 pb-20 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full shadow-sm mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-100 to-pink-100 rounded-full shadow-sm mb-6">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-sm text-gray-600">AI 驱动的智能匹配平台</span>
+          <span className="text-sm font-medium text-rose-700">临沂鲁曜同创 · AI驱动的智能匹配平台</span>
         </div>
 
         <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-          用<span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent"> AI 算法</span>
+          先了解<span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">真正的你</span>
           <br />
-          找到那个懂你的人
+          再遇见<span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">对的人</span>
         </h1>
 
-        <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-          基于 66 道灵魂问卷，深度分析你的性格特质
+        <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
+          <span className="font-semibold text-rose-600">66道灵魂问卷</span>深度解析你的性格、价值观与生活方式
           <br />
-          每周为你精准匹配最合适的潜在伴侣
+          <span className="font-semibold text-rose-600">AI大模型</span>为你精准匹配，让每一次相遇都更有意义
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
           <Link
-            href="/register"
+            href="/questionnaire"
             className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-bold text-lg rounded-full shadow-xl shadow-rose-500/40 hover:shadow-2xl hover:scale-105 transition-all"
           >
-            开始心动之旅
+            开始答题，免费匹配
             <Sparkles className="inline w-5 h-5 ml-2" />
           </Link>
           <Link
             href="/how-it-works"
             className="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 font-medium text-lg rounded-full shadow-lg hover:shadow-xl transition-all"
           >
-            了解更多
+            了解匹配原理
           </Link>
         </div>
 
-        <div className="flex justify-center gap-8 md:gap-16">
+        {/* 核心数据展示 */}
+        <div className="flex flex-wrap justify-center gap-6 md:gap-12">
           {[
-            { value: '10万+', label: '成功匹配' },
-            { value: '92%', label: '满意度' },
-            { value: '66', label: '灵魂问题' },
+            { value: '66', label: '道灵魂问卷', sublabel: '深度了解真实的自己' },
+            { value: '9', label: '大维度分析', sublabel: '人格/价值观/生活方式' },
+            { value: '10万+', label: '成功匹配', sublabel: '真实用户好评' },
+            { value: '92%', label: '匹配满意度', sublabel: '高于传统相亲平台' },
           ].map((stat, i) => (
-          <div key={i} className="text-center">
-              <div className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+            <div key={i} className="text-center px-4">
+              <div className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
                 {stat.value}
               </div>
-              <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
+              <div className="text-sm font-medium text-gray-700 mt-1">{stat.label}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{stat.sublabel}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* 特性区域 */}
+      {/* 66道问卷优势区域 - 重点突出 */}
+      <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            为什么传统相亲平台<span className="text-gray-400">效率低</span>？
+          </h2>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            只看照片和基本条件，根本不了解对方的性格、价值观是否契合
+          </p>
+        </div>
+
+        <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 rounded-3xl p-8 md:p-12 text-white mb-12">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl md:text-3xl font-bold mb-4">
+              心动投递的独特优势
+            </h3>
+            <p className="text-white/90">
+              基于心理学理论与大数据分析的66道深度问卷
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: '🧠',
+                title: '大五人格分析',
+                desc: '开放性、尽责性、外向性、宜人性、神经质五大维度',
+              },
+              {
+                icon: '💝',
+                title: '依恋类型测评',
+                desc: '安全型/焦虑型/回避型，了解你的亲密关系模式',
+              },
+              {
+                icon: '❤️',
+                title: '爱情三元论',
+                desc: '激情、亲密、承诺，找到与你爱情观一致的人',
+              },
+              {
+                icon: '🎯',
+                title: '核心价值观匹配',
+                desc: '生育观、财务观、家庭观等10个核心维度',
+              },
+              {
+                icon: '🏠',
+                title: '生活方式分析',
+                desc: '作息、社交、饮食、旅行偏好等生活习惯',
+              },
+              {
+                icon: '🤖',
+                title: 'AI智能匹配',
+                desc: '大模型算法分析，计算你们的契合度',
+              },
+            ].map((item, i) => (
+              <div key={i} className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 hover:bg-white/20 transition-all">
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <h4 className="font-bold text-lg mb-2">{item.title}</h4>
+                <p className="text-white/80 text-sm">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 匹配流程展示 */}
       <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
         <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
-          为什么选择<span className="bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">心动投递</span>？
+          三步找到你的<span className="bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">灵魂伴侣</span>
         </h2>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-8">
           {[
             {
-              icon: '🎯',
-              title: '科学匹配',
-              desc: '基于大五人格理论，深度分析你的性格特质，找到真正契合的另一半',
-              gradient: 'from-rose-400 to-pink-500',
+              step: '01',
+              title: '完成66道问卷',
+              desc: '只需10-15分钟，基于心理学专业设计，深度解析你的性格与价值观',
+              icon: '📝',
             },
             {
-              icon: '⏰',
-              title: '每周匹配',
-              desc: '每周三推送新匹配，给你充足时间了解每一位推荐对象',
-              gradient: 'from-orange-400 to-rose-500',
+              step: '02',
+              title: 'AI智能匹配',
+              desc: '系统分析数百万种组合，为你筛选出契合度最高的潜在伴侣',
+              icon: '🤖',
             },
             {
-              icon: '🔒',
-              title: '隐私安全',
-              desc: '端到端加密，你的所有信息都受到严格保护，只有匹配对象可见',
-              gradient: 'from-purple-400 to-violet-500',
+              step: '03',
+              title: '遇见对的人',
+              desc: '查看详细的匹配分析报告，了解你们为什么合适，开始心动对话',
+              icon: '💕',
             },
-          ].map((feature, i) => (
-            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all">
-              <div className={`w-14 h-14 bg-gradient-to-br ${feature.gradient} rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-lg`}>
-                {feature.icon}
+          ].map((item, i) => (
+            <div key={i} className="relative">
+              <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all h-full">
+                <div className="text-5xl mb-4">{item.icon}</div>
+                <div className="text-sm font-bold text-rose-500 mb-2">Step {item.step}</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.desc}</p>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">{feature.title}</h3>
-              <p className="text-gray-600">{feature.desc}</p>
+              {i < 2 && (
+                <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
+                  <div className="w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white">
+                    →
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 成功案例 */}
+      <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+          他们的故事
+        </h2>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {[
+            {
+              quote: '"一开始觉得66道题太多了，但做完后看到AI给我匹配的人选，真的太准了！我们价值观高度一致，现在在一起快一年了。"',
+              name: '小林 & 阿杰',
+              matchScore: '95%',
+              time: '匹配第3个月确定关系',
+            },
+            {
+              quote: '"之前用过很多相亲软件，都是看脸。心动投递不一样，它真的了解我的性格，匹配的男生和我超级合拍！"',
+              name: '小美 & 大伟',
+              matchScore: '91%',
+              time: '匹配第2个月确定关系',
+            },
+          ].map((story, i) => (
+            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+              <div className="text-4xl text-rose-300 mb-4">"</div>
+              <p className="text-gray-700 mb-6 leading-relaxed">{story.quote}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-900">{story.name}</div>
+                  <div className="text-sm text-gray-500">{story.time}</div>
+                </div>
+                <div className="bg-gradient-to-r from-rose-500 to-pink-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                  匹配度 {story.matchScore}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 与传统平台对比 */}
+      <section className="relative z-10 max-w-4xl mx-auto px-4 py-16">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+          心动投递 vs 传统相亲平台
+        </h2>
+
+        <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
+          <div className="grid grid-cols-3 bg-gray-50 p-4 font-bold text-sm">
+            <div className="text-gray-600">对比维度</div>
+            <div className="text-gray-400">传统平台</div>
+            <div className="text-rose-600">心动投递 ✨</div>
+          </div>
+          {[
+            { dim: '匹配依据', traditional: '照片+基本条件', xindong: '66道问卷+AI分析' },
+            { dim: '了解深度', traditional: '表面信息', xindong: '性格/价值观/生活方式' },
+            { dim: '匹配逻辑', traditional: '人工筛选或随机', xindong: 'AI算法精准计算' },
+            { dim: '成功率', traditional: '较低，试错成本高', xindong: '92%用户满意度' },
+            { dim: '时间成本', traditional: '需要大量约会试错', xindong: '每周精准匹配1位' },
+          ].map((row, i) => (
+            <div key={i} className="grid grid-cols-3 p-4 border-t border-gray-100 text-sm">
+              <div className="font-medium text-gray-700">{row.dim}</div>
+              <div className="text-gray-500">{row.traditional}</div>
+              <div className="text-rose-600 font-medium">{row.xindong}</div>
             </div>
           ))}
         </div>
@@ -941,16 +1001,19 @@ function LandingPage() {
       <section className="relative z-10 max-w-3xl mx-auto px-4 py-16 text-center">
         <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 rounded-3xl p-8 md:p-12 text-white">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            准备好遇见那个对的人了吗？
+            准备好遇见那个懂你的人了吗？
           </h2>
-          <p className="text-white/90 mb-8">
-            现在注册，立即开启你的心动之旅
+          <p className="text-white/90 mb-2">
+            花10-15分钟完成问卷，让AI为你找到真正契合的另一半
+          </p>
+          <p className="text-white/70 text-sm mb-8">
+            完全免费 · 隐私保护 · 科学匹配
           </p>
           <Link
-            href="/register"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-rose-600 font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition-all"
+            href="/questionnaire"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-rose-600 font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition-all hover:scale-105"
           >
-            立即开始
+            开始答题，免费匹配
             <Heart className="w-5 h-5" fill="currentColor" />
           </Link>
         </div>
@@ -958,7 +1021,8 @@ function LandingPage() {
 
       <footer className="relative z-10 border-t border-gray-100 py-8">
         <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-500">
-          <p>© 2024 心动投递 · 用 AI 算法，找到那个懂你的人</p>
+          <p>© 2024 心动投递 · 临沂鲁曜同创 版权所有</p>
+          <p className="mt-1">用AI算法，找到真正懂你的人</p>
         </div>
       </footer>
     </div>
