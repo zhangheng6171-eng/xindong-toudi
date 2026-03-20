@@ -43,6 +43,7 @@ interface DisplayUser {
   matchScore: number
   isLiked: boolean
   isMutualLike: boolean
+  isSystemMatch: boolean  // 系统匹配用户
 }
 
 // 用户卡片组件
@@ -71,6 +72,11 @@ function UserCard({ user, index, onViewDetail, onLike, showIncompleteTag }: {
             {user.isMutualLike && (
               <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-bold rounded-full shadow-lg">
                 💕互喜
+              </div>
+            )}
+            {user.isSystemMatch && !user.isMutualLike && (
+              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-bold rounded-full shadow-lg">
+                匹配
               </div>
             )}
           </div>
@@ -294,7 +300,7 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
             <button
               onClick={() => onSendMessage(user)}
               className={`flex-1 py-3 rounded-full font-medium transition-all ${
-                user.isMutualLike
+                user.isMutualLike || user.isSystemMatch
                   ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
@@ -304,10 +310,12 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
             </button>
           </div>
 
-          {user.isMutualLike && (
-            <p className="text-center text-sm text-rose-500 mt-3">💕 你们互相喜欢，可以发消息了</p>
+          {(user.isMutualLike || user.isSystemMatch) && (
+            <p className="text-center text-sm text-rose-500 mt-3">
+              {user.isMutualLike ? '💕 你们互相喜欢，可以发消息了' : '🔮 系统匹配用户，可以直接聊天'}
+            </p>
           )}
-          {!user.isMutualLike && user.isLiked && (
+          {!user.isMutualLike && !user.isSystemMatch && user.isLiked && (
             <p className="text-center text-sm text-gray-400 mt-3">等待对方也喜欢你后即可发消息</p>
           )}
         </div>
@@ -475,6 +483,7 @@ function LoggedInHome() {
                   matchScore: Math.floor(Math.random() * 30) + 70,
                   isLiked: likedUsers.includes(u.id),
                   isMutualLike: mutualLikesMap.has(u.id),
+                  isSystemMatch: true,  // API返回的用户都是系统匹配用户
                 }
               })
 
@@ -552,7 +561,7 @@ function LoggedInHome() {
       return
     }
     
-    if (!user.isMutualLike) {
+    if (!user.isMutualLike && !user.isSystemMatch) {
       setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～\n\n💡 提示：对方也喜欢你后就可以发消息了！')
       return
     }
