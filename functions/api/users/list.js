@@ -73,7 +73,7 @@ export async function onRequestGet(context) {
       return {
         id: u.id,
         email: u.email,
-        nickname: u.nickname,
+        nickname: u.nickname || u.email?.split('@')[0] || '用户',
         avatar: u.avatar || null,
         gender: u.gender || 'male',
         age: u.age || 25,
