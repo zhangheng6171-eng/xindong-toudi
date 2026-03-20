@@ -53,8 +53,8 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
           {/* 头像 */}
           <div className="relative flex-shrink-0">
             {user.avatar ? (
-              <img 
-                src={user.avatar} 
+              <img
+                src={user.avatar}
                 alt={user.nickname}
                 className="w-16 h-16 rounded-2xl object-cover shadow-lg"
               />
@@ -68,7 +68,7 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
               {user.matchScore}%
             </div>
           </div>
-          
+
           {/* 信息 */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
@@ -82,7 +82,7 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3 text-sm text-gray-500 mb-2">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" />
@@ -95,11 +95,11 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
                 </span>
               )}
             </div>
-            
+
             {user.bio && (
               <p className="text-sm text-gray-600 line-clamp-2 mb-3">{user.bio}</p>
             )}
-            
+
             {/* 兴趣标签 */}
             {user.interests.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -112,10 +112,10 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
             )}
           </div>
         </div>
-        
+
         {/* 悬停操作 */}
         <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-          <button 
+          <button
             onClick={(e) => {
               e.preventDefault()
               onViewDetail(user)
@@ -125,14 +125,14 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
             <Eye className="w-4 h-4" />
             <span>查看完整资料</span>
           </button>
-          <button 
+          <button
             onClick={(e) => {
               e.preventDefault()
               onLike(user.id)
             }}
             className={`px-4 py-1.5 text-sm font-medium rounded-full transition-all ${
-              user.isLiked 
-                ? 'bg-rose-100 text-rose-600 border-2 border-rose-500' 
+              user.isLiked
+                ? 'bg-rose-100 text-rose-600 border-2 border-rose-500'
                 : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:shadow-lg'
             }`}
           >
@@ -148,14 +148,14 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
 // 提示弹窗
 function AlertModal({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <motion.div 
+    <motion.div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div 
+      <motion.div
         className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -178,24 +178,24 @@ function AlertModal({ message, onClose }: { message: string; onClose: () => void
 }
 
 // 用户详情弹窗
-function UserDetailModal({ user, onClose, onLike, onSendMessage }: { 
-  user: DisplayUser; 
-  onClose: () => void; 
+function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
+  user: DisplayUser;
+  onClose: () => void;
   onLike: (userId: string) => void;
   onSendMessage: (user: DisplayUser) => void;
 }) {
   // 过滤出真实照片
   const realPhotos = user.photos.filter(p => p !== null)
-  
+
   return (
-    <motion.div 
+    <motion.div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div 
+      <motion.div
         className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl"
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -211,8 +211,8 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
           </button>
           <div className="absolute -bottom-12 left-6">
             {user.avatar ? (
-              <img 
-                src={user.avatar} 
+              <img
+                src={user.avatar}
                 alt={user.nickname}
                 className="w-24 h-24 rounded-2xl object-cover shadow-xl border-4 border-white"
               />
@@ -272,8 +272,8 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
               <div className="grid grid-cols-3 gap-2">
                 {realPhotos.slice(0, 6).map((photo, index) => (
                   <div key={index} className="aspect-square rounded-xl overflow-hidden">
-                    <img 
-                      src={photo!} 
+                    <img
+                      src={photo!}
                       alt={`${user.nickname}的照片${index + 1}`}
                       className="w-full h-full object-cover hover:scale-105 transition-transform"
                     />
@@ -310,22 +310,22 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
 
           {/* 操作按钮 */}
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={() => onLike(user.id)}
               className={`flex-1 py-3 rounded-full font-medium transition-all ${
-                user.isLiked 
-                  ? 'bg-rose-100 text-rose-600 border-2 border-rose-500' 
+                user.isLiked
+                  ? 'bg-rose-100 text-rose-600 border-2 border-rose-500'
                   : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/30 hover:shadow-xl'
               }`}
             >
               <Heart className={`w-5 h-5 inline mr-2 ${user.isLiked ? 'fill-current' : ''}`} />
               {user.isLiked ? '已喜欢' : '喜欢'}
             </button>
-            <button 
+            <button
               onClick={() => onSendMessage(user)}
               className={`flex-1 py-3 rounded-full font-medium transition-all ${
-                user.isMutualLike 
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                user.isMutualLike
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
@@ -333,7 +333,7 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
               发消息
             </button>
           </div>
-          
+
           {/* 互相喜欢提示 */}
           {user.isMutualLike && (
             <p className="text-center text-sm text-rose-500 mt-3">
@@ -357,29 +357,56 @@ function LoggedInHome() {
 
   useEffect(() => {
     setMounted(true)
-    
+
     const loadUsers = async () => {
       try {
+        // 获取所有喜欢关系（从数据库，支持跨设备）
+        let allLikes: {from: string, to: string}[] = []
+        try {
+          const likesResponse = await fetch('/api/users/likes?action=all')
+          if (likesResponse.ok) {
+            const likesData = await likesResponse.json()
+            if (likesData.likes) {
+              allLikes = likesData.likes.map((l: any) => ({
+                from: l.from_user_id,
+                to: l.to_user_id
+              }))
+            }
+          }
+        } catch (e) {
+          console.log('Likes API not available, using localStorage')
+        }
+
         // 从 API 获取所有用户（包含头像和照片墙数据）
         const response = await fetch('/api/users/list')
-        
+
         if (response.ok) {
           const data = await response.json()
-          
+
           if (data.success && data.users && data.users.length > 0) {
             // 读取当前用户的喜欢列表
             const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
             const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
-            
+
             // 转换为显示格式（直接使用 API 返回的数据，包括头像和照片墙）
             const displayUsers: DisplayUser[] = data.users
               .filter((u: ApiUser) => u.id !== currentUser?.id)
               .map((u: ApiUser) => {
                 // 检查对方是否也喜欢了当前用户（互相喜欢）
-                const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
-                const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
-                const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
-                
+                // 优先从数据库判断，否则回退到 localStorage
+                let isMutualLike = false
+                if (currentUser && allLikes.length > 0) {
+                  // 数据库中有互相喜欢的记录
+                  const fromOtherToMe = allLikes.some(l => l.from === u.id && l.to === currentUser.id)
+                  const fromMeToOther = allLikes.some(l => l.from === currentUser.id && l.to === u.id)
+                  isMutualLike = fromOtherToMe && fromMeToOther
+                } else {
+                  // 回退到 localStorage
+                  const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
+                  const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+                  isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
+                }
+
                 return {
                   id: u.id,
                   nickname: u.nickname,
@@ -399,7 +426,7 @@ function LoggedInHome() {
                   isMutualLike: isMutualLike,
                 }
               })
-            
+
             setAllUsers(displayUsers)
             return
           }
@@ -407,54 +434,103 @@ function LoggedInHome() {
       } catch (e) {
         console.error('Failed to fetch users from API:', e)
       }
-      
+
       // 如果 API 失败，显示空列表
       setAllUsers([])
     }
-    
+
     loadUsers()
   }, [currentUser])
 
   // 处理喜欢/取消喜欢
-  const handleLike = (userId: string) => {
+  const handleLike = async (userId: string) => {
     if (!currentUser) return
-    
+
     const likedKey = `xindong_likes_${currentUser.id}`
     const likedJson = localStorage.getItem(likedKey) || '[]'
     let likedUsers: string[] = JSON.parse(likedJson)
-    
-    if (likedUsers.includes(userId)) {
+
+    const isLiked = likedUsers.includes(userId)
+
+    if (isLiked) {
       // 取消喜欢
       likedUsers = likedUsers.filter(id => id !== userId)
     } else {
       // 添加喜欢
       likedUsers.push(userId)
     }
-    
+
     localStorage.setItem(likedKey, JSON.stringify(likedUsers))
-    
-    // 更新界面状态
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        const isLiked = likedUsers.includes(userId)
-        // 检查互相喜欢
-        const theirLikesJson = localStorage.getItem(`xindong_likes_${userId}`)
-        const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
-        const isMutualLike = isLiked && theirLikes.includes(currentUser?.id || '')
-        return { ...u, isLiked, isMutualLike }
+
+    // 同步到云端数据库
+    try {
+      await fetch('/api/users/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromUserId: currentUser.id,
+          toUserId: userId,
+          action: isLiked ? 'unlike' : 'like'
+        })
+      })
+    } catch (e) {
+      console.error('Failed to sync like to cloud:', e)
+    }
+
+    // 重新加载用户列表以获取最新的互相喜欢状态
+    const loadUsers = async () => {
+      try {
+        // 获取所有喜欢关系
+        let allLikes: { from: string, to: string }[] = []
+        try {
+          const likesResponse = await fetch('/api/users/likes?action=all')
+          if (likesResponse.ok) {
+            const likesData = await likesResponse.json()
+            if (likesData.likes) {
+              allLikes = likesData.likes.map((l: any) => ({
+                from: l.from_user_id,
+                to: l.to_user_id
+              }))
+            }
+          }
+        } catch (e) {
+          console.log('Likes API not available')
+        }
+
+        // 更新界面状态
+        setAllUsers(prev => prev.map(u => {
+          if (u.id === userId || u.isLiked) {
+            const isLiked = likedUsers.includes(u.id)
+            // 检查互相喜欢
+            let isMutualLike = false
+            if (currentUser && allLikes.length > 0) {
+              const fromOtherToMe = allLikes.some(l => l.from === u.id && l.to === currentUser.id)
+              const fromMeToOther = allLikes.some(l => l.from === currentUser.id && l.to === u.id)
+              isMutualLike = fromOtherToMe && fromMeToOther
+            } else {
+              const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
+              const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
+              isMutualLike = isLiked && theirLikes.includes(currentUser?.id || '')
+            }
+            return { ...u, isLiked, isMutualLike }
+          }
+          return u
+        }))
+      } catch (e) {
+        console.error('Failed to update likes:', e)
       }
-      return u
-    }))
-    
+    }
+
+    loadUsers()
+
     // 如果详情弹窗打开，也更新弹窗状态
     if (selectedUser && selectedUser.id === userId) {
-      setAllUsers(prev => {
-        const updatedUser = prev.find(u => u.id === userId)
+      setTimeout(() => {
+        const updatedUser = allUsers.find(u => u.id === userId)
         if (updatedUser) {
           setSelectedUser(updatedUser)
         }
-        return prev
-      })
+      }, 100)
     }
   }
 
@@ -507,7 +583,7 @@ function LoggedInHome() {
       isMutualLike: false,
     },
   ]
-  
+
   return (
     <AnimatedBackground variant="purple" showFloatingHearts={true}>
       <div className="min-h-screen pb-20">
@@ -523,7 +599,7 @@ function LoggedInHome() {
                   <GradientText>心动投递</GradientText>
                 </span>
               </div>
-              
+
               <div className="flex items-center gap-3">
                 <Link href="/match" className="text-sm text-gray-600 hover:text-rose-500 transition-colors">
                   我的匹配
@@ -573,13 +649,13 @@ function LoggedInHome() {
                 查看更多
               </button>
             </div>
-            
+
             {displayUsers.length > 0 ? (
               <div className="grid gap-4">
                 {displayUsers.map((user, index) => (
-                  <UserCard 
-                    key={user.id} 
-                    user={user} 
+                  <UserCard
+                    key={user.id}
+                    user={user}
                     index={index}
                     onViewDetail={setSelectedUser}
                     onLike={handleLike}
@@ -599,8 +675,8 @@ function LoggedInHome() {
         {/* 用户详情弹窗 */}
         <AnimatePresence>
           {selectedUser && (
-            <UserDetailModal 
-              user={selectedUser} 
+            <UserDetailModal
+              user={selectedUser}
               onClose={() => setSelectedUser(null)}
               onLike={handleLike}
               onSendMessage={handleSendMessage}
@@ -611,7 +687,7 @@ function LoggedInHome() {
         {/* 提示弹窗 */}
         <AnimatePresence>
           {alertMessage && (
-            <AlertModal 
+            <AlertModal
               message={alertMessage}
               onClose={() => setAlertMessage(null)}
             />
@@ -669,13 +745,13 @@ function LandingPage() {
               心动投递
             </span>
           </Link>
-          
+
           <div className="flex items-center gap-4">
             <Link href="/login" className="text-gray-600 font-medium hover:text-gray-900 transition-colors">
               登录
             </Link>
-            <Link 
-              href="/register" 
+            <Link
+              href="/register"
               className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-semibold rounded-full shadow-lg shadow-rose-500/30 hover:shadow-xl transition-all"
             >
               立即开始
@@ -690,13 +766,13 @@ function LandingPage() {
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           <span className="text-sm text-gray-600">AI 驱动的智能匹配平台</span>
         </div>
-        
+
         <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
           用<span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent"> AI 算法</span>
           <br />
           找到那个懂你的人
         </h1>
-        
+
         <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
           基于 66 道灵魂问卷，深度分析你的性格特质
           <br />
@@ -704,14 +780,14 @@ function LandingPage() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-          <Link 
+          <Link
             href="/register"
             className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-bold text-lg rounded-full shadow-xl shadow-rose-500/40 hover:shadow-2xl hover:scale-105 transition-all"
           >
             开始心动之旅
             <Sparkles className="inline w-5 h-5 ml-2" />
           </Link>
-          <Link 
+          <Link
             href="/how-it-works"
             className="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 font-medium text-lg rounded-full shadow-lg hover:shadow-xl transition-all"
           >
@@ -740,7 +816,7 @@ function LandingPage() {
         <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
           为什么选择<span className="bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">心动投递</span>？
         </h2>
-        
+
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
@@ -782,7 +858,7 @@ function LandingPage() {
           <p className="text-white/90 mb-8">
             现在注册，立即开启你的心动之旅
           </p>
-          <Link 
+          <Link
             href="/register"
             className="inline-flex items-center gap-2 px-8 py-4 bg-white text-rose-600 font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition-all"
           >
