@@ -252,9 +252,21 @@ export default function MatchPage() {
 
                     {/* Actions */}
                     <div className="flex gap-3">
+                      <Link
+                        href={`/match/report?userId=${match.id}&nickname=${encodeURIComponent(match.nickname)}`}
+                        className="flex-1"
+                      >
+                        <Button
+                          variant="outline"
+                          className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                        >
+                          <Sparkles className="w-4 h-4 mr-1" />
+                          AI报告
+                        </Button>
+                      </Link>
                       <Button
                         variant="outline"
-                        className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                        className="flex-1 border-gray-200 text-gray-600 hover:bg-gray-50"
                         onClick={(e) => handleViewDetail(match.id, e)}
                       >
                         查看详情
