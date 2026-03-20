@@ -55,6 +55,7 @@ function ConversationContent() {
   const [showMenu, setShowMenu] = useState(false)
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [isSending, setIsSending] = useState(false) // 防止重复发送
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -223,7 +224,10 @@ function ConversationContent() {
 
   // 发送消息
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !otherUser) return
+    // 防止重复发送
+    if (isSending || !inputText.trim() || !otherUser) return
+    
+    setIsSending(true) // 开始发送，锁定
 
     const newMessage: Message = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -316,27 +320,48 @@ function ConversationContent() {
       conversations.unshift(updatedConv)
     }
     localStorage.setItem(convKey, JSON.stringify(conversations))
+    
+    // 延迟解锁，防止快速重复点击
+    setTimeout(() => setIsSending(false), 300)
   }
 
   // 发送图片
   const handleSendImage = async () => {
-    if (!otherUser) return
+    if (isSending || !otherUser) return
 
     try {
+      setIsSending(true) // 锁定发送
+      
       const file = await selectImage()
-      if (!file) return
+      if (!file) {
+        setIsSending(false)
+        return
+      }
 
       if (!isValidImageType(file)) {
         alert('请选择 JPG、PNG 或 WebP 格式的图片')
+        setIsSending(false)
         return
       }
 
       if (!isValidImageSize(file, 5 * 1024 * 1024)) {
         alert('图片大小不能超过 5MB')
+        setIsSending(false)
         return
       }
 
-      const dataUrl = await compressImage(file, 800, 0.8)
+      // 压缩图片，降低尺寸和质量以减少存储大小
+      const dataUrl = await compressImage(file, 600, 0.6)
+      
+      // 检查压缩后的图片大小（dataUrl 约 base64 的 4/3 大小）
+      const sizeInBytes = (dataUrl.length - 'data:image/jpeg;base64,'.length) * 0.75
+      const sizeInMB = sizeInBytes / (1024 * 1024)
+      
+      if (sizeInMB > 2) {
+        alert('图片过大，请选择更小的图片')
+        setIsSending(false)
+        return
+      }
       
       const newMessage: Message = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -357,12 +382,19 @@ function ConversationContent() {
         // 同步保存到 localStorage
         const sortedIds = [currentUserId, otherUser.id].sort()
         const chatKey = `xindong_chat_${sortedIds.join('_')}`
-        localStorage.setItem(chatKey, JSON.stringify(updated))
+        try {
+          localStorage.setItem(chatKey, JSON.stringify(updated))
+        } catch (storageError) {
+          console.error('localStorage save failed:', storageError)
+          alert('存储空间不足，无法保存图片')
+        }
         return updated
       })
     } catch (error) {
       console.error('Failed to send image:', error)
       alert('图片发送失败，请重试')
+    } finally {
+      setTimeout(() => setIsSending(false), 300)
     }
   }
 
