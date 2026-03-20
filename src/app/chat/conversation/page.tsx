@@ -80,31 +80,47 @@ function ConversationContent() {
     lavender: 'from-purple-100/50 via-violet-100/50 to-indigo-100/50',
   }
 
-  // 获取对方用户信息 - 只在初始化时调用一次
+  // 获取对方用户信息 - 从 API 获取完整信息
   useEffect(() => {
     if (!userId || initialized) return
 
-    // 从localStorage获取用户信息
-    const usersJson = localStorage.getItem('xindong_users')
-    const users = usersJson ? JSON.parse(usersJson) : []
-    const userProfile = users.find((u: any) => u.id === userId)
-    
-    // 从URL参数获取昵称
-    const urlNickname = searchParams.get('nickname')
-    
-    const user: OtherUser = {
-      id: userId,
-      nickname: urlNickname || userProfile?.nickname || '心动对象',
-      age: userProfile?.age || 26,
-      city: userProfile?.city || '北京',
-      score: userProfile?.matchScore || 92,
-      isOnline: true,
-      avatar: userProfile?.avatar || null,
-      lastActive: '在线'
+    const fetchUserInfo = async () => {
+      // 从URL参数获取昵称（备用）
+      const urlNickname = searchParams.get('nickname')
+      
+      // 先设置基本信息
+      const basicUser: OtherUser = {
+        id: userId,
+        nickname: urlNickname || '心动对象',
+        age: 26,
+        city: '北京',
+        score: 92,
+        isOnline: true,
+        avatar: null,
+        lastActive: '在线'
+      }
+      
+      // 尝试从 API 获取完整用户信息
+      try {
+        const response = await fetch(`/api/users/${userId}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.user) {
+            basicUser.nickname = data.user.nickname || urlNickname || '心动对象'
+            basicUser.age = data.user.age || 26
+            basicUser.city = data.user.city || '北京'
+            basicUser.avatar = data.user.avatar || null
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch user info:', e)
+      }
+      
+      setOtherUser(basicUser)
+      setInitialized(true)
     }
     
-    setOtherUser(user)
-    setInitialized(true)
+    fetchUserInfo()
   }, [userId, searchParams, initialized])
 
   // 获取消息
@@ -364,21 +380,21 @@ function ConversationContent() {
         return
       }
 
-      if (!isValidImageSize(file, 5 * 1024 * 1024)) {
-        alert('图片大小不能超过 5MB')
+      if (!isValidImageSize(file, 3 * 1024 * 1024)) {
+        alert('图片大小不能超过 3MB')
         setIsSending(false)
         return
       }
 
-      // 压缩图片，降低尺寸和质量以减少存储大小
-      const dataUrl = await compressImage(file, 600, 0.6)
+      // 压缩图片 - 使用更小的尺寸以适应 localStorage
+      const dataUrl = await compressImage(file, 300, 300, 0.5)
       
-      // 检查压缩后的图片大小（dataUrl 约 base64 的 4/3 大小）
-      const sizeInBytes = (dataUrl.length - 'data:image/jpeg;base64,'.length) * 0.75
-      const sizeInMB = sizeInBytes / (1024 * 1024)
+      // 检查压缩后的图片大小
+      const base64Length = dataUrl.length - 'data:image/jpeg;base64,'.length
+      const sizeInMB = (base64Length * 0.75) / (1024 * 1024)
       
-      if (sizeInMB > 2) {
-        alert('图片过大，请选择更小的图片')
+      if (sizeInMB > 1) {
+        alert('图片过大，请选择更小的图片（压缩后需小于1MB）')
         setIsSending(false)
         return
       }
@@ -406,7 +422,8 @@ function ConversationContent() {
           localStorage.setItem(chatKey, JSON.stringify(updated))
         } catch (storageError) {
           console.error('localStorage save failed:', storageError)
-          alert('存储空间不足，无法保存图片')
+          alert('存储空间不足，无法保存图片。请清理浏览器缓存后重试。')
+          return prev // 返回之前的状态，不添加图片消息
         }
         return updated
       })

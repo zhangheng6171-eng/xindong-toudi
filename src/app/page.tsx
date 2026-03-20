@@ -190,14 +190,15 @@ function AlertModal({ message, onClose }: { message: string; onClose: () => void
 }
 
 // 用户详情弹窗
-function UserDetailModal({ user, onClose, onLike, onSendMessage }: {
+function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
   user: DisplayUser;
   onClose: () => void;
   onLike: (userId: string) => void;
   onSendMessage: (user: DisplayUser) => void;
+  isLoading?: boolean;
 }) {
   // 过滤出真实照片
-  const realPhotos = user.photos.filter(p => p !== null)
+  const realPhotos = (user.photos || []).filter((p: string | null) => p !== null && p !== '')
 
   return (
     <motion.div
@@ -366,9 +367,46 @@ function LoggedInHome() {
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
   const [dailyLikesUsed, setDailyLikesUsed] = useState(0)
+
+  // 查看详情时从 API 获取完整用户信息
+  const handleViewDetail = async (user: DisplayUser) => {
+    setIsLoadingDetail(true)
+    try {
+      const response = await fetch(`/api/users/${user.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.user) {
+          const fullUser = data.user
+          setSelectedUser({
+            ...user,
+            avatar: fullUser.avatar || user.avatar,
+            photos: fullUser.photos || user.photos || [],
+            bio: fullUser.bio || user.bio,
+            occupation: fullUser.occupation || user.occupation,
+            education: fullUser.education || user.education,
+            height: fullUser.height || user.height,
+            interests: fullUser.interests || user.interests,
+          })
+          return
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch user detail:', e)
+    }
+    // 如果 API 失败，使用现有数据
+    setSelectedUser(user)
+    setIsLoadingDetail(false)
+  }
+
+  // 关闭详情弹窗时重置加载状态
+  const handleCloseDetail = () => {
+    setSelectedUser(null)
+    setIsLoadingDetail(false)
+  }
 
   // 检查是否完成问卷
   const checkQuestionnaireStatus = useCallback(() => {
@@ -684,7 +722,7 @@ function LoggedInHome() {
                     key={user.id}
                     user={user}
                     index={index}
-                    onViewDetail={setSelectedUser}
+                    onViewDetail={handleViewDetail}
                     onLike={handleLike}
                     showIncompleteTag={!questionnaireCompleted && user.id === currentUser?.id}
                   />
@@ -706,9 +744,10 @@ function LoggedInHome() {
           {selectedUser && (
             <UserDetailModal
               user={selectedUser}
-              onClose={() => setSelectedUser(null)}
+              onClose={handleCloseDetail}
               onLike={handleLike}
               onSendMessage={handleSendMessage}
+              isLoading={isLoadingDetail}
             />
           )}
         </AnimatePresence>
