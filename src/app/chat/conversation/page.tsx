@@ -143,42 +143,38 @@ function ConversationContent() {
             timestamp: new Date(m.timestamp)
           }))
           
-          // 去重合并 - 使用 Map 以 ID 为 key 确保唯一
-          const messageMap = new Map<string, Message>()
-          
-          // 先添加本地消息
-          localMessages.forEach(m => {
-            messageMap.set(m.id, m)
-          })
-          
-          // 再添加云端消息（会覆盖相同ID的本地消息）
-          cloudMessages.forEach((m: Message) => {
-            messageMap.set(m.id, m)
-          })
-          
-          // 转换为数组并按时间排序
-          const allMessages = Array.from(messageMap.values())
-          allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-          
-          // 使用函数式更新，避免覆盖刚发送的消息
+          // 使用函数式更新，基于当前状态进行合并
           setMessages(prev => {
-            // 合并当前状态中的消息
             const currentMap = new Map<string, Message>()
             prev.forEach(m => currentMap.set(m.id, m))
-            allMessages.forEach(m => {
-              // 如果当前状态中没有，或者当前状态的消息是 sending，则使用新消息
-              const existing = currentMap.get(m.id)
-              if (!existing || existing.status === 'sending') {
-                currentMap.set(m.id, m)
+            
+            // 添加云端消息
+            cloudMessages.forEach((cloudMsg: Message) => {
+              // 检查是否已存在相同 ID 的消息
+              if (currentMap.has(cloudMsg.id)) {
+                return // 已存在，跳过
+              }
+              
+              // 检查是否已存在相同内容、发送者、时间的消息（去重）
+              const isDuplicate = Array.from(currentMap.values()).some(existing => 
+                existing.senderId === cloudMsg.senderId &&
+                existing.text === cloudMsg.text &&
+                Math.abs(new Date(existing.timestamp).getTime() - new Date(cloudMsg.timestamp).getTime()) < 5000 // 5秒内视为相同
+              )
+              
+              if (!isDuplicate) {
+                currentMap.set(cloudMsg.id, cloudMsg)
               }
             })
-            return Array.from(currentMap.values()).sort((a, b) => 
-              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-            )
+            
+            const allMessages = Array.from(currentMap.values())
+            allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            
+            // 更新 localStorage
+            localStorage.setItem(chatKey, JSON.stringify(allMessages))
+            
+            return allMessages
           })
-          
-          // 更新 localStorage
-          localStorage.setItem(chatKey, JSON.stringify(allMessages))
           return
         }
       }
@@ -273,14 +269,38 @@ function ConversationContent() {
         })
       })
       
-      // 更新消息状态
-      setMessages(prev => {
-        const updated = prev.map(m => 
-          m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
-        )
-        localStorage.setItem(chatKey, JSON.stringify(updated))
-        return updated
-      })
+      if (response.ok) {
+        const data = await response.json()
+        // API 返回的消息有新生成的 ID，需要替换本地消息的 ID
+        if (data.success && data.message) {
+          setMessages(prev => {
+            const updated = prev.map(m => 
+              m.id === newMessage.id 
+                ? { ...m, id: data.message.id, status: 'sent' as const } 
+                : m
+            )
+            localStorage.setItem(chatKey, JSON.stringify(updated))
+            return updated
+          })
+        } else {
+          setMessages(prev => {
+            const updated = prev.map(m => 
+              m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+            )
+            localStorage.setItem(chatKey, JSON.stringify(updated))
+            return updated
+          })
+        }
+      } else {
+        // API 失败，标记为已发送（本地存储可用）
+        setMessages(prev => {
+          const updated = prev.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+          )
+          localStorage.setItem(chatKey, JSON.stringify(updated))
+          return updated
+        })
+      }
     } catch (e) {
       console.error('[SendMessage] Failed to send via API:', e)
       // 网络错误，仍然标记为已发送（本地存储可用）
