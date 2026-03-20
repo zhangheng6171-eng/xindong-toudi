@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Heart, MessageCircle, Eye, Sparkles, ArrowRight } from 'lucide-react'
+import { Heart, MessageCircle, Eye, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -40,6 +40,23 @@ export default function MatchPage() {
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState(false)
 
+  const handleLike = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setMatches(prev => prev.map(m => 
+      m.id === matchId ? { ...m, liked: !m.liked } : m
+    ))
+  }
+
+  const handleViewDetail = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    router.push(`/match/${matchId}`)
+  }
+
+  const handleSendMessage = (matchId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    router.push(`/chat/${matchId}`)
+  }
+
   // 加载匹配数据（从API获取真实用户）
   useEffect(() => {
     const loadMatches = async () => {
@@ -48,7 +65,6 @@ export default function MatchPage() {
         if (response.ok) {
           const data = await response.json()
           if (data.users && data.users.length > 0) {
-            // 转换为匹配格式
             const formattedMatches = data.users
               .filter((u: any) => u.id !== currentUser?.id)
               .slice(0, 3)
@@ -78,24 +94,6 @@ export default function MatchPage() {
     
     loadMatches()
   }, [currentUser])
-  const [showDetail, setShowDetail] = useState(false)
-
-  const handleLike = (matchId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation()
-    setMatches(prev => prev.map(m => 
-      m.id === matchId ? { ...m, liked: !m.liked } : m
-    ))
-  }
-
-  const handleViewDetail = (matchId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation()
-    router.push(`/match/${matchId}`)
-  }
-
-  const handleSendMessage = (matchId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation()
-    router.push(`/chat/${matchId}`)
-  }
 
   const currentMatch = matches.find(m => m.id === selectedMatch)
 
@@ -121,160 +119,162 @@ export default function MatchPage() {
           <div className="bg-gradient-to-r from-rose-500/90 via-pink-500/90 to-purple-500/90 backdrop-blur-xl text-white py-8 px-4">
             <div className="max-w-2xl mx-auto text-center">
               <motion.div 
-                className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-4"
-                whileHover={{ scale: 1.05 }}
+                className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 mb-4"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
               >
                 <Sparkles className="w-4 h-4" />
-                <span className="text-sm">2024年3月18日 - 3月24日</span>
+                <span className="text-sm font-medium">AI 智能匹配</span>
               </motion.div>
-              <h1 className="text-3xl font-bold mb-2">
-                💌 本周为你匹配了 <GradientText className="text-white drop-shadow-lg">{matches.length}</GradientText> 位心动对象
+              <h1 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
+                本周匹配
+                <Sparkles className="w-5 h-5" />
               </h1>
-              <p className="text-white/80">
-                点击查看详情，让缘分开始
+              <p className="text-white/90">
+                {matches.length > 0 
+                  ? `为你精选了 ${matches.length} 位匹配对象` 
+                  : '暂无匹配对象'}
               </p>
             </div>
           </div>
         </FadeIn>
 
-        {/* Matches List */}
-        <div className="max-w-2xl mx-auto px-4 py-8">
-          {matches.length > 0 ? (
-            <div className="space-y-6">
-              {matches.map((match, index) => (
-            <FadeIn key={match.id} delay={index * 0.1}>
-              <GlassCard className="overflow-hidden">
-                {/* Avatar Area */}
-                <div className="relative h-48 bg-gradient-to-br from-rose-100/80 via-pink-50/80 to-purple-100/80">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {match.liked ? (
+        {/* 匹配列表或空状态 */}
+        {matches.length > 0 ? (
+          <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+            {matches.map((match, index) => (
+              <FadeIn key={match.id} delay={index * 0.1}>
+                <GlassCard className="overflow-hidden">
+                  {/* Avatar Area */}
+                  <div className="relative h-48 bg-gradient-to-br from-rose-100/80 via-pink-50/80 to-purple-100/80">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {match.liked ? (
+                        <motion.div 
+                          className="w-32 h-32 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-rose-500/30"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        >
+                          {match.nickname[0]}
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          className="w-32 h-32 bg-white/50 backdrop-blur-sm rounded-full blur-[2px] flex items-center justify-center text-gray-400"
+                          whileHover={{ scale: 1.05 }}
+                        >
+                          <Eye className="w-12 h-12" />
+                        </motion.div>
+                      )}
+                    </div>
+                    
+                    {/* Compatibility Badge */}
+                    <motion.div 
+                      className="absolute top-4 right-4 bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg flex items-center gap-2"
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <span className="text-2xl">{getCompatibilityEmoji(match.compatibility)}</span>
+                      <div>
+                        <div className="text-xs text-gray-500">匹配度</div>
+                        <div className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">{match.compatibility}%</div>
+                      </div>
+                    </motion.div>
+
+                    {/* Like Status */}
+                    {match.liked && (
                       <motion.div 
-                        className="w-32 h-32 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-rose-500/30"
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full px-4 py-1.5 text-sm font-medium flex items-center gap-1 shadow-lg shadow-rose-500/30"
+                        initial={{ scale: 0, x: -20 }}
+                        animate={{ scale: 1, x: 0 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 15 }}
                       >
-                        {match.nickname[0]}
-                      </motion.div>
-                    ) : (
-                      <motion.div 
-                        className="w-32 h-32 bg-white/50 backdrop-blur-sm rounded-full blur-[2px] flex items-center justify-center text-gray-400"
-                        whileHover={{ scale: 1.05 }}
-                      >
-                        <Eye className="w-12 h-12" />
+                        <Heart className="w-4 h-4 fill-current" />
+                        已喜欢
                       </motion.div>
                     )}
                   </div>
-                  
-                  {/* Compatibility Badge */}
-                  <motion.div 
-                    className="absolute top-4 right-4 bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg flex items-center gap-2"
-                    whileHover={{ scale: 1.05 }}
-                  >
-                    <span className="text-2xl">{getCompatibilityEmoji(match.compatibility)}</span>
-                    <div>
-                      <div className="text-xs text-gray-500">匹配度</div>
-                      <div className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">{match.compatibility}%</div>
+
+                  {/* Info */}
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-800">
+                          {match.nickname}，{match.age}岁
+                        </h3>
+                        <p className="text-gray-500">{match.city} · {match.occupation}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">{match.education}</div>
+                      </div>
                     </div>
-                  </motion.div>
 
-                  {/* Like Status */}
-                  {match.liked && (
-                    <motion.div 
-                      className="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full px-4 py-1.5 text-sm font-medium flex items-center gap-1 shadow-lg shadow-rose-500/30"
-                      initial={{ scale: 0, x: -20 }}
-                      animate={{ scale: 1, x: 0 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                    >
-                      <Heart className="w-4 h-4 fill-current" />
-                      已喜欢
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-800">
-                        {match.nickname}，{match.age}岁
-                      </h3>
-                      <p className="text-gray-500">{match.city} · {match.occupation}</p>
+                    {/* Compatibility Label */}
+                    <div className="mb-4">
+                      <span className="inline-block bg-gradient-to-r from-rose-500 to-pink-500 text-white px-4 py-1 rounded-full text-sm font-medium shadow-md shadow-rose-500/20">
+                        {getCompatibilityLabel(match.compatibility)}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">{match.education}</div>
+
+                    {/* Match Reasons */}
+                    <div className="bg-gradient-to-br from-gray-50/80 to-rose-50/50 rounded-2xl p-4 mb-4 backdrop-blur-sm">
+                      <div className="text-sm text-gray-500 mb-2">💡 匹配理由</div>
+                      <ul className="space-y-1">
+                        {match.matchReasons.slice(0, 2).map((reason, i) => (
+                          <li key={i} className="text-gray-700 flex items-start gap-2">
+                            <span className="text-rose-500 mt-0.5">✓</span>
+                            {reason}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  </div>
 
-                  {/* Compatibility Label */}
-                  <div className="mb-4">
-                    <span className="inline-block bg-gradient-to-r from-rose-500 to-pink-500 text-white px-4 py-1 rounded-full text-sm font-medium shadow-md shadow-rose-500/20">
-                      {getCompatibilityLabel(match.compatibility)}
-                    </span>
-                  </div>
-
-                  {/* Match Reasons */}
-                  <div className="bg-gradient-to-br from-gray-50/80 to-rose-50/50 rounded-2xl p-4 mb-4 backdrop-blur-sm">
-                    <div className="text-sm text-gray-500 mb-2">💡 匹配理由</div>
-                    <ul className="space-y-1">
-                      {match.matchReasons.slice(0, 2).map((reason, i) => (
-                        <li key={i} className="text-gray-700 flex items-start gap-2">
-                          <span className="text-rose-500 mt-0.5">✓</span>
-                          {reason}
-                        </li>
+                    {/* Shared Tags */}
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {match.sharedValues.map(v => (
+                        <span key={v} className="px-3 py-1 bg-rose-50/80 text-rose-700 rounded-full text-sm backdrop-blur-sm border border-rose-100">
+                          {v}
+                        </span>
                       ))}
-                    </ul>
-                  </div>
+                      {match.sharedInterests.slice(0, 2).map(i => (
+                        <span key={i} className="px-3 py-1 bg-gray-100/80 text-gray-600 rounded-full text-sm backdrop-blur-sm border border-gray-200/50">
+                          {i}
+                        </span>
+                      ))}
+                    </div>
 
-                  {/* Shared Tags */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {match.sharedValues.map(v => (
-                      <span key={v} className="px-3 py-1 bg-rose-50/80 text-rose-700 rounded-full text-sm backdrop-blur-sm border border-rose-100">
-                        {v}
-                      </span>
-                    ))}
-                    {match.sharedInterests.slice(0, 2).map(i => (
-                      <span key={i} className="px-3 py-1 bg-gray-100/80 text-gray-600 rounded-full text-sm backdrop-blur-sm border border-gray-200/50">
-                        {i}
-                      </span>
-                    ))}
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
+                        onClick={(e) => handleViewDetail(match.id, e)}
+                      >
+                        查看详情
+                      </Button>
+                      <GradientButton
+                        size="sm"
+                        variant={match.liked ? "secondary" : "primary"}
+                        className="flex-1"
+                        onClick={() => handleLike(match.id)}
+                      >
+                        <Heart className={`w-5 h-5 mr-2 ${match.liked ? 'fill-current text-rose-500' : ''}`} />
+                        {match.liked ? '已喜欢' : '喜欢'}
+                      </GradientButton>
+                    </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300"
-                      onClick={(e) => handleViewDetail(match.id, e)}
-                    >
-                      查看详情
-                    </Button>
-                    <GradientButton
-                      size="sm"
-                      variant={match.liked ? "secondary" : "primary"}
-                      className="flex-1"
-                      onClick={() => handleLike(match.id)}
-                    >
-                      <Heart className={`w-5 h-5 mr-2 ${match.liked ? 'fill-current text-rose-500' : ''}`} />
-                      {match.liked ? '已喜欢' : '喜欢'}
-                    </GradientButton>
-                  </div>
-                </div>
-              </GlassCard>
-            </FadeIn>
-          ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <Heart className="w-16 h-16 mx-auto mb-4 text-gray-200" />
-              <h3 className="text-xl font-bold text-gray-400 mb-2">暂无匹配结果</h3>
-              <p className="text-gray-400 mb-6">完成问卷后等待系统为你匹配~</p>
-              <Link href="/questionnaire" className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full font-medium">
-                立即去答题
-              </Link>
-            </div>
-          )}
-        </div>
+                </GlassCard>
+              </FadeIn>
+            ))}
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+            <Heart className="w-16 h-16 mx-auto mb-4 text-gray-200" />
+            <h3 className="text-xl font-bold text-gray-400 mb-2">暂无匹配结果</h3>
+            <p className="text-gray-400 mb-6">完成问卷后等待系统为你匹配~</p>
+            <Link href="/questionnaire" className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full font-medium">
+              立即去答题
+            </Link>
+          </div>
+        )}
 
         {/* Detail Modal */}
         <AnimatePresence>
