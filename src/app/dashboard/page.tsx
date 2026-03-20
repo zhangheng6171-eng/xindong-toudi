@@ -204,6 +204,23 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<'overview' | 'personality' | 'history' | 'settings'>('overview')
+  const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
+
+  // 检查问卷完成状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const answers = localStorage.getItem('questionnaireAnswers')
+        if (answers) {
+          const parsed = JSON.parse(answers)
+          const answerCount = Object.keys(parsed).length
+          setQuestionnaireCompleted(answerCount >= 66)
+        }
+      } catch (e) {
+        console.log('Error checking questionnaire status')
+      }
+    }
+  }, [])
 
   // 从用户专属存储加载数据
   useEffect(() => {
@@ -383,6 +400,29 @@ export default function DashboardPage() {
               </div>
             </div>
           </FadeIn>
+
+          {/* 问卷完成提示 */}
+          {!questionnaireCompleted && (
+            <FadeIn delay={0.05}>
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">完善资料解锁全部功能</p>
+                    <p className="text-sm text-gray-500">完成问卷后可参与匹配、无限喜欢、主动发起聊天</p>
+                  </div>
+                </div>
+                <Link 
+                  href="/questionnaire"
+                  className="px-4 py-2 bg-amber-500 text-white font-medium rounded-xl hover:bg-amber-600 transition-colors"
+                >
+                  去完成
+                </Link>
+              </div>
+            </FadeIn>
+          )}
 
           {/* 统计卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

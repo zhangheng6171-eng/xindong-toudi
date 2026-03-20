@@ -45,7 +45,13 @@ interface DisplayUser {
 }
 
 // 用户卡片组件
-function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; index: number; onViewDetail: (user: DisplayUser) => void; onLike: (userId: string) => void }) {
+function UserCard({ user, index, onViewDetail, onLike, showIncompleteTag }: { 
+  user: DisplayUser; 
+  index: number; 
+  onViewDetail: (user: DisplayUser) => void; 
+  onLike: (userId: string) => void;
+  showIncompleteTag?: boolean;
+}) {
   return (
     <FadeIn delay={index * 0.1}>
       <GlassCard className="p-5 hover:shadow-xl transition-all cursor-pointer group" hover={true}>
@@ -74,6 +80,12 @@ function UserCard({ user, index, onViewDetail, onLike }: { user: DisplayUser; in
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900 text-lg">{user.nickname}</h3>
+                {/* 资料待完善标签 */}
+                {showIncompleteTag && (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-600 text-xs font-medium rounded-full">
+                    资料待完善
+                  </span>
+                )}
                 <span className="text-sm text-gray-400">·</span>
                 <span className="text-sm text-gray-500">{user.age}岁</span>
                 <span className="text-sm text-gray-400">·</span>
@@ -354,8 +366,61 @@ function LoggedInHome() {
   const [mounted, setMounted] = useState(false)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
+  const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
+  const [dailyLikesUsed, setDailyLikesUsed] = useState(0)
+
+  // 检查是否完成问卷
+  const checkQuestionnaireStatus = useCallback(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const answers = localStorage.getItem('questionnaireAnswers')
+      if (answers) {
+        const parsed = JSON.parse(answers)
+        // 检查是否有足够数量的答案（至少66题）
+        const answerCount = Object.keys(parsed).length
+        return answerCount >= 66
+      }
+    } catch (e) {
+      console.log('Error checking questionnaire status')
+    }
+    return false
+  }, [])
+
+  // 检查每日喜欢次数
+  const checkDailyLikes = useCallback(() => {
+    if (typeof window === 'undefined' || !currentUser) return 0
+    try {
+      const today = new Date().toDateString()
+      const likesData = localStorage.getItem(`xindong_daily_likes_${currentUser.id}`)
+      if (likesData) {
+        const parsed = JSON.parse(likesData)
+        if (parsed.date === today) {
+          return parsed.count || 0
+        }
+      }
+    } catch (e) {
+      console.log('Error checking daily likes')
+    }
+    return 0
+  }, [currentUser])
+
+  // 更新每日喜欢次数
+  const updateDailyLikes = useCallback(() => {
+    if (typeof window === 'undefined' || !currentUser) return
+    const today = new Date().toDateString()
+    const currentCount = checkDailyLikes()
+    localStorage.setItem(`xindong_daily_likes_${currentUser.id}`, JSON.stringify({
+      date: today,
+      count: currentCount + 1
+    }))
+    setDailyLikesUsed(currentCount + 1)
+  }, [currentUser, checkDailyLikes])
 
   useEffect(() => {
+    // 检查问卷完成状态
+    setQuestionnaireCompleted(checkQuestionnaireStatus())
+    setDailyLikesUsed(checkDailyLikes())
+    
     setMounted(true)
 
     const loadUsers = async () => {
@@ -456,6 +521,16 @@ function LoggedInHome() {
       // 取消喜欢
       likedUsers = likedUsers.filter(id => id !== userId)
     } else {
+      // 每日喜欢次数限制（未完成问卷用户每天只能喜欢5次）
+      if (!questionnaireCompleted) {
+        const todayCount = checkDailyLikes()
+        if (todayCount >= 5) {
+          setAlertMessage('📝 抱歉，您还未完成问卷调查\n\n今日喜欢次数已用完（5次）\n\n完成问卷后可无限喜欢~')
+          return
+        }
+        // 更新每日次数
+        updateDailyLikes()
+      }
       // 添加喜欢
       likedUsers.push(userId)
     }
@@ -536,6 +611,12 @@ function LoggedInHome() {
 
   // 处理发消息
   const handleSendMessage = (user: DisplayUser) => {
+    // 检查是否完成问卷
+    if (!questionnaireCompleted) {
+      setAlertMessage('📝 您还未完成问卷调查\n\n完成问卷后才能主动发起聊天哦~\n\n点击"我的" → "完善资料"开始答题')
+      return
+    }
+    
     if (!user.isMutualLike) {
       setAlertMessage('只有互相喜欢或系统匹配成功的双方才可以发消息哦～')
       return
@@ -659,6 +740,7 @@ function LoggedInHome() {
                     index={index}
                     onViewDetail={setSelectedUser}
                     onLike={handleLike}
+                    showIncompleteTag={!questionnaireCompleted && user.id === currentUser?.id}
                   />
                 ))}
               </div>
