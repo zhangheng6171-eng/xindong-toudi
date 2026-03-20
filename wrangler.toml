@@ -2,3 +2,10 @@ name = "xindong-toudi"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./out"
+
+# KV 命名空间绑定（用于存储喜欢关系）
+# 需要在 Cloudflare Dashboard 中创建 KV 命名空间
+# 然后在 Pages 设置中绑定
+[[kv_namespaces]]
+binding = "XINDONG_LIKES"
+id = "请在Cloudflare Dashboard中创建KV命名空间后填写ID"

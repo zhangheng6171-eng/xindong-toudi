@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>心动投递 - 管理后台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #333; margin-bottom: 24px; font-size: 24px; }
+    h2 { color: #495057; margin: 20px 0 12px; font-size: 18px; }
+    .card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card p { color: #6c757d; font-size: 14px; line-height: 1.6; }
+    code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 4px;
+      transition: transform 0.2s;
+    }
+    button:hover { transform: translateY(-2px); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    button.red { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+    #result {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      display: none;
+    }
+    #result.success { background: #d4edda; color: #155724; display: block; }
+    #result.error { background: #f8d7da; color: #721c24; display: block; }
+    #result.info { background: #cce5ff; color: #004085; display: block; }
+    .user-list { margin: 12px 0; }
+    .user-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .row { display: flex; gap: 10px; }
+    .row input { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>❤️ 心动投递 - 管理后台</h1>
+    
+    <div class="card">
+      <h2>📋 用户列表</h2>
+      <div class="user-list" id="userList">加载中...</div>
+    </div>
+
+    <div class="card">
+      <h2>🔗 添加互相喜欢关系</h2>
+      <p>选择两个用户使其可以互相发消息</p>
+      <div class="row">
+        <select id="userA">
+          <option value="">选择用户A</option>
+        </select>
+        <select id="userB">
+          <option value="">选择用户B</option>
+        </select>
+      </div>
+      <button class="green" onclick="addMutualLike()">添加互相喜欢</button>
+    </div>
+
+    <div class="card">
+      <h2>📊 当前喜欢关系</h2>
+      <button onclick="loadLikes()">刷新</button>
+      <pre id="likesData" style="margin-top:12px;background:#2d2d2d;color:#f8f8f2;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;">点击刷新查看</pre>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://xindong-toudi.pages.dev'
+    const users = [
+      { id: 'user_1773966789326', nickname: 'qwe' },
+      { id: 'user_1773933286452', nickname: '123456' },
+      { id: 'user_1773933431204', nickname: '12345678' },
+      { id: 'user_1773933196118', nickname: '新用户测试' }
+    ]
+
+    // 初始化用户列表
+    function init() {
+      const list = document.getElementById('userList')
+      list.innerHTML = users.map(u => `
+        <div class="user-item">
+          <span><strong>${u.nickname}</strong></span>
+          <code>${u.id}</code>
+        </div>
+      `).join('')
+
+      const selectA = document.getElementById('userA')
+      const selectB = document.getElementById('userB')
+      users.forEach(u => {
+        selectA.innerHTML += `<option value="${u.id}">${u.nickname}</option>`
+        selectB.innerHTML += `<option value="${u.id}">${u.nickname}</option>`
+      })
+
+      loadLikes()
+    }
+
+    async function addMutualLike() {
+      const userA = document.getElementById('userA').value
+      const userB = document.getElementById('userB').value
+      const result = document.getElementById('result')
+
+      if (!userA || !userB) {
+        result.className = 'error'
+        result.textContent = '请选择两个用户'
+        return
+      }
+
+      if (userA === userB) {
+        result.className = 'error'
+        result.textContent = '请选择两个不同的用户'
+        return
+      }
+
+      result.className = 'info'
+      result.textContent = '正在添加...'
+
+      try {
+        // A 喜欢 B
+        await fetch(API_BASE + '/api/users/likes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fromUserId: userA, toUserId: userB, action: 'like' })
+        })
+
+        // B 喜欢 A
+        await fetch(API_BASE + '/api/users/likes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fromUserId: userB, toUserId: userA, action: 'like' })
+        })
+
+        result.className = 'success'
+        result.innerHTML = `✅ ${users.find(u => u.id === userA).nickname} 和 ${users.find(u => u.id === userB).nickname} 已成为互相喜欢！<br><br>请让这两个用户<strong>刷新页面</strong>，然后就能互相发消息了。`
+
+        loadLikes()
+      } catch (e) {
+        result.className = 'error'
+        result.textContent = '添加失败: ' + e.message
+      }
+    }
+
+    async function loadLikes() {
+      try {
+        const resp = await fetch(API_BASE + '/api/users/likes?action=all')
+        const data = await resp.json()
+        document.getElementById('likesData').textContent = JSON.stringify(data, null, 2)
+      } catch (e) {
+        document.getElementById('likesData').textContent = '加载失败: ' + e.message
+      }
+    }
+
+    init()
+  </script>
+</body>
+</html>
