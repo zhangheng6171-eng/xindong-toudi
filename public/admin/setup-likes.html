@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>心动投递 - 数据库配置</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #333; margin-bottom: 24px; font-size: 24px; }
+    h2 { color: #495057; margin: 24px 0 12px; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+    .card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card p { color: #6c757d; font-size: 14px; line-height: 1.8; margin-bottom: 12px; }
+    code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 12px 0;
+      white-space: pre-wrap;
+    }
+    .step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+    .step-num {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .step-content { flex: 1; }
+    .step-content p { margin: 0 0 8px; }
+    a { color: #667eea; }
+    .warning {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .success {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>❤️ 心动投递 - 数据库配置指南</h1>
+    
+    <h2>📋 目标</h2>
+    <div class="card">
+      <p>让不同设备上的用户可以互相发消息聊天（需要互相喜欢功能跨设备同步）</p>
+    </div>
+
+    <h2>🔧 方案一：在 users 表添加 likes 字段</h2>
+    
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <p>打开 Supabase SQL Editor:</p>
+        <a href="https://supabase.com/dashboard/project/ntaqnyegiiwtzdyqjiwy/sql/new" target="_blank">https://supabase.com/dashboard/project/ntaqnyegiiwtzdyqjiwy/sql/new</a>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <p>执行以下 SQL 添加 likes 列：</p>
+        <pre>ALTER TABLE users ADD COLUMN IF NOT EXISTS likes JSONB DEFAULT '[]'::jsonb;</pre>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <p>点击右下角 "Run" 执行</p>
+      </div>
+    </div>
+
+    <div class="success">
+      <strong>✅ 完成后：</strong> 喜欢数据会自动同步到云端，跨设备用户可以互相发消息！
+    </div>
+
+    <h2>🔧 方案二：创建独立的 likes 表</h2>
+    
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <p>在 Supabase SQL Editor 中执行：</p>
+      </div>
+    </div>
+    
+    <pre>-- 创建 likes 表
+CREATE TABLE IF NOT EXISTS likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_user_id TEXT NOT NULL,
+  to_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(from_user_id, to_user_id)
+);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_likes_from ON likes(from_user_id);
+CREATE INDEX IF NOT EXISTS idx_likes_to ON likes(to_user_id);
+
+-- 设置公开读取权限
+ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read" ON likes FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON likes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public delete" ON likes FOR DELETE USING (true);</pre>
+
+    <h2>📝 当前用户 ID 参考</h2>
+    <div class="card">
+      <p><strong>qwe:</strong> <code>user_1773966789326</code></p>
+      <p><strong>123456:</strong> <code>user_1773933286452</code></p>
+      <p><strong>12345678:</strong> <code>user_1773933431204</code></p>
+      <p><strong>新用户测试:</strong> <code>user_1773933196118</code></p>
+    </div>
+
+    <h2>🧪 验证配置</h2>
+    <div class="card">
+      <p>配置完成后，请：</p>
+      <p>1. 打开两个不同的浏览器（或无痕模式）</p>
+      <p>2. 分别登录两个用户</p>
+      <p>3. 用户A 点击喜欢用户B</p>
+      <p>4. 用户B 刷新页面，点击喜欢用户A</p>
+      <p>5. 双方应该能看到"发消息"按钮</p>
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ 注意：</strong> 如果不执行上述 SQL，喜欢数据只保存在本地浏览器中，跨设备无法同步。
+    </div>
+  </div>
+</body>
+</html>
