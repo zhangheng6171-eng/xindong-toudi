@@ -3,9 +3,68 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, Eye, EyeOff, Mail, Lock, User, Calendar, ArrowRight, Check, Loader2, Sparkles, Phone } from 'lucide-react'
+import { Heart, Eye, EyeOff, Mail, Lock, User, Calendar, ArrowRight, Check, Loader2, Sparkles, Phone, X } from 'lucide-react'
 import Link from 'next/link'
 import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn, StepIndicator, Tag } from '@/components/animated-background'
+
+// 问卷选择弹窗组件
+function QuestionnaireChoiceModal({ isOpen, onAnswerNow, onSkip }: { 
+  isOpen: boolean
+  onAnswerNow: () => void
+  onSkip: () => void 
+}) {
+  if (!isOpen) return null
+  
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl"
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        >
+          <div className="text-center">
+            {/* 图标 */}
+            <div className="w-16 h-16 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/30">
+              <Heart className="w-8 h-8 text-white" fill="white" />
+            </div>
+            
+            <h2 className="text-xl font-bold text-gray-900 mb-2">🎉 注册成功！</h2>
+            <p className="text-gray-600 mb-6">
+              完成问卷可以帮助我们更好地为你匹配心仪的对象~
+            </p>
+            
+            <div className="space-y-3">
+              <motion.button
+                onClick={onAnswerNow}
+                className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl font-bold shadow-lg shadow-rose-500/30"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                ✨ 现在开始答题
+              </motion.button>
+              
+              <motion.button
+                onClick={onSkip}
+                className="w-full py-3.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                稍后再说，先去看看
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
 
 // 表单数据类型
 interface FormData {
@@ -257,6 +316,7 @@ function StepContent({ step, formData, setFormData }: { step: number, formData: 
 export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [showQuestionnaireChoice, setShowQuestionnaireChoice] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     nickname: '',
     email: '',
@@ -266,6 +326,17 @@ export default function RegisterPage() {
     city: '',
     agreedToTerms: false
   })
+
+  // 处理问卷选择
+  const handleAnswerNow = () => {
+    setShowQuestionnaireChoice(false)
+    window.location.href = '/questionnaire'
+  }
+  
+  const handleSkipQuestionnaire = () => {
+    setShowQuestionnaireChoice(false)
+    window.location.href = '/'
+  }
 
   const handleNext = async () => {
     // 验证第一步
@@ -356,7 +427,9 @@ export default function RegisterPage() {
         }
         localStorage.setItem(`xindong_profile_${data.user.id}`, JSON.stringify(userProfile))
         
-        window.location.href = '/questionnaire'
+        // 显示问卷选择弹窗
+        setIsLoading(false)
+        setShowQuestionnaireChoice(true)
       } else {
         alert(data.error || '注册失败，请重试')
         setIsLoading(false)
@@ -449,6 +522,13 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
+      
+      {/* 问卷选择弹窗 */}
+      <QuestionnaireChoiceModal 
+        isOpen={showQuestionnaireChoice}
+        onAnswerNow={handleAnswerNow}
+        onSkip={handleSkipQuestionnaire}
+      />
     </AnimatedBackground>
   )
 }
