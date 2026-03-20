@@ -276,28 +276,37 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
           </div>
 
           {/* 照片墙 */}
-          {realPhotos.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <Camera className="w-4 h-4" />
-                照片墙
-              </h3>
+          <div className="mb-6">
+            <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Camera className="w-4 h-4" />
+              照片墙 {realPhotos.length > 0 && `(${realPhotos.length}张)`}
+            </h3>
+            {realPhotos.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {realPhotos.slice(0, 6).map((photo, index) => (
-                  <div key={index} className="aspect-square rounded-xl overflow-hidden">
+                  <div key={index} className="aspect-square rounded-xl overflow-hidden bg-gray-100">
                     <img
                       src={photo!}
                       alt={`${user.nickname}的照片${index + 1}`}
                       className="w-full h-full object-cover hover:scale-105 transition-transform"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f3f4f6" width="100" height="100"/><text x="50" y="50" text-anchor="middle" fill="%239ca3af" font-size="12">加载失败</text></svg>'
+                      }}
                     />
                   </div>
                 ))}
               </div>
-              {realPhotos.length > 6 && (
-                <p className="text-xs text-gray-400 mt-2 text-center">共 {realPhotos.length} 张照片</p>
-              )}
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-xl">
+                <Camera className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p className="text-gray-400 text-sm">暂无照片</p>
+                <p className="text-gray-300 text-xs mt-1">用户还未上传照片墙</p>
+              </div>
+            )}
+            {realPhotos.length > 6 && (
+              <p className="text-xs text-gray-400 mt-2 text-center">共 {realPhotos.length} 张照片</p>
+            )}
+          </div>
 
           {/* 个人简介 */}
           {user.bio && (
@@ -375,31 +384,35 @@ function LoggedInHome() {
   // 查看详情时从 API 获取完整用户信息
   const handleViewDetail = async (user: DisplayUser) => {
     setIsLoadingDetail(true)
+    // 先设置基本信息，让用户看到加载状态
+    setSelectedUser(user)
+    
     try {
       const response = await fetch(`/api/users/${user.id}`)
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.user) {
           const fullUser = data.user
+          // 确保 photos 是数组
+          const photos = Array.isArray(fullUser.photos) ? fullUser.photos : []
+          
           setSelectedUser({
             ...user,
             avatar: fullUser.avatar || user.avatar,
-            photos: fullUser.photos || user.photos || [],
-            bio: fullUser.bio || user.bio,
-            occupation: fullUser.occupation || user.occupation,
-            education: fullUser.education || user.education,
-            height: fullUser.height || user.height,
-            interests: fullUser.interests || user.interests,
+            photos: photos,
+            bio: fullUser.bio || user.bio || '',
+            occupation: fullUser.occupation || user.occupation || '',
+            education: fullUser.education || user.education || '',
+            height: fullUser.height || user.height || 0,
+            interests: fullUser.interests || user.interests || [],
           })
-          return
         }
       }
     } catch (e) {
       console.error('Failed to fetch user detail:', e)
+    } finally {
+      setIsLoadingDetail(false)
     }
-    // 如果 API 失败，使用现有数据
-    setSelectedUser(user)
-    setIsLoadingDetail(false)
   }
 
   // 关闭详情弹窗时重置加载状态

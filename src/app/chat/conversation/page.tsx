@@ -386,7 +386,7 @@ function ConversationContent() {
         return
       }
 
-      // 压缩图片 - 使用更小的尺寸以适应 localStorage
+      // 压缩图片 - 使用更小的尺寸
       const dataUrl = await compressImage(file, 300, 300, 0.5)
       
       // 检查压缩后的图片大小
@@ -404,29 +404,100 @@ function ConversationContent() {
         senderId: currentUserId,
         text: dataUrl,
         timestamp: new Date(),
-        status: 'sent',
+        status: 'sending',
         type: 'image'
       }
 
+      const sortedIds = [currentUserId, otherUser.id].sort()
+      const chatKey = `xindong_chat_${sortedIds.join('_')}`
+
       // 使用函数式更新，确保消息只添加一次
       setMessages(prev => {
-        // 检查是否已存在（防止重复）
         if (prev.find(m => m.id === newMessage.id)) {
           return prev
         }
         const updated = [...prev, newMessage]
-        // 同步保存到 localStorage
-        const sortedIds = [currentUserId, otherUser.id].sort()
-        const chatKey = `xindong_chat_${sortedIds.join('_')}`
         try {
           localStorage.setItem(chatKey, JSON.stringify(updated))
         } catch (storageError) {
           console.error('localStorage save failed:', storageError)
-          alert('存储空间不足，无法保存图片。请清理浏览器缓存后重试。')
-          return prev // 返回之前的状态，不添加图片消息
+          alert('存储空间不足，无法保存图片。')
+          return prev
         }
         return updated
       })
+
+      // 发送到云端 - 同步给对方
+      try {
+        const response = await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            senderId: currentUserId,
+            receiverId: otherUser.id,
+            text: dataUrl,
+            type: 'image'
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.message) {
+            // 更新消息 ID 和状态
+            setMessages(prev => {
+              const updated = prev.map(m => 
+                m.id === newMessage.id 
+                  ? { ...m, id: data.message.id, status: 'sent' as const } 
+                  : m
+              )
+              localStorage.setItem(chatKey, JSON.stringify(updated))
+              return updated
+            })
+          }
+        } else {
+          // API 失败也标记为已发送（本地可用）
+          setMessages(prev => {
+            const updated = prev.map(m => 
+              m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+            )
+            localStorage.setItem(chatKey, JSON.stringify(updated))
+            return updated
+          })
+        }
+      } catch (e) {
+        console.error('Failed to send image to cloud:', e)
+        // 标记为已发送
+        setMessages(prev => {
+          const updated = prev.map(m => 
+            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
+          )
+          localStorage.setItem(chatKey, JSON.stringify(updated))
+          return updated
+        })
+      }
+
+      // 更新会话列表
+      const convKey = `xindong_conversations_${currentUserId}`
+      const stored = localStorage.getItem(convKey)
+      const conversations = stored ? JSON.parse(stored) : []
+      const existingIndex = conversations.findIndex((c: any) => c.matchId === otherUser.id)
+      const updatedConv = {
+        id: chatKey,
+        matchId: otherUser.id,
+        otherUser: { id: otherUser.id, nickname: otherUser.nickname, avatar: otherUser.avatar },
+        lastMessage: '[图片]',
+        lastMessageAt: new Date().toISOString(),
+        unreadCount: 0,
+        matchScore: otherUser.score,
+        createdAt: new Date().toISOString(),
+      }
+      if (existingIndex >= 0) {
+        conversations[existingIndex] = updatedConv
+      } else {
+        conversations.unshift(updatedConv)
+      }
+      localStorage.setItem(convKey, JSON.stringify(conversations))
+
     } catch (error) {
       console.error('Failed to send image:', error)
       alert('图片发送失败，请重试')
