@@ -11,6 +11,7 @@ export interface User {
   gender: 'male' | 'female' | null
   age: number
   city: string
+  avatar: string | null  // 添加头像字段
   createdAt: string
 }
 

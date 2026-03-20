@@ -63,9 +63,14 @@ export default function ProfilePage() {
       // 保存到 localStorage
       localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
       
-      // 加载头像
+      // 加载头像 - 优先使用数据库中的头像
       const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
-      if (savedAvatar) {
+      if (currentUser.avatar) {
+        // 数据库有头像，优先使用
+        setAvatar(currentUser.avatar)
+        // 同步到 localStorage
+        localStorage.setItem(`xindong_avatar_${currentUser.id}`, currentUser.avatar)
+      } else if (savedAvatar) {
         setAvatar(savedAvatar)
       }
       
