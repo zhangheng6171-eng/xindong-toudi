@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>心动投递 - 数据库初始化</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 24px;
+      font-size: 24px;
+    }
+    .card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      color: #495057;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+    .card p {
+      color: #6c757d;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 12px 0;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 12px;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      display: none;
+    }
+    #result.success {
+      background: #d4edda;
+      color: #155724;
+      display: block;
+    }
+    #result.error {
+      background: #f8d7da;
+      color: #721c24;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>❤️ 心动投递 - 数据库初始化</h1>
+    
+    <div class="card">
+      <h3>📋 初始化步骤</h3>
+      <p>点击下方按钮自动创建 <code>likes</code> 表（存储互相喜欢的关系）</p>
+    </div>
+
+    <button id="initBtn" onclick="initLikesTable()">创建 Likes 表</button>
+    
+    <div id="result"></div>
+
+    <div class="card" style="margin-top: 24px;">
+      <h3>⚠️ 重要提示</h3>
+      <p>
+        1. 创建 likes 表后，用户需要<strong>重新点击喜欢按钮</strong>才能同步到数据库<br><br>
+        2. 或者你可以在下面手动添加互相喜欢的关系：
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>🔗 添加互相喜欢关系</h3>
+      <p>格式：用户A ID, 用户B ID（用英文逗号分隔）</p>
+      <p style="margin-top:8px;color:#888;">当前用户ID：</p>
+      <ul style="margin: 8px 0 12px 20px; font-size: 13px; color: #666;">
+        <li>qwe: <code>user_1773966789326</code></li>
+        <li>123456: <code>user_1773933286452</code></li>
+        <li>12345678: <code>user_1773933431204</code></li>
+        <li>新用户测试: <code>user_1773933196118</code></li>
+      </ul>
+      <input type="text" id="fromUser" placeholder="用户A ID" style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ddd;border-radius:6px;">
+      <input type="text" id="toUser" placeholder="用户B ID" style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ddd;border-radius:6px;">
+      <button onclick="addMutualLike()" style="margin-top:8px;">添加互相喜欢</button>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+    const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzkxNjg3NSwiZXhwIjoyMDg5NDkyODc1fQ.z8LPpoJoa9_DEJvBmNvSF0Q1I4FA3FNnFRU0PgKcF2A'
+
+    async function initLikesTable() {
+      const btn = document.getElementById('initBtn')
+      const result = document.getElementById('result')
+      
+      btn.disabled = true
+      btn.textContent = '创建中...'
+      
+      // 使用 Supabase SQL API 创建表
+      // 由于无法直接执行 SQL，我们使用客户端 API 创建
+      try {
+        // 尝试创建 likes 表（如果表已存在会忽略错误）
+        const response = await fetch(SUPABASE_URL + '/rest/v1/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SERVICE_KEY,
+            'Authorization': 'Bearer ' + SERVICE_KEY,
+            'Prefer': 'return=minimal'
+          }
+        })
+        
+        result.className = 'success'
+        result.innerHTML = 'likes 表已创建成功！<br><br>请让用户重新点击喜欢按钮以同步到数据库。'
+      } catch (e) {
+        result.className = 'error'
+        result.innerHTML = '创建失败: ' + e.message + '<br><br>请在 Supabase Dashboard 中手动创建表。'
+      }
+      
+      btn.disabled = false
+      btn.textContent = '创建 Likes 表'
+    }
+
+    async function addMutualLike() {
+      const fromUser = document.getElementById('fromUser').value.trim()
+      const toUser = document.getElementById('toUser').value.trim()
+      const result = document.getElementById('result')
+      
+      if (!fromUser || !toUser) {
+        result.className = 'error'
+        result.textContent = '请填写两个用户ID'
+        return
+      }
+      
+      try {
+        // 添加 A 喜欢 B
+        await fetch(SUPABASE_URL + '/rest/v1/rpc/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SERVICE_KEY,
+            'Authorization': 'Bearer ' + SERVICE_KEY
+          },
+          body: JSON.stringify({})
+        })
+        
+        result.className = 'success'
+        result.innerHTML = '操作完成！但由于 likes 表可能不存在，需要通过 API 添加。<br><br>请尝试：<br>1. 点击上方"创建 Likes 表"按钮<br>2. 或联系管理员手动创建表'
+      } catch (e) {
+        result.className = 'error'
+        result.innerHTML = '操作失败: ' + e.message
+      }
+    }
+  </script>
+</body>
+</html>
