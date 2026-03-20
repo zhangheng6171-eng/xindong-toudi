@@ -55,30 +55,44 @@ export default function LoginPage() {
         console.log('[Login] Success, saving user to localStorage')
         localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
         
-        // 初始化用户 profile 数据（从数据库或默认值）
+        // 初始化用户 profile 数据 - 总是使用数据库的最新数据
         const userId = data.user.id
-        const existingProfile = localStorage.getItem(`xindong_profile_${userId}`)
-        if (!existingProfile) {
-          // 如果本地没有 profile 数据，从数据库获取或创建默认
-          const userProfile = {
-            nickname: data.user.nickname || '新用户',
-            age: data.user.age || 25,
-            gender: data.user.gender || 'male',
-            city: data.user.city || '未知',
-            occupation: '',
-            education: '',
-            height: 175,
-            bio: '',
-            interests: [],
-            lookingFor: {
-              minAge: 18,
-              maxAge: 35,
-              cities: [data.user.city || '北京'],
-              relationship: 'serious'
-            }
+        const userProfile = {
+          nickname: data.user.nickname || '',
+          age: data.user.age || 25,
+          gender: data.user.gender || 'male',
+          city: data.user.city || '',
+          occupation: '',
+          education: '',
+          height: 175,
+          bio: '',
+          interests: [],
+          lookingFor: {
+            minAge: 18,
+            maxAge: 35,
+            cities: data.user.city ? [data.user.city] : [],
+            relationship: 'serious'
           }
-          localStorage.setItem(`xindong_profile_${userId}`, JSON.stringify(userProfile))
         }
+        
+        // 合并现有 profile（保留 bio, interests, photos 等用户编辑的数据）
+        const existingProfileJson = localStorage.getItem(`xindong_profile_${userId}`)
+        if (existingProfileJson) {
+          try {
+            const existingProfile = JSON.parse(existingProfileJson)
+            // 保留用户编辑的字段，但强制更新数据库同步的字段
+            userProfile.bio = existingProfile.bio || ''
+            userProfile.interests = existingProfile.interests || []
+            userProfile.occupation = existingProfile.occupation || ''
+            userProfile.education = existingProfile.education || ''
+            userProfile.height = existingProfile.height || 175
+            userProfile.lookingFor = existingProfile.lookingFor || userProfile.lookingFor
+          } catch (e) {
+            console.error('Failed to parse existing profile:', e)
+          }
+        }
+        
+        localStorage.setItem(`xindong_profile_${userId}`, JSON.stringify(userProfile))
         
         // 跳转到仪表盘
         window.location.href = '/dashboard'
