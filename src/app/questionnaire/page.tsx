@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Sparkles, Heart, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Heart, Check, PartyPopper, Stars, X } from 'lucide-react'
 import { AnimatedBackground, GlassCard, GradientButton, FadeIn, Tag } from '@/components/animated-background'
+import { QuestionnaireProgress, QuestionnaireComplete } from '@/components/questionnaire-progress'
 
 // 问卷问题数据 - 66道题基于婚恋心理学专业设计
 const questions = [
@@ -101,10 +102,264 @@ const fadeInUp = {
   exit: { opacity: 0, y: -20 }
 }
 
+// 庆祝动画组件
+function CelebrationOverlay({ onComplete }: { onComplete: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-rose-500/95 via-pink-500/95 to-purple-500/95 backdrop-blur-sm"
+      onClick={onComplete}
+    >
+      {/* 彩带效果 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 50 }).map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: '-10%',
+              width: `${Math.random() * 10 + 5}px`,
+              height: `${Math.random() * 10 + 5}px`,
+              background: `hsl(${Math.random() * 360}, 80%, 70%)`,
+              borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+            }}
+            animate={{
+              y: [0, window.innerHeight * 1.2],
+              x: [0, (Math.random() - 0.5) * 200],
+              rotate: [0, 360 * (Math.random() > 0.5 ? 1 : -1)],
+              opacity: [1, 0],
+            }}
+            transition={{
+              duration: Math.random() * 3 + 2,
+              delay: Math.random() * 2,
+              ease: 'easeOut',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* 星星效果 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <motion.div
+            key={`star-${i}`}
+            className="absolute text-4xl"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            initial={{ scale: 0, rotate: 0 }}
+            animate={{
+              scale: [0, 1.5, 0],
+              rotate: [0, 180],
+            }}
+            transition={{
+              duration: 2,
+              delay: i * 0.1,
+              repeat: Infinity,
+              repeatDelay: Math.random() * 2,
+            }}
+          >
+            ✨
+          </motion.div>
+        ))}
+      </div>
+
+      {/* 中心内容 */}
+      <motion.div
+        initial={{ scale: 0, rotate: -180 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+        className="text-center text-white z-10 px-8"
+      >
+        <motion.div
+          animate={{
+            scale: [1, 1.2, 1],
+            rotate: [0, 10, -10, 0],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            repeatDelay: 1,
+          }}
+          className="text-8xl mb-6"
+        >
+          🎉
+        </motion.div>
+        
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="text-4xl font-bold mb-4"
+        >
+          恭喜完成！
+        </motion.h2>
+        
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="text-xl text-white/90 mb-8"
+        >
+          AI正在为你分析最佳匹配...
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1 }}
+          className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-8"
+        >
+          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
+            <div className="text-3xl font-bold">9</div>
+            <div className="text-sm text-white/70">维度分析</div>
+          </div>
+          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
+            <div className="text-3xl font-bold">66</div>
+            <div className="text-sm text-white/70">问题完成</div>
+          </div>
+          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-4">
+            <div className="text-3xl font-bold">AI</div>
+            <div className="text-sm text-white/70">智能匹配</div>
+          </div>
+        </motion.div>
+
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="px-8 py-4 bg-white text-rose-600 font-bold rounded-full shadow-xl text-lg"
+          onClick={onComplete}
+        >
+          查看匹配结果 →
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// 继续答题提示组件
+function ContinuePrompt({ 
+  savedProgress, 
+  onContinue, 
+  onRestart,
+  onClose 
+}: { 
+  savedProgress: { question: number; answers: Record<number, any> }
+  onContinue: () => void
+  onRestart: () => void
+  onClose: () => void
+}) {
+  const progressPercent = Math.round((savedProgress.question / questions.length) * 100)
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
+        className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-gray-900">欢迎回来！</h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-600">已完成进度</span>
+            <span className="text-2xl font-bold text-rose-500">{progressPercent}%</span>
+          </div>
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="h-full bg-gradient-to-r from-rose-400 to-pink-500 rounded-full"
+            />
+          </div>
+          <div className="mt-3 text-center text-gray-500">
+            已答 {savedProgress.question} / {questions.length} 题
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-rose-400 mt-0.5" />
+            <div className="text-sm text-gray-700">
+              继续完成问卷，获取你的专属匹配分析！
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onRestart}
+            className="flex-1 py-3 border-2 border-gray-200 rounded-full font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            重新开始
+          </button>
+          <button
+            onClick={onContinue}
+            className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full font-medium hover:shadow-lg transition-all"
+          >
+            继续答题
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function QuestionnairePage() {
   const router = useRouter()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, any>>({})
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showContinuePrompt, setShowContinuePrompt] = useState(false)
+  const [hasCheckedProgress, setHasCheckedProgress] = useState(false)
+
+  // 检查是否有保存的进度
+  useEffect(() => {
+    const savedData = localStorage.getItem('questionnaireProgress')
+    if (savedData && !hasCheckedProgress) {
+      try {
+        const parsed = JSON.parse(savedData)
+        if (parsed.question > 0 && Object.keys(parsed.answers).length > 0) {
+          setShowContinuePrompt(true)
+        }
+      } catch (e) {
+        console.error('Failed to parse saved progress:', e)
+      }
+      setHasCheckedProgress(true)
+    }
+  }, [hasCheckedProgress])
+
+  // 自动保存进度
+  useEffect(() => {
+    if (currentQuestion > 0 || Object.keys(answers).length > 0) {
+      localStorage.setItem('questionnaireProgress', JSON.stringify({
+        question: currentQuestion,
+        answers,
+        timestamp: Date.now()
+      }))
+    }
+  }, [currentQuestion, answers])
 
   const question = questions[currentQuestion]
   const progress = ((currentQuestion + 1) / questions.length) * 100
@@ -134,7 +389,34 @@ export default function QuestionnairePage() {
 
   const handleSubmit = () => {
     localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
+    localStorage.removeItem('questionnaireProgress') // 清除进度
+    setShowCelebration(true)
+  }
+
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false)
     router.push('/dashboard')
+  }
+
+  const handleContinueFromSaved = () => {
+    const savedData = localStorage.getItem('questionnaireProgress')
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData)
+        setCurrentQuestion(parsed.question)
+        setAnswers(parsed.answers)
+      } catch (e) {
+        console.error('Failed to restore progress:', e)
+      }
+    }
+    setShowContinuePrompt(false)
+  }
+
+  const handleRestart = () => {
+    localStorage.removeItem('questionnaireProgress')
+    setCurrentQuestion(0)
+    setAnswers({})
+    setShowContinuePrompt(false)
   }
 
   const renderQuestion = () => {
@@ -234,74 +516,99 @@ export default function QuestionnairePage() {
 
   return (
     <AnimatedBackground variant="romance" showFloatingHearts>
-      <div className="min-h-screen py-6 sm:py-10 px-4">
-        <div className="max-w-2xl mx-auto">
-          <FadeIn className="flex items-center justify-between mb-6">
-            <button onClick={handlePrev} disabled={currentQuestion === 0} className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all bg-white/50 backdrop-blur-sm rounded-full">
-              <ChevronLeft className="w-5 h-5" /><span className="hidden sm:inline">上一题</span>
+      <div className="min-h-screen py-4 sm:py-6 md:py-10 px-3 sm:px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* 顶部导航 */}
+          <FadeIn className="flex items-center justify-between mb-4 sm:mb-6">
+            <button onClick={handlePrev} disabled={currentQuestion === 0} className="flex items-center gap-2 px-3 sm:px-4 py-2 text-gray-500 hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all bg-white/50 backdrop-blur-sm rounded-full text-sm sm:text-base">
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" /><span className="hidden sm:inline">上一题</span>
             </button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-300/50">
-                <Heart className="w-5 h-5 text-white" fill="white" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-300/50">
+                <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="white" />
               </div>
-              <span className="text-sm font-medium text-gray-600">第 {groupIndex} 组 / 共 {groups.length} 组</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-600">第 {groupIndex} 组 / 共 {groups.length} 组</span>
             </div>
-            <div className="w-20 sm:w-24" />
+            <div className="w-16 sm:w-20" />
           </FadeIn>
 
-          <FadeIn delay={0.1} className="mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-white/50 backdrop-blur-sm rounded-full overflow-hidden">
-                <motion.div className="h-full bg-gradient-to-r from-rose-400 via-pink-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.5, ease: "easeOut" }} />
-              </div>
-              <span className="text-sm font-bold text-rose-500 min-w-[60px] text-right">{Math.round(progress)}%</span>
-            </div>
-            <div className="flex justify-between mt-3 text-sm">
-              <Tag color="rose"><Sparkles className="w-3 h-3 mr-1" />{currentGroup}</Tag>
-              <span className="text-gray-500">{currentQuestion + 1} / {questions.length}</span>
-            </div>
+          {/* 进度组件 - 集成九大维度显示 */}
+          <FadeIn delay={0.1} className="mb-4 sm:mb-6">
+            <QuestionnaireProgress 
+              currentQuestion={currentQuestion + 1} 
+              totalQuestions={questions.length} 
+              currentGroup={currentGroup} 
+            />
           </FadeIn>
 
+          {/* 问卷内容 */}
           <AnimatePresence mode="wait">
             <motion.div key={currentQuestion} variants={fadeInUp} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.3 }}>
-              <GlassCard className="p-6 sm:p-8 mb-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <div className="w-8 h-8 bg-gradient-to-br from-rose-400 to-pink-500 rounded-lg flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-white" />
+              <GlassCard className="p-4 sm:p-6 md:p-8 mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-rose-400 to-pink-500 rounded-lg flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
-                  <span className="text-sm text-rose-600 font-medium">{question.group}</span>
+                  <span className="text-xs sm:text-sm text-rose-600 font-medium">{question.group}</span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">{question.question}</h2>
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-6 sm:mb-8 leading-relaxed">{question.question}</h2>
                 {renderQuestion()}
               </GlassCard>
             </motion.div>
           </AnimatePresence>
 
+          {/* 提示卡片 */}
           <FadeIn delay={0.2}>
-            <GlassCard className="p-4 mb-6 bg-gradient-to-r from-rose-50/80 to-pink-50/80 border-rose-200/50">
-              <p className="text-sm text-rose-700 flex items-center gap-2">
-                <Heart className="w-4 h-4 text-rose-400" fill="currentColor" />
+            <GlassCard className="p-3 sm:p-4 mb-4 sm:mb-6 bg-gradient-to-r from-rose-50/80 to-pink-50/80 border-rose-200/50">
+              <p className="text-xs sm:text-sm text-rose-700 flex items-center gap-2">
+                <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" fill="currentColor" />
                 了解你的{currentGroup.toLowerCase()}，帮助我们匹配更合适的人
               </p>
             </GlassCard>
           </FadeIn>
 
+          {/* 底部按钮 */}
           <FadeIn delay={0.3} className="flex justify-between items-center">
-            <motion.button onClick={handlePrev} disabled={currentQuestion === 0} className="px-6 py-3 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:text-rose-500 transition-colors bg-white/50 backdrop-blur-sm rounded-2xl" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <motion.button 
+              onClick={handlePrev} 
+              disabled={currentQuestion === 0} 
+              className="px-4 sm:px-6 py-2.5 sm:py-3 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:text-rose-500 transition-colors bg-white/50 backdrop-blur-sm rounded-xl sm:rounded-2xl text-sm sm:text-base" 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }}
+            >
               ← 上一题
             </motion.button>
             {currentQuestion === questions.length - 1 ? (
               <GradientButton size="lg" onClick={handleSubmit}>
-                <span className="flex items-center gap-2"><Heart className="w-5 h-5" fill="white" />完成问卷</span>
+                <span className="flex items-center gap-2 text-sm sm:text-base"><Heart className="w-4 h-4 sm:w-5 sm:h-5" fill="white" />完成问卷</span>
               </GradientButton>
             ) : (
               <GradientButton size="lg" onClick={handleNext}>
-                <span className="flex items-center gap-2">下一题<ChevronRight className="w-5 h-5" /></span>
+                <span className="flex items-center gap-2 text-sm sm:text-base">下一题<ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" /></span>
               </GradientButton>
             )}
           </FadeIn>
         </div>
       </div>
+
+      {/* 庆祝动画 */}
+      <AnimatePresence>
+        {showCelebration && (
+          <CelebrationOverlay onComplete={handleCelebrationComplete} />
+        )}
+      </AnimatePresence>
+
+      {/* 继续答题提示 */}
+      <AnimatePresence>
+        {showContinuePrompt && (
+          <ContinuePrompt
+            savedProgress={JSON.parse(localStorage.getItem('questionnaireProgress') || '{"question":0,"answers":{}}')}
+            onContinue={handleContinueFromSaved}
+            onRestart={handleRestart}
+            onClose={() => setShowContinuePrompt(false)}
+          />
+        )}
+      </AnimatePresence>
     </AnimatedBackground>
   )
 }

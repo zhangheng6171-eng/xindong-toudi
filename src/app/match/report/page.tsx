@@ -6,11 +6,12 @@ import { useSearchParams } from 'next/navigation'
 import { 
   Heart, MessageCircle, ArrowLeft, Sparkles, Brain, 
   Target, Home, Zap, Users, Calendar, CheckCircle,
-  AlertCircle, TrendingUp
+  AlertCircle, TrendingUp, Share2
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
+import { SharePanel } from '@/components/share-panel'
 
 // 匹配维度分析
 interface MatchDimension {
@@ -250,6 +251,7 @@ function MatchReportContent() {
   const [mounted, setMounted] = useState(false)
   const [analysis, setAnalysis] = useState<MatchAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showSharePanel, setShowSharePanel] = useState(false)
   
   const otherUserId = searchParams.get('userId') || 'unknown'
   const otherNickname = searchParams.get('nickname') || '心动对象'
@@ -312,6 +314,13 @@ function MatchReportContent() {
               <h1 className="font-bold text-gray-900">AI匹配分析报告</h1>
               <p className="text-xs text-gray-500">基于66道问卷的深度分析</p>
             </div>
+            <button
+              onClick={() => setShowSharePanel(true)}
+              className="p-2 -mr-2 text-gray-600 hover:text-rose-500 transition-colors"
+              aria-label="分享报告"
+            >
+              <Share2 className="w-6 h-6" />
+            </button>
           </div>
         </div>
 
@@ -426,6 +435,18 @@ function MatchReportContent() {
             <p className="mt-1">基于66道心理学专业问卷分析</p>
           </div>
         </div>
+
+        {/* 分享面板 */}
+        {analysis && currentUser && (
+          <SharePanel
+            isOpen={showSharePanel}
+            onClose={() => setShowSharePanel(false)}
+            myNickname={currentUser.nickname || '我'}
+            otherNickname={otherNickname}
+            otherUserId={otherUserId}
+            matchScore={analysis.overallScore}
+          />
+        )}
       </div>
     </AnimatedBackground>
   )

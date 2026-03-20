@@ -931,41 +931,170 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* 成功案例 */}
+      {/* 成功案例 - 扩展版 */}
       <section className="relative z-10 max-w-5xl mx-auto px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-12">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
           他们的故事
         </h2>
+        <p className="text-center text-gray-500 mb-8">
+          已有 <span className="font-bold text-rose-500">10万+</span> 人在心动投递找到真爱
+        </p>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        {/* 筛选标签 */}
+        <div className="flex flex-wrap justify-center gap-3 mb-10">
+          {[
+            { label: '全部', value: 'all', emoji: '💕' },
+            { label: '在一起', value: 'dating', emoji: '💑' },
+            { label: '订婚', value: 'engaged', emoji: '💍' },
+            { label: '结婚', value: 'married', emoji: '👰' },
+          ].map((filter) => (
+            <button
+              key={filter.value}
+              onClick={() => {
+                const container = document.getElementById('stories-container')
+                if (!container) return
+                const cards = container.querySelectorAll('.story-card')
+                cards.forEach((card) => {
+                  const cardEl = card as HTMLElement
+                  if (filter.value === 'all' || cardEl.dataset.status === filter.value) {
+                    cardEl.style.display = 'block'
+                  } else {
+                    cardEl.style.display = 'none'
+                  }
+                })
+              }}
+              className="px-5 py-2 bg-white/80 backdrop-blur-sm rounded-full text-sm font-medium text-gray-600 hover:bg-rose-500 hover:text-white transition-all shadow-md hover:shadow-lg"
+            >
+              {filter.emoji} {filter.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 成功案例轮播 */}
+        <div id="stories-container" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
             {
-              quote: '"一开始觉得66道题太多了，但做完后看到AI给我匹配的人选，真的太准了！我们价值观高度一致，现在在一起快一年了。"',
-              name: '小林 & 阿杰',
-              matchScore: '95%',
-              time: '匹配第3个月确定关系',
+              quote: "一开始觉得66道题太多了，但做完后看到AI给我匹配的人选，真的太准了！我们价值观高度一致，现在在一起快一年了，每次聊天都有说不完的话。",
+              name: "小林 & 阿杰",
+              matchScore: "95%",
+              time: "2024年3月匹配 → 2024年6月确定关系",
+              status: "dating",
+              timeline: "问卷完成 → 第3天收到推荐 → 第1次约会 → 确定关系",
+              highlights: ["价值观高度一致", "性格互补", "生活习惯相似"],
             },
             {
-              quote: '"之前用过很多相亲软件，都是看脸。心动投递不一样，它真的了解我的性格，匹配的男生和我超级合拍！"',
-              name: '小美 & 大伟',
-              matchScore: '91%',
-              time: '匹配第2个月确定关系',
+              quote: "之前用过很多相亲软件，都是看脸。心动投递不一样，它真的了解我的性格。匹配的男生和我一样喜欢旅行、喜欢小动物，我们第一次见面就聊了5个小时！",
+              name: "小美 & 大伟",
+              matchScore: "91%",
+              time: "2024年1月匹配 → 2024年3月确定关系",
+              status: "dating",
+              timeline: "AI匹配分析报告 → 互相喜欢 → 线下见面 → 在一起",
+              highlights: ["共同兴趣爱好", "生活方式契合", "互相欣赏"],
+            },
+            {
+              quote: "我是一个内向的人，之前相亲总是不知道说什么。66道题帮我找到了同样内向但又互补的他。我们都很珍惜这份来之不易的缘分，现在已经订婚了！",
+              name: "晓晓 & 子涵",
+              matchScore: "88%",
+              time: "2023年11月匹配 → 2024年2月确定关系 → 2024年10月订婚",
+              status: "engaged",
+              timeline: "深度问卷 → 性格分析 → 匹配度92% → 订婚",
+              highlights: ["内向者的完美匹配", "互相理解", "彼此珍惜"],
+            },
+            {
+              quote: "我是单亲妈妈，一个人带孩子真的很辛苦。也很担心找不到能接受我的人。心动投递的AI匹配系统帮我找到了现在的老公，他对我的孩子视如己出。",
+              name: "芳芳 & 建军",
+              matchScore: "94%",
+              time: "2023年8月匹配 → 2023年12月确定关系 → 2024年5月结婚",
+              status: "married",
+              timeline: "真实填写个人情况 → AI精准匹配 → 幸福婚姻",
+              highlights: ["接受真实的我", "爱屋及乌", "组建幸福家庭"],
+            },
+            {
+              quote: "我们都是工程师，平时工作很忙，根本没时间社交。66道题帮我们快速筛选出最匹配的人，现在我们一起创业、一起生活，每天都充满甜蜜！",
+              name: "浩然 & 思远",
+              matchScore: "93%",
+              time: "2024年2月匹配 → 2024年5月确定关系 → 计划2025年结婚",
+              status: "dating",
+              timeline: "高效匹配 → 价值观一致 → 共同目标",
+              highlights: ["事业伴侣", "志同道合", "高效脱单"],
+            },
+            {
+              quote: "我是虔诚的基督徒，一直想找一个有共同信仰的伴侣。心动投递的问卷里有专门的价值观匹配，帮我找到了现在的妻子。我们每周一起做礼拜，感觉特别幸福。",
+              name: "志明 & 雨晴",
+              matchScore: "97%",
+              time: "2023年9月匹配 → 2023年12月确定关系 → 2024年8月结婚",
+              status: "married",
+              timeline: "信仰匹配 → 价值观契合 → 神圣婚姻",
+              highlights: ["信仰一致", "灵魂伴侣", "共同成长"],
             },
           ].map((story, i) => (
-            <div key={i} className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
-              <div className="text-4xl text-rose-300 mb-4">"</div>
-              <p className="text-gray-700 mb-6 leading-relaxed">{story.quote}</p>
-              <div className="flex items-center justify-between">
+            <div
+              key={i}
+              data-status={story.status}
+              className="story-card bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col"
+            >
+              {/* 匹配度徽章 */}
+              <div className="flex items-center justify-between mb-4">
+                <span className="px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs font-bold rounded-full">
+                  匹配度 {story.matchScore}
+                </span>
+                <span className="text-xs text-gray-400">{story.status === 'dating' ? '💑 在一起' : story.status === 'engaged' ? '💍 订婚' : '👰 结婚'}</span>
+              </div>
+
+              {/* 用户昵称 */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-bold">
+                  {story.name.split(' & ').map(n => n[0]).join('')}
+                </div>
                 <div>
                   <div className="font-bold text-gray-900">{story.name}</div>
-                  <div className="text-sm text-gray-500">{story.time}</div>
-                </div>
-                <div className="bg-gradient-to-r from-rose-500 to-pink-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                  匹配度 {story.matchScore}
+                  <div className="text-xs text-gray-500">{story.time.split(' → ')[0]}</div>
                 </div>
               </div>
+
+              {/* 故事引言 */}
+              <div className="text-3xl text-rose-300 mb-2">"</div>
+              <p className="text-gray-700 mb-4 leading-relaxed flex-grow">{story.quote}</p>
+
+              {/* 时间线 */}
+              <div className="mb-4 p-3 bg-rose-50 rounded-xl">
+                <div className="text-xs font-medium text-rose-600 mb-1">📍 相识时间线</div>
+                <div className="text-xs text-gray-600">{story.timeline}</div>
+              </div>
+
+              {/* 亮点标签 */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {story.highlights.map((tag, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* 互动按钮 */}
+              <button
+                onClick={() => {
+                  // 滚动到问卷区域
+                  window.location.href = '/questionnaire'
+                }}
+                className="w-full py-3 bg-gradient-to-r from-rose-50 to-pink-50 text-rose-600 font-medium rounded-xl hover:from-rose-500 hover:to-pink-500 hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Heart className="w-4 h-4" />
+                希望我也能遇到
+              </button>
             </div>
           ))}
+        </div>
+
+        {/* 查看更多 */}
+        <div className="text-center mt-10">
+          <Link
+            href="/success-stories"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 font-medium rounded-full shadow-md hover:shadow-lg transition-all"
+          >
+            查看更多成功案例
+            <span className="text-rose-500">→</span>
+          </Link>
         </div>
       </section>
 
