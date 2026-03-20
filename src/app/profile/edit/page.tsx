@@ -109,6 +109,18 @@ export default function EditProfilePage() {
     // 同步到云端
     try {
       const validPhotos = photos.filter(p => p !== null) as string[]
+      
+      // 更新 currentUser 对象
+      const updatedUser = { 
+        ...currentUser, 
+        nickname: profile.nickname,
+        age: profile.age,
+        gender: profile.gender,
+        city: profile.city,
+        avatar: avatar 
+      }
+      localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
+      
       await fetch('/api/users/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

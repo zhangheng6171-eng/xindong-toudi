@@ -97,9 +97,13 @@ export default function ProfilePage() {
         localStorage.removeItem(`xindong_avatar_${currentUser.id}`)
       }
       
+      // 更新 currentUser 对象中的 avatar
+      const updatedUser = { ...currentUser, avatar: url }
+      localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
+      
       // 同步到云端
       try {
-        await fetch('/api/users/profile', {
+        const response = await fetch('/api/users/profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -107,6 +111,10 @@ export default function ProfilePage() {
             updates: { avatar: url }
           })
         })
+        
+        if (!response.ok) {
+          console.error('Failed to sync avatar to cloud')
+        }
       } catch (e) {
         console.error('Failed to sync avatar to cloud:', e)
       }
