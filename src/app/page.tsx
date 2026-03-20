@@ -7,6 +7,7 @@ import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Spar
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
+import { UserCardSkeleton, EmptyState } from '@/components/skeleton'
 
 // 用户数据类型（从 API 返回）
 interface ApiUser {
@@ -283,17 +284,24 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
             </h3>
             {realPhotos.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {realPhotos.slice(0, 6).map((photo, index) => (
-                  <div key={index} className="aspect-square rounded-xl overflow-hidden bg-gray-100">
-                    <img
-                      src={photo!}
-                      alt={`${user.nickname}的照片${index + 1}`}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f3f4f6" width="100" height="100"/><text x="50" y="50" text-anchor="middle" fill="%239ca3af" font-size="12">加载失败</text></svg>'
-                      }}
-                    />
-                  </div>
+                {realPhotos.map((photo, index) => (
+                  <motion.div 
+                    key={index} 
+                    className="aspect-square rounded-xl overflow-hidden bg-gray-100"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    {photo && (
+                      <img
+                        src={photo}
+                        alt={`${user.nickname}的照片${index + 1}`}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          // 图片加载失败时显示占位图
+                          (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext x="50" y="50" text-anchor="middle" fill="%239ca3af" font-size="10" dy=".3em"%3E加载失败%3C/text%3E%3C/svg%3E'
+                        }}
+                      />
+                    )}
+                  </motion.div>
                 ))}
               </div>
             ) : (
@@ -302,9 +310,6 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
                 <p className="text-gray-400 text-sm">暂无照片</p>
                 <p className="text-gray-300 text-xs mt-1">用户还未上传照片墙</p>
               </div>
-            )}
-            {realPhotos.length > 6 && (
-              <p className="text-xs text-gray-400 mt-2 text-center">共 {realPhotos.length} 张照片</p>
             )}
           </div>
 
@@ -713,13 +718,16 @@ function LoggedInHome() {
 
         {/* 内容区域 */}
         <div className="max-w-2xl mx-auto px-4 py-6">
-          {/* 加载状态 */}
+          {/* 加载状态 - 骨架屏 */}
           {isLoading ? (
-            <div className="text-center py-20">
-              <div className="animate-pulse">
-                <Heart className="w-12 h-12 mx-auto mb-4 text-rose-300" />
-                <p className="text-gray-400">正在加载用户...</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="h-6 w-32 bg-gray-200 rounded-lg animate-pulse" />
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
               </div>
+              <UserCardSkeleton />
+              <UserCardSkeleton />
+              <UserCardSkeleton />
             </div>
           ) : displayUsers.length > 0 ? (
             <div className="space-y-4">
@@ -743,12 +751,11 @@ function LoggedInHome() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-20">
-              <Heart className="w-16 h-16 mx-auto mb-4 text-gray-200" />
-              <h3 className="text-xl font-bold text-gray-400 mb-2">暂无其他用户</h3>
-              <p className="text-gray-400 mb-6">成为第一个注册的用户吧！</p>
-              <p className="text-sm text-gray-300">邀请朋友一起使用心动投递~</p>
-            </div>
+            <EmptyState
+              icon={Heart}
+              title="暂无其他用户"
+              description="成为第一个注册的用户，邀请朋友一起使用心动投递~"
+            />
           )}
         </div>
 

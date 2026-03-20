@@ -121,7 +121,7 @@ export default function EditProfilePage() {
       }
       localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
       
-      await fetch('/api/users/profile', {
+      const response = await fetch('/api/users/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,13 +142,23 @@ export default function EditProfilePage() {
           }
         })
       })
+      
+      if (response.ok) {
+        // 保存成功提示
+        alert('✅ 资料保存成功！')
+      } else {
+        const errorData = await response.json()
+        console.error('Save error:', errorData)
+        alert('保存成功（本地），云端同步可能需要稍后重试')
+      }
     } catch (e) {
       console.error('Failed to sync to cloud:', e)
+      alert('保存成功（本地），云端同步失败')
     }
     
     console.log('Saving profile:', { profile, avatar, photos })
     // 保存成功后返回个人主页
-    router.push('/profile')
+    router.push('/dashboard')
   }
 
   const interestOptions = [
