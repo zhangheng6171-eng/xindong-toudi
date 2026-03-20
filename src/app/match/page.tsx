@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Heart, MessageCircle, Eye, Sparkles } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Heart, MessageCircle, Eye, Sparkles, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,70 +14,70 @@ import {
   GradientText,
   FadeIn 
 } from '@/components/animated-background'
+import { useAuth } from '@/hooks/useAuth'
 
-// 模拟匹配数据
-const mockMatches = [
-  {
-    id: '1',
-    nickname: '小雨',
-    age: 26,
-    city: '北京',
-    occupation: '产品经理',
-    education: '研究生',
-    compatibility: 92,
-    matchReasons: [
-      '你们都重视家庭和真诚',
-      '喜欢安静的周末，热爱旅行',
-      '价值观高度契合',
-      '都是猫奴🐱',
-    ],
-    sharedValues: ['家庭', '真诚', '成长'],
-    sharedInterests: ['旅行', '摄影', '猫'],
-    avatar: null,
-    liked: false,
-  },
-  {
-    id: '2',
-    nickname: '阿杰',
-    age: 28,
-    city: '上海',
-    occupation: '工程师',
-    education: '本科',
-    compatibility: 85,
-    matchReasons: [
-      '你们都喜欢户外运动',
-      '重视工作和生活的平衡',
-      '性格互补，可能产生化学反应',
-    ],
-    sharedValues: ['健康', '自由'],
-    sharedInterests: ['运动', '旅行', '美食'],
-    avatar: null,
-    liked: false,
-  },
-  {
-    id: '3',
-    nickname: '小美',
-    age: 25,
-    city: '深圳',
-    occupation: '设计师',
-    education: '本科',
-    compatibility: 78,
-    matchReasons: [
-      '你们都热爱艺术和创意',
-      '喜欢探索新事物',
-      '对未来有相似的规划',
-    ],
-    sharedValues: ['创造力', '成长'],
-    sharedInterests: ['艺术', '音乐', '咖啡'],
-    avatar: null,
-    liked: true,
-  },
-]
+// 匹配数据类型
+interface Match {
+  id: string
+  nickname: string
+  age: number
+  city: string
+  occupation: string
+  education: string
+  compatibility: number
+  matchReasons: string[]
+  sharedValues: string[]
+  sharedInterests: string[]
+  avatar: string | null
+  liked: boolean
+}
 
 export default function MatchPage() {
   const router = useRouter()
-  const [matches, setMatches] = useState(mockMatches)
+  const { currentUser } = useAuth()
+  const [matches, setMatches] = useState<Match[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
+  const [showDetail, setShowDetail] = useState(false)
+
+  // 加载匹配数据（从API获取真实用户）
+  useEffect(() => {
+    const loadMatches = async () => {
+      try {
+        const response = await fetch('/api/users/list')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.users && data.users.length > 0) {
+            // 转换为匹配格式
+            const formattedMatches = data.users
+              .filter((u: any) => u.id !== currentUser?.id)
+              .slice(0, 3)
+              .map((u: any, index: number) => ({
+                id: u.id,
+                nickname: u.nickname,
+                age: u.age || 25,
+                city: u.city || '未知',
+                occupation: u.occupation || '待完善',
+                education: u.education || '待完善',
+                compatibility: 85 - index * 5,
+                matchReasons: ['资料相似度较高', '兴趣相投'],
+                sharedValues: ['真诚', '成长'],
+                sharedInterests: u.interests?.slice(0, 2) || ['待了解'],
+                avatar: u.avatar,
+                liked: false,
+              }))
+            setMatches(formattedMatches)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load matches:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadMatches()
+  }, [currentUser])
   const [showDetail, setShowDetail] = useState(false)
 
   const handleLike = (matchId: string, e?: React.MouseEvent) => {
@@ -98,6 +98,20 @@ export default function MatchPage() {
   }
 
   const currentMatch = matches.find(m => m.id === selectedMatch)
+
+  // 加载中状态
+  if (loading) {
+    return (
+      <AnimatedBackground variant="romance" showFloatingHearts={true}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <Heart className="w-12 h-12 mx-auto mb-4 text-rose-300 animate-pulse" />
+            <p className="text-gray-400">正在加载匹配...</p>
+          </div>
+        </div>
+      </AnimatedBackground>
+    )
+  }
 
   return (
     <AnimatedBackground variant="romance" showFloatingHearts={true}>
@@ -124,8 +138,10 @@ export default function MatchPage() {
         </FadeIn>
 
         {/* Matches List */}
-        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-          {matches.map((match, index) => (
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          {matches.length > 0 ? (
+            <div className="space-y-6">
+              {matches.map((match, index) => (
             <FadeIn key={match.id} delay={index * 0.1}>
               <GlassCard className="overflow-hidden">
                 {/* Avatar Area */}
@@ -247,6 +263,17 @@ export default function MatchPage() {
               </GlassCard>
             </FadeIn>
           ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <Heart className="w-16 h-16 mx-auto mb-4 text-gray-200" />
+              <h3 className="text-xl font-bold text-gray-400 mb-2">暂无匹配结果</h3>
+              <p className="text-gray-400 mb-6">完成问卷后等待系统为你匹配~</p>
+              <Link href="/questionnaire" className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full font-medium">
+                立即去答题
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Detail Modal */}

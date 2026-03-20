@@ -296,13 +296,8 @@ export default function DashboardPage() {
     neuroticism: 35,
   }
 
-  // 匹配历史
-  const matchHistory = [
-    { name: '小雨', date: '3月18日', score: 92, emoji: '💕', status: 'mutual' },
-    { name: '阿杰', date: '3月11日', score: 85, emoji: '😊', status: 'liked' },
-    { name: '小美', date: '3月4日', score: 78, emoji: '🙂', status: 'matched' },
-    { name: '云云', date: '2月25日', score: 72, emoji: '🙂', status: 'matched' },
-  ]
+  // 匹配历史（从数据库获取，暂无数据）
+  const matchHistory: { name: string; date: string; score: number; emoji: string; status: string }[] = []
 
   const personalityInsights = [
     { title: '创意先锋', desc: '你对新事物充满好奇，富有想象力和创造力', icon: '🌟', gradient: 'from-amber-400 to-orange-500' },
@@ -536,11 +531,19 @@ export default function DashboardPage() {
                     </Link>
                   </div>
 
-                  <div className="space-y-3">
-                    {matchHistory.map((match, i) => (
-                      <MatchHistoryCard key={i} match={match} />
-                    ))}
-                  </div>
+                  {matchHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {matchHistory.map((match, i) => (
+                        <MatchHistoryCard key={i} match={match} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Heart className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                      <p className="text-gray-400 mb-2">暂无匹配记录</p>
+                      <p className="text-sm text-gray-300">完成问卷后等待系统匹配~</p>
+                    </div>
+                  )}
                 </GlassCard>
               </FadeIn>
             </div>

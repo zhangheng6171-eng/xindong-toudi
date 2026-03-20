@@ -627,41 +627,67 @@ function LoggedInHome() {
     window.location.href = `/chat/conversation/?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`
   }
 
-  // 如果没有真实用户，显示模拟用户
-  const displayUsers = allUsers.length > 0 ? allUsers : [
-    {
-      id: 'demo1',
-      nickname: '小雨',
-      age: 26,
-      gender: 'female',
-      city: '北京',
-      occupation: '产品设计师',
-      education: '硕士',
-      height: 165,
-      bio: '热爱生活，喜欢摄影和旅行。周末喜欢探店、看展，期待遇见有趣的灵魂～',
-      interests: ['摄影', '旅行', '美食', '艺术'],
-      matchScore: 92,
-      avatar: null,
-      photos: [],
-      isLiked: false,
-      isMutualLike: false,
-    },
-    {
-      id: 'demo2',
-      nickname: '云云',
-      age: 27,
-      gender: 'female',
-      city: '上海',
-      occupation: '市场经理',
-      education: '本科',
-      height: 168,
-      bio: '喜欢健身和阅读，相信坚持的力量。希望找到一个一起成长的人。',
-      interests: ['健身', '阅读', '投资', '电影'],
-      matchScore: 88,
-      avatar: null,
-      photos: [],
-      isLiked: false,
-      isMutualLike: false,
+  // 显示真实用户列表
+  const displayUsers = allUsers
+
+  return (
+    <AnimatedBackground variant="romance" showFloatingHearts={true}>
+      <div className="min-h-screen pb-20">
+        {/* Header */}
+        <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <Heart className="w-4 h-4 text-white" fill="white" />
+              </div>
+              <span className="font-bold text-lg">
+                <GradientText>心动投递</GradientText>
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* 问卷完成状态指示器 */}
+              {questionnaireCompleted ? (
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">资料完善</span>
+              ) : (
+                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">资料待完善</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 内容区域 */}
+        <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* 用户列表 */}
+          {displayUsers.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">
+                  真实用户推荐
+                </h3>
+                <span className="text-sm text-gray-500">{displayUsers.length} 位用户</span>
+              </div>
+              <div className="grid gap-4">
+                {displayUsers.map((user, index) => (
+                  <UserCard
+                    key={user.id}
+                    user={user}
+                    index={index}
+                    onViewDetail={setSelectedUser}
+                    onLike={handleLike}
+                    showIncompleteTag={!questionnaireCompleted && user.id === currentUser?.id}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-20">
+              <Heart className="w-16 h-16 mx-auto mb-4 text-gray-200" />
+              <h3 className="text-xl font-bold text-gray-400 mb-2">暂无其他用户</h3>
+              <p className="text-gray-400 mb-6">成为第一个注册的用户吧！</p>
+              <p className="text-sm text-gray-300">邀请朋友一起使用心动投递~</p>
+            </div>
+          )}
     },
   ]
 
