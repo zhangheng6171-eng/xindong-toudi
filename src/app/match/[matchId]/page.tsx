@@ -1,11 +1,9 @@
 import MatchResultContent from './content'
 
-// 预生成静态页面
+// 预生成示例静态页面
 export async function generateStaticParams() {
   return [
-    { matchId: '1' },
-    { matchId: '2' },
-    { matchId: '3' },
+    { matchId: 'example' },
   ]
 }
 

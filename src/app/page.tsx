@@ -364,6 +364,7 @@ function LoggedInHome() {
   const router = useRouter()
   const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
   const [mounted, setMounted] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
@@ -424,6 +425,7 @@ function LoggedInHome() {
     setMounted(true)
 
     const loadUsers = async () => {
+      setIsLoading(true) // 开始加载
       try {
         // 获取所有喜欢关系（从数据库，支持跨设备）
         let allLikes: {from: string, to: string}[] = []
@@ -498,6 +500,8 @@ function LoggedInHome() {
         }
       } catch (e) {
         console.error('Failed to fetch users from API:', e)
+      } finally {
+        setIsLoading(false) // 加载完成
       }
 
       // 如果 API 失败，显示空列表
@@ -658,8 +662,15 @@ function LoggedInHome() {
 
         {/* 内容区域 */}
         <div className="max-w-2xl mx-auto px-4 py-6">
-          {/* 用户列表 */}
-          {displayUsers.length > 0 ? (
+          {/* 加载状态 */}
+          {isLoading ? (
+            <div className="text-center py-20">
+              <div className="animate-pulse">
+                <Heart className="w-12 h-12 mx-auto mb-4 text-rose-300" />
+                <p className="text-gray-400">正在加载用户...</p>
+              </div>
+            </div>
+          ) : displayUsers.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">

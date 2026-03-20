@@ -49,7 +49,7 @@ export default function MatchPage() {
 
   const handleViewDetail = (matchId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
-    router.push(`/match/${matchId}`)
+    router.push(`/match/detail?userId=${matchId}`)
   }
 
   const handleSendMessage = (matchId: string, e?: React.MouseEvent) => {
@@ -148,7 +148,16 @@ export default function MatchPage() {
                   {/* Avatar Area */}
                   <div className="relative h-48 bg-gradient-to-br from-rose-100/80 via-pink-50/80 to-purple-100/80">
                     <div className="absolute inset-0 flex items-center justify-center">
-                      {match.liked ? (
+                      {match.avatar ? (
+                        <motion.img
+                          src={match.avatar}
+                          alt={match.nickname}
+                          className="w-32 h-32 rounded-full object-cover shadow-xl shadow-rose-500/30"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        />
+                      ) : match.liked ? (
                         <motion.div 
                           className="w-32 h-32 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-rose-500/30"
                           initial={{ scale: 0.8, opacity: 0 }}
