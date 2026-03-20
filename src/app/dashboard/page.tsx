@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { 
   Settings, Heart, MessageCircle, User, Bell, ChevronRight,
   TrendingUp, Calendar, Sparkles, Target, Users, BookOpen,
-  Camera, Edit2, Award, Zap, BarChart3, LogOut
+  Camera, Edit2, Award, Zap, BarChart3, LogOut, AlertCircle
 } from 'lucide-react'
 import { 
   AnimatedBackground, 

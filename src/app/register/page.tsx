@@ -198,28 +198,98 @@ function StepContent({ step, formData, setFormData }: { step: number, formData: 
               <label className="block text-sm font-medium text-gray-700 mb-2">年龄</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  placeholder="你的年龄"
-                  min="18"
-                  max="100"
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
-                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-500">选择年龄</span>
+                    <span className="text-2xl font-bold text-rose-500">{formData.age || 25}岁</span>
+                  </div>
+                  <input
+                    type="range"
+                    value={formData.age || 25}
+                    onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                    min="18"
+                    max="60"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb"
+                    style={{
+                      background: `linear-gradient(to right, #f43f5e 0%, #f43f5e ${((parseInt(formData.age || '25') - 18) / 42) * 100}%, #e5e7eb ${((parseInt(formData.age || '25') - 18) / 42) * 100}%, #e5e7eb 100%)`
+                    }}
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>18岁</span>
+                    <span>60岁</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">所在城市</label>
               <div className="relative">
-                <input
-                  type="text"
+                <select
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  placeholder="例如：北京"
-                  className="w-full px-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
-                />
+                  className="w-full px-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50 appearance-none cursor-pointer"
+                >
+                  <option value="">请选择城市</option>
+                  <optgroup label="直辖市">
+                    <option value="北京">北京</option>
+                    <option value="上海">上海</option>
+                    <option value="天津">天津</option>
+                    <option value="重庆">重庆</option>
+                  </optgroup>
+                  <optgroup label="一线城市">
+                    <option value="广州">广州</option>
+                    <option value="深圳">深圳</option>
+                    <option value="杭州">杭州</option>
+                    <option value="成都">成都</option>
+                    <option value="武汉">武汉</option>
+                    <option value="南京">南京</option>
+                  </optgroup>
+                  <optgroup label="省会城市">
+                    <option value="济南">济南</option>
+                    <option value="青岛">青岛</option>
+                    <option value="郑州">郑州</option>
+                    <option value="西安">西安</option>
+                    <option value="长沙">长沙</option>
+                    <option value="合肥">合肥</option>
+                    <option value="福州">福州</option>
+                    <option value="厦门">厦门</option>
+                    <option value="沈阳">沈阳</option>
+                    <option value="大连">大连</option>
+                    <option value="哈尔滨">哈尔滨</option>
+                    <option value="长春">长春</option>
+                    <option value="石家庄">石家庄</option>
+                    <option value="太原">太原</option>
+                    <option value="南昌">南昌</option>
+                    <option value="昆明">昆明</option>
+                    <option value="贵阳">贵阳</option>
+                    <option value="南宁">南宁</option>
+                    <option value="海口">海口</option>
+                    <option value="兰州">兰州</option>
+                    <option value="西宁">西宁</option>
+                    <option value="乌鲁木齐">乌鲁木齐</option>
+                    <option value="呼和浩特">呼和浩特</option>
+                    <option value="银川">银川</option>
+                    <option value="拉萨">拉萨</option>
+                  </optgroup>
+                  <optgroup label="其他城市">
+                    <option value="苏州">苏州</option>
+                    <option value="无锡">无锡</option>
+                    <option value="宁波">宁波</option>
+                    <option value="东莞">东莞</option>
+                    <option value="佛山">佛山</option>
+                    <option value="珠海">珠海</option>
+                    <option value="温州">温州</option>
+                    <option value="烟台">烟台</option>
+                    <option value="临沂">临沂</option>
+                    <option value="其他">其他</option>
+                  </optgroup>
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -322,7 +392,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     gender: null,
-    age: '',
+    age: '25',
     city: '',
     agreedToTerms: false
   })
