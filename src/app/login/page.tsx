@@ -55,6 +55,31 @@ export default function LoginPage() {
         console.log('[Login] Success, saving user to localStorage')
         localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
         
+        // 初始化用户 profile 数据（从数据库或默认值）
+        const userId = data.user.id
+        const existingProfile = localStorage.getItem(`xindong_profile_${userId}`)
+        if (!existingProfile) {
+          // 如果本地没有 profile 数据，从数据库获取或创建默认
+          const userProfile = {
+            nickname: data.user.nickname || '新用户',
+            age: data.user.age || 25,
+            gender: data.user.gender || 'male',
+            city: data.user.city || '未知',
+            occupation: '',
+            education: '',
+            height: 175,
+            bio: '',
+            interests: [],
+            lookingFor: {
+              minAge: 18,
+              maxAge: 35,
+              cities: [data.user.city || '北京'],
+              relationship: 'serious'
+            }
+          }
+          localStorage.setItem(`xindong_profile_${userId}`, JSON.stringify(userProfile))
+        }
+        
         // 跳转到仪表盘
         window.location.href = '/dashboard'
       } else {

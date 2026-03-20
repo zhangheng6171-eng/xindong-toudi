@@ -34,7 +34,32 @@ export default function EditProfilePage() {
     if (!isLoading && currentUser) {
       // 加载用户资料
       const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
-      setProfile(savedProfile)
+      
+      // 如果 localStorage 中的昵称为空，使用 currentUser 的信息
+      if (!savedProfile.nickname && currentUser.nickname) {
+        const userProfile: UserProfile = {
+          nickname: currentUser.nickname,
+          age: currentUser.age || 25,
+          gender: currentUser.gender || 'male',
+          city: currentUser.city || '',
+          occupation: '',
+          education: '',
+          height: 175,
+          bio: '',
+          interests: [],
+          lookingFor: {
+            minAge: 18,
+            maxAge: 35,
+            cities: currentUser.city ? [currentUser.city] : [],
+            relationship: 'serious'
+          }
+        }
+        setProfile(userProfile)
+        // 保存到 localStorage
+        localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
+      } else {
+        setProfile(savedProfile)
+      }
       
       // 加载头像
       const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
@@ -54,7 +79,7 @@ export default function EditProfilePage() {
     }
   }, [isLoading, currentUser, getUserData])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentUser) return
     
     // 保存用户资料到用户专属存储
@@ -70,6 +95,34 @@ export default function EditProfilePage() {
     
     // 保存照片
     localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(photos))
+    
+    // 同步到云端
+    try {
+      const validPhotos = photos.filter(p => p !== null) as string[]
+      await fetch('/api/users/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          updates: {
+            nickname: profile.nickname,
+            age: profile.age,
+            gender: profile.gender,
+            city: profile.city,
+            occupation: profile.occupation,
+            education: profile.education,
+            height: profile.height,
+            bio: profile.bio,
+            interests: profile.interests,
+            lookingFor: profile.lookingFor,
+            avatar: avatar,
+            photos: validPhotos
+          }
+        })
+      })
+    } catch (e) {
+      console.error('Failed to sync to cloud:', e)
+    }
     
     console.log('Saving profile:', { profile, avatar, photos })
     // 保存成功后返回个人主页

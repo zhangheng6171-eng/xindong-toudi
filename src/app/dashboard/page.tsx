@@ -210,8 +210,35 @@ export default function DashboardPage() {
     setMounted(true)
     
     if (!isLoading && currentUser) {
+      // 先尝试从 localStorage 加载
       const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
-      setProfile(savedProfile)
+      
+      // 如果 localStorage 中的昵称为空，尝试从 API 加载
+      if (!savedProfile.nickname) {
+        // 从 currentUser 获取基本信息
+        const userProfile: UserProfile = {
+          nickname: currentUser.nickname || '',
+          age: currentUser.age || 25,
+          gender: currentUser.gender || 'male',
+          city: currentUser.city || '',
+          occupation: '',
+          education: '',
+          height: 175,
+          bio: '',
+          interests: [],
+          lookingFor: {
+            minAge: 18,
+            maxAge: 35,
+            cities: currentUser.city ? [currentUser.city] : [],
+            relationship: 'serious'
+          }
+        }
+        setProfile(userProfile)
+        // 保存到 localStorage
+        localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
+      } else {
+        setProfile(savedProfile)
+      }
       
       const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
       if (savedAvatar) {
@@ -284,11 +311,11 @@ export default function DashboardPage() {
                   {avatar ? (
                     <img src={avatar} alt="头像" className="w-full h-full object-cover" />
                   ) : (
-                    profile.nickname[0]
+                    (profile.nickname || currentUser?.nickname || '?')[0]
                   )}
                 </div>
                 <div>
-                  <h1 className="font-bold text-gray-800">{profile.nickname}的主页</h1>
+                  <h1 className="font-bold text-gray-800">{profile.nickname || currentUser?.nickname || '我的'}的主页</h1>
                   <p className="text-xs text-gray-500">下次匹配：<GradientText className="font-medium">3月26日</GradientText></p>
                 </div>
               </div>
@@ -325,7 +352,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <h2 className="text-2xl md:text-3xl font-bold mb-2 drop-shadow-md">
-                      {greeting}，{profile.nickname}！✨
+                      {greeting}，{profile.nickname || currentUser?.nickname || '新用户'}！✨
                     </h2>
                     <p className="text-white/90">
                       还有 <span className="font-bold text-xl drop-shadow-md">7天</span> 就能见到你的新匹配啦~

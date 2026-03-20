@@ -8,7 +8,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 
-// 用户数据类型
+// 用户数据类型（从 API 返回）
+interface ApiUser {
+  id: string
+  nickname: string
+  age: number
+  gender: string
+  city: string
+  occupation: string
+  education: string
+  height: number
+  bio: string
+  interests: string[]
+  avatar: string | null
+  photos: string[]
+  createdAt: string
+}
+
+// 显示用户类型
 interface DisplayUser {
   id: string
   nickname: string
@@ -343,7 +360,7 @@ function LoggedInHome() {
     
     const loadUsers = async () => {
       try {
-        // 先尝试从 API 获取所有用户（云端）
+        // 从 API 获取所有用户（包含头像和照片墙数据）
         const response = await fetch('/api/users/list')
         
         if (response.ok) {
@@ -354,21 +371,10 @@ function LoggedInHome() {
             const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
             const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
             
-            // 转换为显示格式
+            // 转换为显示格式（直接使用 API 返回的数据，包括头像和照片墙）
             const displayUsers: DisplayUser[] = data.users
-              .filter((u: any) => u.id !== currentUser?.id)
-              .map((u: any) => {
-                // 读取用户资料
-                const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
-                const profile = profileJson ? JSON.parse(profileJson) : {}
-                
-                // 读取头像
-                const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
-                
-                // 读取照片墙
-                const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
-                const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
-                
+              .filter((u: ApiUser) => u.id !== currentUser?.id)
+              .map((u: ApiUser) => {
                 // 检查对方是否也喜欢了当前用户（互相喜欢）
                 const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
                 const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
@@ -376,17 +382,18 @@ function LoggedInHome() {
                 
                 return {
                   id: u.id,
-                  nickname: profile.nickname || u.nickname,
-                  age: profile.age || u.age,
-                  gender: profile.gender || u.gender || 'male',
-                  city: profile.city || u.city || '未知',
-                  occupation: profile.occupation || '',
-                  education: profile.education || '',
-                  height: profile.height || 0,
-                  bio: profile.bio || '',
-                  interests: profile.interests || [],
-                  avatar: avatar || u.avatar,
-                  photos: photos,
+                  nickname: u.nickname,
+                  age: u.age,
+                  gender: u.gender || 'male',
+                  city: u.city || '未知',
+                  occupation: u.occupation || '',
+                  education: u.education || '',
+                  height: u.height || 0,
+                  bio: u.bio || '',
+                  interests: u.interests || [],
+                  // 直接使用 API 返回的头像和照片墙（云端数据）
+                  avatar: u.avatar || null,
+                  photos: u.photos || [],
                   matchScore: Math.floor(Math.random() * 30) + 70,
                   isLiked: likedUsers.includes(u.id),
                   isMutualLike: isMutualLike,
@@ -401,60 +408,8 @@ function LoggedInHome() {
         console.error('Failed to fetch users from API:', e)
       }
       
-      // API 失败，从 localStorage 读取作为后备
-      const usersJson = localStorage.getItem('xindong_users')
-      // 读取当前用户的喜欢列表
-      const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
-      const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
-      
-      if (usersJson) {
-        try {
-          const users = JSON.parse(usersJson)
-          
-          // 转换为显示格式，排除当前用户
-          const displayUsers: DisplayUser[] = users
-            .filter((u: any) => u.id !== currentUser?.id)
-            .map((u: any) => {
-              // 读取用户资料
-              const profileJson = localStorage.getItem(`xindong_profile_${u.id}`)
-              const profile = profileJson ? JSON.parse(profileJson) : {}
-              
-              // 读取头像
-              const avatar = localStorage.getItem(`xindong_avatar_${u.id}`)
-              
-              // 读取照片墙
-              const photosJson = localStorage.getItem(`xindong_photos_${u.id}`)
-              const photos: (string | null)[] = photosJson ? JSON.parse(photosJson) : []
-              
-              // 检查对方是否也喜欢了当前用户（互相喜欢）
-              const theirLikesJson = localStorage.getItem(`xindong_likes_${u.id}`)
-              const theirLikes: string[] = theirLikesJson ? JSON.parse(theirLikesJson) : []
-              const isMutualLike = likedUsers.includes(u.id) && theirLikes.includes(currentUser?.id || '')
-              
-              return {
-                id: u.id,
-                nickname: profile.nickname || u.nickname,
-                age: profile.age || u.age,
-                gender: profile.gender || u.gender || 'male',
-                city: profile.city || u.city || '未知',
-                occupation: profile.occupation || '',
-                education: profile.education || '',
-                height: profile.height || 0,
-                bio: profile.bio || '',
-                interests: profile.interests || [],
-                avatar: avatar,
-                photos: photos,
-                matchScore: Math.floor(Math.random() * 30) + 70,
-                isLiked: likedUsers.includes(u.id),
-                isMutualLike: isMutualLike,
-              }
-            })
-          
-          setAllUsers(displayUsers)
-        } catch (e) {
-          console.error('Failed to parse users:', e)
-        }
-      }
+      // 如果 API 失败，显示空列表
+      setAllUsers([])
     }
     
     loadUsers()

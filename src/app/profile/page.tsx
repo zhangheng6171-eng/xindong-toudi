@@ -28,7 +28,32 @@ export default function ProfilePage() {
     if (!isLoading && currentUser) {
       // 加载用户资料
       const savedProfile = getUserData<UserProfile>('profile', defaultProfile)
-      setProfile(savedProfile)
+      
+      // 如果 localStorage 中的昵称为空，使用 currentUser 的信息
+      if (!savedProfile.nickname && currentUser.nickname) {
+        const userProfile: UserProfile = {
+          nickname: currentUser.nickname,
+          age: currentUser.age || 25,
+          gender: currentUser.gender || 'male',
+          city: currentUser.city || '',
+          occupation: '',
+          education: '',
+          height: 175,
+          bio: '',
+          interests: [],
+          lookingFor: {
+            minAge: 18,
+            maxAge: 35,
+            cities: currentUser.city ? [currentUser.city] : [],
+            relationship: 'serious'
+          }
+        }
+        setProfile(userProfile)
+        // 保存到 localStorage
+        localStorage.setItem(`xindong_profile_${currentUser.id}`, JSON.stringify(userProfile))
+      } else {
+        setProfile(savedProfile)
+      }
       
       // 加载头像
       const savedAvatar = localStorage.getItem(`xindong_avatar_${currentUser.id}`)
@@ -48,23 +73,54 @@ export default function ProfilePage() {
     }
   }, [isLoading, currentUser, getUserData])
 
-  // 保存头像到用户专属存储
-  const handleAvatarChange = (url: string | null) => {
+  // 保存头像到用户专属存储并同步到云端
+  const handleAvatarChange = async (url: string | null) => {
     setAvatar(url)
     if (currentUser) {
+      // 保存到 localStorage
       if (url) {
         localStorage.setItem(`xindong_avatar_${currentUser.id}`, url)
       } else {
         localStorage.removeItem(`xindong_avatar_${currentUser.id}`)
       }
+      
+      // 同步到云端
+      try {
+        await fetch('/api/users/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            updates: { avatar: url }
+          })
+        })
+      } catch (e) {
+        console.error('Failed to sync avatar to cloud:', e)
+      }
     }
   }
 
-  // 保存照片到用户专属存储
-  const handlePhotosChange = (newPhotos: (string | null)[]) => {
+  // 保存照片到用户专属存储并同步到云端
+  const handlePhotosChange = async (newPhotos: (string | null)[]) => {
     setPhotos(newPhotos)
     if (currentUser) {
+      // 保存到 localStorage
       localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(newPhotos))
+      
+      // 同步到云端（过滤掉 null 值）
+      const validPhotos = newPhotos.filter(p => p !== null) as string[]
+      try {
+        await fetch('/api/users/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            updates: { photos: validPhotos }
+          })
+        })
+      } catch (e) {
+        console.error('Failed to sync photos to cloud:', e)
+      }
     }
   }
 

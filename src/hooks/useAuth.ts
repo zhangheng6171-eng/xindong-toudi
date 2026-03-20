@@ -113,19 +113,19 @@ export function useRequireAuth(redirectUrl: string = '/login') {
 
 // 默认用户资料
 export const defaultProfile: UserProfile = {
-  nickname: '小恒',
-  age: 28,
+  nickname: '',  // 不再硬编码默认昵称
+  age: 25,
   gender: 'male',
-  city: '北京',
-  occupation: '产品经理',
-  education: '硕士',
+  city: '',
+  occupation: '',
+  education: '',
   height: 175,
-  bio: '热爱生活，喜欢旅行和摄影。周末喜欢探店、看书、撸猫。相信爱情，期待遇到三观契合的那个她。',
-  interests: ['旅行', '美食', '摄影', '电影', '骑行', '阅读'],
+  bio: '',
+  interests: [],
   lookingFor: {
-    minAge: 24,
-    maxAge: 30,
-    cities: ['北京'],
+    minAge: 18,
+    maxAge: 35,
+    cities: [],
     relationship: 'serious'
   }
 }
