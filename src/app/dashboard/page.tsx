@@ -1,14 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import Link from 'next/link'
 import { 
   Settings, Heart, MessageCircle, User, Bell, ChevronRight,
   TrendingUp, Calendar, Sparkles, Target, Users, BookOpen,
-  Camera, Edit2, Award, Zap, BarChart3, LogOut, AlertCircle,
-  X, CheckCircle
+  Camera, Edit2, Award, Zap, BarChart3, LogOut, AlertCircle, CheckCircle, X
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, AnimatedCounter, FadeIn } from '@/components/animated-background'
 import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
 
@@ -32,20 +31,23 @@ interface Notification {
   read: boolean
 }
 
-// 互相喜欢弹窗
-function MutualLikesModal({ users, onClose, onChat }: { users: MutualLikeUser[]; onClose: () => void; onChat: (userId: string, nickname: string) => void }) {
+// 互相喜欢弹窗 - 使用 memo
+const MutualLikesModal = memo(function MutualLikesModal({ 
+  users, 
+  onClose, 
+  onChat 
+}: { 
+  users: MutualLikeUser[]; 
+  onClose: () => void; 
+  onChat: (userId: string, nickname: string) => void 
+}) {
   return (
-    <motion.div
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div
+      <div
         className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden shadow-2xl"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
         onClick={e => e.stopPropagation()}
       >
         <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 p-6 text-white">
@@ -76,7 +78,6 @@ function MutualLikesModal({ users, onClose, onChat }: { users: MutualLikeUser[];
                   <div className="flex-1">
                     <h3 className="font-bold text-gray-900">{user.nickname}</h3>
                     <p className="text-sm text-gray-500">{user.age}岁 · {user.city}</p>
-                    <p className="text-xs text-gray-400">{user.matchedAt}</p>
                   </div>
                   <button
                     onClick={() => onChat(user.id, user.nickname)}
@@ -91,17 +92,26 @@ function MutualLikesModal({ users, onClose, onChat }: { users: MutualLikeUser[];
             <div className="text-center py-8">
               <Heart className="w-12 h-12 mx-auto mb-3 text-gray-200" />
               <p className="text-gray-400">暂无互相喜欢的用户</p>
-              <p className="text-sm text-gray-300 mt-1">去首页看看有没有心动的人吧~</p>
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
-}
+})
 
-// 通知弹窗
-function NotificationModal({ notifications, onClose, onMarkRead }: { notifications: Notification[]; onClose: () => void; onMarkRead: (id: string) => void }) {
+MutualLikesModal.displayName = 'MutualLikesModal'
+
+// 通知弹窗 - 使用 memo
+const NotificationModal = memo(function NotificationModal({ 
+  notifications, 
+  onClose, 
+  onMarkRead 
+}: { 
+  notifications: Notification[]; 
+  onClose: () => void; 
+  onMarkRead: (id: string) => void 
+}) {
   const unreadCount = notifications.filter(n => !n.read).length
   
   const getIcon = (type: string) => {
@@ -114,17 +124,12 @@ function NotificationModal({ notifications, onClose, onMarkRead }: { notificatio
   }
 
   return (
-    <motion.div
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div
+      <div
         className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden shadow-2xl"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
         onClick={e => e.stopPropagation()}
       >
         <div className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 p-6 text-white">
@@ -172,30 +177,33 @@ function NotificationModal({ notifications, onClose, onMarkRead }: { notificatio
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
-}
+})
 
-// 大五人格雷达图组件
-function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
+NotificationModal.displayName = 'NotificationModal'
+
+// 大五人格雷达图组件 - 使用 memo 优化
+const PersonalityRadar = memo(function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
   const dimensions = [
-    { key: 'openness', label: '开放性', icon: '🌟' },
-    { key: 'conscientiousness', label: '尽责性', icon: '🎯' },
-    { key: 'extraversion', label: '外向性', icon: '🎭' },
-    { key: 'agreeableness', label: '宜人性', icon: '💚' },
-    { key: 'neuroticism', label: '情绪稳定性', icon: '🌊' },
+    { key: 'openness', label: '开放性' },
+    { key: 'conscientiousness', label: '尽责性' },
+    { key: 'extraversion', label: '外向性' },
+    { key: 'agreeableness', label: '宜人性' },
+    { key: 'neuroticism', label: '情绪稳定' },
   ]
 
   const centerX = 150
   const centerY = 150
   const maxRadius = 100
 
+  // 缓存计算结果
   const points = dimensions.map((dim, i) => {
     const angle = (Math.PI * 2 * i) / dimensions.length - Math.PI / 2
     const value = scores[dim.key] || 50
     const radius = (value / 100) * maxRadius
-    return { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), label: dim.label, icon: dim.icon, value }
+    return { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), label: dim.label, value }
   })
 
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z'
@@ -242,7 +250,132 @@ function PersonalityRadar({ scores }: { scores: Record<string, number> }) {
       </svg>
     </div>
   )
-}
+})
+
+PersonalityRadar.displayName = 'PersonalityRadar'
+
+// 底部导航 - 使用 memo
+const BottomNav = memo(function BottomNav() {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/50 z-50">
+      <div className="max-w-md mx-auto flex justify-around py-3">
+        <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <Heart className="w-6 h-6" />
+          <span className="text-xs mt-1">首页</span>
+        </Link>
+        <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <Heart className="w-6 h-6" />
+          <span className="text-xs mt-1">匹配</span>
+        </Link>
+        <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <MessageCircle className="w-6 h-6" />
+          <span className="text-xs mt-1">消息</span>
+        </Link>
+        <Link href="/dashboard" className="flex flex-col items-center text-rose-500">
+          <User className="w-6 h-6 fill-current" />
+          <span className="text-xs mt-1 font-medium">我的</span>
+        </Link>
+      </div>
+    </nav>
+  )
+})
+
+BottomNav.displayName = 'BottomNav'
+
+// 统计卡片 - 使用 memo
+const StatCard = memo(function StatCard({ 
+  icon, 
+  value, 
+  label, 
+  iconBg, 
+  iconColor, 
+  onClick,
+  hint 
+}: { 
+  icon: React.ReactNode
+  value: number
+  label: string
+  iconBg: string
+  iconColor: string
+  onClick?: () => void
+  hint?: string
+}) {
+  return (
+    <div className={onClick ? 'cursor-pointer' : ''} onClick={onClick}>
+      <GlassCard className={`p-5 ${onClick ? 'hover:ring-2 hover:ring-rose-300' : ''}`} hover={true}>
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 ${iconBg} rounded-xl flex items-center justify-center`}>
+            <div className={iconColor}>{icon}</div>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={value} duration={1.5} /></p>
+            <p className="text-sm text-gray-500">{label}</p>
+          </div>
+        </div>
+        {hint && <p className="text-xs text-rose-500 mt-2">{hint}</p>}
+      </GlassCard>
+    </div>
+  )
+})
+
+StatCard.displayName = 'StatCard'
+
+// 快捷入口项 - 使用 memo
+const QuickLinkItem = memo(function QuickLinkItem({ 
+  href, 
+  icon, 
+  iconBg, 
+  iconColor, 
+  title, 
+  description, 
+  gradient 
+}: { 
+  href: string
+  icon: React.ReactNode
+  iconBg: string
+  iconColor: string
+  title: string
+  description: string
+  gradient: string
+}) {
+  return (
+    <Link href={href} className={`flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-${gradient}-50 hover:to-${gradient}-50 transition-all group border border-gray-100/50`}>
+      <div className={`w-10 h-10 bg-gradient-to-br ${iconBg} rounded-lg flex items-center justify-center`}>
+        <div className={iconColor}>{icon}</div>
+      </div>
+      <div className="flex-1">
+        <p className="font-medium text-gray-800">{title}</p>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+      <ChevronRight className="w-5 h-5 text-gray-400" />
+    </Link>
+  )
+})
+
+QuickLinkItem.displayName = 'QuickLinkItem'
+
+// 进度项 - 使用 memo
+const ProgressItem = memo(function ProgressItem({ 
+  step, 
+  text, 
+  completed 
+}: { 
+  step: number
+  text: string
+  completed: boolean
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold backdrop-blur-sm ${completed ? 'bg-white text-rose-500' : 'bg-white/20'}`}>
+        {completed ? <CheckCircle className="w-5 h-5" /> : step}
+      </div>
+      <span className="text-sm">{text}</span>
+      {completed && <CheckCircle className="w-4 h-4 ml-auto" />}
+    </div>
+  )
+})
+
+ProgressItem.displayName = 'ProgressItem'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -268,14 +401,7 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
 
   // 计算完成度
-  const calculateProgress = useCallback(() => {
-    let progress = 0
-    if (questionnaireCompleted) progress += 50 // 问卷50%
-    if (photoCount >= 1) progress += 20 // 至少1张照片20%
-    if (photoCount >= 3) progress += 10 // 3张以上额外10%
-    if (bioCompleted) progress += 20 // 个人简介20%
-    return Math.min(progress, 100)
-  }, [questionnaireCompleted, photoCount, bioCompleted])
+  const progress = questionnaireCompleted ? (photoCount >= 3 && bioCompleted ? 100 : photoCount >= 3 ? 80 : bioCompleted ? 70 : 50) : 0
 
   // 获取互相喜欢列表
   const fetchMutualLikes = useCallback(async () => {
@@ -294,7 +420,6 @@ export default function DashboardPage() {
             if (likesMe.has(userId as string)) mutualIds.push(userId as string)
           })
           
-          // 获取这些用户的详细信息
           if (mutualIds.length > 0) {
             const usersResponse = await fetch('/api/users/list')
             if (usersResponse.ok) {
@@ -320,16 +445,6 @@ export default function DashboardPage() {
       console.error('Failed to fetch mutual likes:', e)
     }
   }, [currentUser])
-
-  // 加载通知
-  const loadNotifications = useCallback(() => {
-    // 模拟通知数据（实际应从API获取）
-    const mockNotifications: Notification[] = [
-      { id: '1', type: 'system', title: '欢迎使用心动投递', content: '完成问卷后即可开始匹配，找到那个懂你的人', time: '刚刚', read: false },
-      { id: '2', type: 'match', title: '匹配提醒', content: '本周三晚8点将揭晓新的匹配对象，敬请期待！', time: '1小时前', read: true },
-    ]
-    setNotifications(mockNotifications)
-  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -389,10 +504,12 @@ export default function DashboardPage() {
       // 获取互相喜欢列表
       fetchMutualLikes()
       
-      // 加载通知
-      loadNotifications()
+      // 加载通知 - 简化为静态数据
+      setNotifications([
+        { id: '1', type: 'system', title: '欢迎使用心动投递', content: '完成问卷后即可开始匹配', time: '刚刚', read: false },
+      ])
     }
-  }, [isLoading, currentUser, getUserData, fetchMutualLikes, loadNotifications])
+  }, [isLoading, currentUser, getUserData, fetchMutualLikes])
 
   const handleLogout = () => {
     if (confirm('确定要退出登录吗？')) {
@@ -411,13 +528,12 @@ export default function DashboardPage() {
   }
 
   const greeting = getGreeting()
-  const progress = calculateProgress()
   const personalityScores = { openness: 78, conscientiousness: 65, extraversion: 52, agreeableness: 85, neuroticism: 35 }
   const personalityInsights = [
-    { title: '创意先锋', desc: '你对新事物充满好奇', icon: '🌟', gradient: 'from-amber-400 to-orange-500' },
-    { title: '可靠伙伴', desc: '做事认真负责', icon: '🎯', gradient: 'from-blue-400 to-cyan-500' },
-    { title: '温柔善良', desc: '待人友善，善解人意', icon: '💚', gradient: 'from-emerald-400 to-green-500' },
-    { title: '情绪稳定', desc: '内心平和，应对压力', icon: '🌊', gradient: 'from-teal-400 to-cyan-500' },
+    { title: '创意先锋', desc: '你对新事物充满好奇', gradient: 'from-amber-400 to-orange-500' },
+    { title: '可靠伙伴', desc: '做事认真负责', gradient: 'from-blue-400 to-cyan-500' },
+    { title: '温柔善良', desc: '待人友善，善解人意', gradient: 'from-emerald-400 to-green-500' },
+    { title: '情绪稳定', desc: '内心平和，应对压力', gradient: 'from-teal-400 to-cyan-500' },
   ]
 
   if (isLoading || !mounted) {
@@ -501,59 +617,42 @@ export default function DashboardPage() {
           {/* 统计卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <FadeIn delay={0.1}>
-              <GlassCard className="p-5" hover={true}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-rose-100 to-pink-100 rounded-xl flex items-center justify-center">
-                    <Heart className="w-6 h-6 text-rose-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={12} duration={1.5} /></p>
-                    <p className="text-sm text-gray-500">匹配次数</p>
-                  </div>
-                </div>
-              </GlassCard>
+              <StatCard 
+                icon={<Heart className="w-6 h-6" />}
+                value={12}
+                label="匹配次数"
+                iconBg="bg-gradient-to-br from-rose-100 to-pink-100"
+                iconColor="text-rose-500"
+              />
             </FadeIn>
             <FadeIn delay={0.15}>
-              <div className="cursor-pointer" onClick={() => setShowMutualLikes(true)}>
-                <GlassCard className="p-5 hover:ring-2 hover:ring-rose-300" hover={true}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl flex items-center justify-center">
-                    <Users className="w-6 h-6 text-pink-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={mutualLikeUsers.length} duration={1.5} /></p>
-                    <p className="text-sm text-gray-500">互相喜欢</p>
-                  </div>
-                </div>
-                <p className="text-xs text-rose-500 mt-2">点击查看 →</p>
-                </GlassCard>
-              </div>
+              <StatCard 
+                icon={<Users className="w-6 h-6" />}
+                value={mutualLikeUsers.length}
+                label="互相喜欢"
+                iconBg="bg-gradient-to-br from-pink-100 to-rose-100"
+                iconColor="text-pink-500"
+                onClick={() => setShowMutualLikes(true)}
+                hint="点击查看 →"
+              />
             </FadeIn>
             <FadeIn delay={0.2}>
-              <GlassCard className="p-5" hover={true}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center">
-                    <Target className="w-6 h-6 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={questionnaireCompleted ? 100 : 0} suffix="%" duration={1.5} /></p>
-                    <p className="text-sm text-gray-500">问卷完成</p>
-                  </div>
-                </div>
-              </GlassCard>
+              <StatCard 
+                icon={<Target className="w-6 h-6" />}
+                value={questionnaireCompleted ? 100 : 0}
+                label="问卷完成"
+                iconBg="bg-gradient-to-br from-amber-100 to-orange-100"
+                iconColor="text-amber-500"
+              />
             </FadeIn>
             <FadeIn delay={0.25}>
-              <GlassCard className="p-5" hover={true}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={85} suffix="%" duration={1.5} /></p>
-                    <p className="text-sm text-gray-500">平均匹配度</p>
-                  </div>
-                </div>
-              </GlassCard>
+              <StatCard 
+                icon={<TrendingUp className="w-6 h-6" />}
+                value={85}
+                label="平均匹配度"
+                iconBg="bg-gradient-to-br from-green-100 to-emerald-100"
+                iconColor="text-green-500"
+              />
             </FadeIn>
           </div>
 
@@ -575,7 +674,7 @@ export default function DashboardPage() {
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     {personalityInsights.map((insight, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100/50">
-                        <div className={`w-10 h-10 bg-gradient-to-br ${insight.gradient} rounded-lg flex items-center justify-center text-xl shadow-lg`}>{insight.icon}</div>
+                        <div className={`w-10 h-10 bg-gradient-to-br ${insight.gradient} rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-lg`}>{i + 1}</div>
                         <div>
                           <p className="font-semibold text-gray-800">{insight.title}</p>
                           <p className="text-xs text-gray-500">{insight.desc}</p>
@@ -611,41 +710,38 @@ export default function DashboardPage() {
                 <GlassCard className="p-6" hover={false}>
                   <h3 className="text-lg font-bold text-gray-800 mb-4">快捷入口</h3>
                   <div className="space-y-3">
-                    <Link href="/profile/edit" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-rose-50 hover:to-pink-50 transition-all group border border-gray-100/50">
-                      <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-pink-100 rounded-lg flex items-center justify-center group-hover:from-rose-200 group-hover:to-pink-200 transition-all">
-                        <Edit2 className="w-5 h-5 text-rose-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">编辑资料</p>
-                        <p className="text-xs text-gray-500">完善个人信息</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/questionnaire" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-pink-50 hover:to-purple-50 transition-all group border border-gray-100/50">
-                      <div className="w-10 h-10 bg-gradient-to-br from-pink-100 to-purple-100 rounded-lg flex items-center justify-center group-hover:from-pink-200 group-hover:to-purple-200 transition-all">
-                        <BookOpen className="w-5 h-5 text-pink-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">开始问卷</p>
-                        <p className="text-xs text-gray-500">完成66道灵魂问题</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/profile" className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-amber-50 hover:to-orange-50 transition-all group border border-gray-100/50">
-                      <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center group-hover:from-amber-200 group-hover:to-orange-200 transition-all">
-                        <Camera className="w-5 h-5 text-amber-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">上传照片</p>
-                        <p className="text-xs text-gray-500">展示真实的你</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
+                    <QuickLinkItem 
+                      href="/profile/edit"
+                      icon={<Edit2 className="w-5 h-5" />}
+                      iconBg="from-rose-100 to-pink-100"
+                      iconColor="text-rose-600"
+                      title="编辑资料"
+                      description="完善个人信息"
+                      gradient="rose"
+                    />
+                    <QuickLinkItem 
+                      href="/questionnaire"
+                      icon={<BookOpen className="w-5 h-5" />}
+                      iconBg="from-pink-100 to-purple-100"
+                      iconColor="text-pink-600"
+                      title="开始问卷"
+                      description="完成66道灵魂问题"
+                      gradient="pink"
+                    />
+                    <QuickLinkItem 
+                      href="/profile"
+                      icon={<Camera className="w-5 h-5" />}
+                      iconBg="from-amber-100 to-orange-100"
+                      iconColor="text-amber-600"
+                      title="上传照片"
+                      description="展示真实的你"
+                      gradient="amber"
+                    />
                   </div>
                 </GlassCard>
               </FadeIn>
 
-              {/* 提升匹配质量 - 修复进度显示 */}
+              {/* 提升匹配质量 */}
               <FadeIn delay={0.45}>
                 <div className="relative overflow-hidden rounded-3xl">
                   <div className="absolute inset-0 bg-gradient-to-br from-rose-500 via-pink-500 to-purple-500" />
@@ -655,27 +751,9 @@ export default function DashboardPage() {
                       <h3 className="font-bold">提升匹配质量</h3>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold backdrop-blur-sm ${questionnaireCompleted ? 'bg-white text-rose-500' : 'bg-white/20'}`}>
-                          {questionnaireCompleted ? <CheckCircle className="w-5 h-5" /> : '1'}
-                        </div>
-                        <span className="text-sm">完成全部66道问题</span>
-                        {questionnaireCompleted && <CheckCircle className="w-4 h-4 ml-auto" />}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold backdrop-blur-sm ${photoCount >= 3 ? 'bg-white text-rose-500' : 'bg-white/20'}`}>
-                          {photoCount >= 3 ? <CheckCircle className="w-5 h-5" /> : '2'}
-                        </div>
-                        <span className="text-sm">上传3-5张生活照片 ({photoCount}/3)</span>
-                        {photoCount >= 3 && <CheckCircle className="w-4 h-4 ml-auto" />}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold backdrop-blur-sm ${bioCompleted ? 'bg-white text-rose-500' : 'bg-white/20'}`}>
-                          {bioCompleted ? <CheckCircle className="w-5 h-5" /> : '3'}
-                        </div>
-                        <span className="text-sm">完善个人简介</span>
-                        {bioCompleted && <CheckCircle className="w-4 h-4 ml-auto" />}
-                      </div>
+                      <ProgressItem step={1} text="完成全部66道问题" completed={questionnaireCompleted} />
+                      <ProgressItem step={2} text={`上传3-5张生活照片 (${photoCount}/3)`} completed={photoCount >= 3} />
+                      <ProgressItem step={3} text="完善个人简介" completed={bioCompleted} />
                     </div>
                     <div className="mt-4 pt-4 border-t border-white/20">
                       <div className="flex items-center justify-between text-sm">
@@ -683,11 +761,9 @@ export default function DashboardPage() {
                         <span className="font-bold">{progress}%</span>
                       </div>
                       <div className="w-full bg-white/20 rounded-full h-2 mt-2 overflow-hidden">
-                        <motion.div 
-                          className="bg-white rounded-full h-2" 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          transition={{ duration: 1 }}
+                        <div 
+                          className="bg-white rounded-full h-2 transition-all duration-500"
+                          style={{ width: `${progress}%` }}
                         />
                       </div>
                     </div>
@@ -712,27 +788,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 底部导航 */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/50 z-50">
-          <div className="max-w-md mx-auto flex justify-around py-3">
-            <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">首页</span>
-            </Link>
-            <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">匹配</span>
-            </Link>
-            <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <MessageCircle className="w-6 h-6" />
-              <span className="text-xs mt-1">消息</span>
-            </Link>
-            <Link href="/dashboard" className="flex flex-col items-center text-rose-500">
-              <User className="w-6 h-6 fill-current" />
-              <span className="text-xs mt-1 font-medium">我的</span>
-            </Link>
-          </div>
-        </nav>
+        <BottomNav />
       </div>
 
       {/* 互相喜欢弹窗 */}

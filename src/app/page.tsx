@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo, Suspense, lazy } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, TrendingUp, X, Camera, AlertCircle, Users, Bell, CheckCircle, Clock } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, Eye, Sparkles, AlertCircle, X } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { UserCardSkeleton, EmptyState } from '@/components/skeleton'
@@ -43,11 +43,17 @@ interface DisplayUser {
   matchScore: number
   isLiked: boolean
   isMutualLike: boolean
-  isSystemMatch: boolean  // 系统匹配用户
+  isSystemMatch: boolean
 }
 
-// 用户卡片组件
-function UserCard({ user, index, onViewDetail, onLike, showIncompleteTag }: { 
+// 用户卡片组件 - 使用 memo 优化
+const UserCard = memo(function UserCard({ 
+  user, 
+  index, 
+  onViewDetail, 
+  onLike, 
+  showIncompleteTag 
+}: { 
   user: DisplayUser; 
   index: number; 
   onViewDetail: (user: DisplayUser) => void; 
@@ -55,12 +61,12 @@ function UserCard({ user, index, onViewDetail, onLike, showIncompleteTag }: {
   showIncompleteTag?: boolean;
 }) {
   return (
-    <FadeIn delay={index * 0.1}>
-      <GlassCard className="p-5 hover:shadow-xl transition-all cursor-pointer group" hover={true}>
+    <FadeIn delay={index * 0.05}>
+      <GlassCard className="p-5 hover:shadow-xl transition-shadow cursor-pointer group" hover={true}>
         <div className="flex items-start gap-4">
           <div className="relative flex-shrink-0">
             {user.avatar ? (
-              <img src={user.avatar} alt={user.nickname} className="w-16 h-16 rounded-2xl object-cover shadow-lg" />
+              <img src={user.avatar} alt={user.nickname} className="w-16 h-16 rounded-2xl object-cover shadow-lg" loading="lazy" />
             ) : (
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-rose-500/30">
                 {user.nickname[0]}
@@ -149,21 +155,19 @@ function UserCard({ user, index, onViewDetail, onLike, showIncompleteTag }: {
       </GlassCard>
     </FadeIn>
   )
-}
+})
 
+UserCard.displayName = 'UserCard'
+
+// 简化弹窗 - 减少动画
 function AlertModal({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <motion.div
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div
+      <div
         className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
         onClick={e => e.stopPropagation()}
       >
         <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -177,12 +181,21 @@ function AlertModal({ message, onClose }: { message: string; onClose: () => void
         >
           我知道了
         </button>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }
 
-function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
+const AlertModalMemo = memo(AlertModal)
+
+// 用户详情弹窗 - 使用 memo 优化
+const UserDetailModal = memo(function UserDetailModal({
+  user,
+  onClose,
+  onLike,
+  onSendMessage,
+  isLoading
+}: {
   user: DisplayUser;
   onClose: () => void;
   onLike: (userId: string) => void;
@@ -192,17 +205,12 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
   const realPhotos = (user.photos || []).filter((p: string | null) => p !== null && p !== '')
 
   return (
-    <motion.div
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.div
+      <div
         className="bg-white/95 backdrop-blur-xl rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl"
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
       >
         <div className="relative h-40 bg-gradient-to-br from-rose-400 via-pink-400 to-purple-400">
@@ -248,20 +256,18 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
 
           <div className="mb-6">
             <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <Camera className="w-4 h-4" />
               照片墙 {realPhotos.length > 0 && `(${realPhotos.length}张)`}
             </h3>
             {realPhotos.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {realPhotos.map((photo, index) => (
-                  <motion.div key={index} className="aspect-square rounded-xl overflow-hidden bg-gray-100" whileHover={{ scale: 1.02 }}>
-                    {photo && <img src={photo} alt={`${user.nickname}的照片${index + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform" />}
-                  </motion.div>
+                  <div key={index} className="aspect-square rounded-xl overflow-hidden bg-gray-100">
+                    {photo && <img src={photo} alt={`${user.nickname}的照片${index + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform" loading="lazy" />}
+                  </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-xl">
-                <Camera className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                 <p className="text-gray-400 text-sm">暂无照片</p>
               </div>
             )}
@@ -319,27 +325,163 @@ function UserDetailModal({ user, onClose, onLike, onSendMessage, isLoading }: {
             <p className="text-center text-sm text-gray-400 mt-3">等待对方也喜欢你后即可发消息</p>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
-}
+})
 
+UserDetailModal.displayName = 'UserDetailModal'
+
+// 底部导航 - 使用 memo
+const BottomNav = memo(function BottomNav() {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3 z-50">
+      <div className="max-w-md mx-auto flex justify-around">
+        <Link href="/" className="flex flex-col items-center text-rose-500">
+          <Heart className="w-6 h-6 fill-current" />
+          <span className="text-xs mt-1 font-medium">首页</span>
+        </Link>
+        <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <Heart className="w-6 h-6" />
+          <span className="text-xs mt-1">匹配</span>
+        </Link>
+        <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <MessageCircle className="w-6 h-6" />
+          <span className="text-xs mt-1">消息</span>
+        </Link>
+        <Link href="/dashboard" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <Star className="w-6 h-6" />
+          <span className="text-xs mt-1">我的</span>
+        </Link>
+      </div>
+    </nav>
+  )
+})
+
+BottomNav.displayName = 'BottomNav'
+
+// 主页面组件
 function LoggedInHome() {
   const { currentUser } = useAuth()
-  const router = useRouter()
   const [allUsers, setAllUsers] = useState<DisplayUser[]>([])
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null)
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
   const [dailyLikesUsed, setDailyLikesUsed] = useState(0)
 
+  // 使用 useCallback 缓存函数
+  const checkQuestionnaireStatus = useCallback(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const answers = localStorage.getItem('questionnaireAnswers')
+      if (answers) {
+        const parsed = JSON.parse(answers)
+        return Object.keys(parsed).length >= 66
+      }
+    } catch (e) {}
+    return false
+  }, [])
+
+  const checkDailyLikes = useCallback(() => {
+    if (typeof window === 'undefined' || !currentUser) return 0
+    try {
+      const today = new Date().toDateString()
+      const likesData = localStorage.getItem(`xindong_daily_likes_${currentUser.id}`)
+      if (likesData) {
+        const parsed = JSON.parse(likesData)
+        if (parsed.date === today) {
+          return parsed.count || 0
+        }
+      }
+    } catch (e) {}
+    return 0
+  }, [currentUser])
+
+  // 获取用户列表和互相喜欢状态 - 合并为一个 API 调用
+  const fetchUsers = useCallback(async () => {
+    if (!currentUser) return
+    
+    try {
+      const [likesResponse, usersResponse] = await Promise.all([
+        fetch('/api/users/likes?action=all'),
+        fetch('/api/users/list')
+      ])
+      
+      const mutualLikesMap = new Map<string, boolean>()
+      
+      if (likesResponse.ok) {
+        const likesData = await likesResponse.json()
+        if (likesData.likes && Array.isArray(likesData.likes)) {
+          const myLikes = new Set(likesData.likes.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
+          const likesMe = new Set(likesData.likes.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
+          
+          myLikes.forEach(userId => {
+            if (likesMe.has(userId as string)) {
+              mutualLikesMap.set(userId as string, true)
+            }
+          })
+        }
+      }
+      
+      if (usersResponse.ok) {
+        const data = await usersResponse.json()
+        if (data.success && data.users && data.users.length > 0) {
+          const likedJson = localStorage.getItem(`xindong_likes_${currentUser.id}`) || '[]'
+          const likedUsers: string[] = JSON.parse(likedJson)
+
+          const displayUsers: DisplayUser[] = data.users
+            .filter((u: ApiUser) => u.id !== currentUser.id)
+            .map((u: ApiUser) => ({
+              id: u.id,
+              nickname: u.nickname,
+              age: u.age,
+              gender: u.gender || 'male',
+              city: u.city || '未知',
+              occupation: u.occupation || '',
+              education: u.education || '',
+              height: u.height || 0,
+              bio: u.bio || '',
+              interests: u.interests || [],
+              avatar: u.avatar || null,
+              photos: u.photos || [],
+              matchScore: Math.floor(Math.random() * 30) + 70,
+              isLiked: likedUsers.includes(u.id),
+              isMutualLike: mutualLikesMap.has(u.id),
+              isSystemMatch: true,
+            }))
+
+          setAllUsers(displayUsers)
+          return
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch users:', e)
+    }
+    
+    setAllUsers([])
+  }, [currentUser])
+
+  useEffect(() => {
+    setQuestionnaireCompleted(checkQuestionnaireStatus())
+    setDailyLikesUsed(checkDailyLikes())
+    setMounted(true)
+
+    loadUsers()
+  }, [])
+
+  // 分离用户加载逻辑
+  const loadUsers = async () => {
+    setIsLoading(true)
+    await fetchUsers()
+    setIsLoading(false)
+  }
+
   const handleViewDetail = async (user: DisplayUser) => {
-    setIsLoadingDetail(true)
     setSelectedUser(user)
     
+    // 延迟加载完整信息
     try {
       const response = await fetch(`/api/users/${user.id}`)
       if (response.ok) {
@@ -362,47 +504,12 @@ function LoggedInHome() {
       }
     } catch (e) {
       console.error('Failed to fetch user detail:', e)
-    } finally {
-      setIsLoadingDetail(false)
     }
   }
 
   const handleCloseDetail = () => {
     setSelectedUser(null)
-    setIsLoadingDetail(false)
   }
-
-  const checkQuestionnaireStatus = useCallback(() => {
-    if (typeof window === 'undefined') return false
-    try {
-      const answers = localStorage.getItem('questionnaireAnswers')
-      if (answers) {
-        const parsed = JSON.parse(answers)
-        const answerCount = Object.keys(parsed).length
-        return answerCount >= 66
-      }
-    } catch (e) {
-      console.log('Error checking questionnaire status')
-    }
-    return false
-  }, [])
-
-  const checkDailyLikes = useCallback(() => {
-    if (typeof window === 'undefined' || !currentUser) return 0
-    try {
-      const today = new Date().toDateString()
-      const likesData = localStorage.getItem(`xindong_daily_likes_${currentUser.id}`)
-      if (likesData) {
-        const parsed = JSON.parse(likesData)
-        if (parsed.date === today) {
-          return parsed.count || 0
-        }
-      }
-    } catch (e) {
-      console.log('Error checking daily likes')
-    }
-    return 0
-  }, [currentUser])
 
   const updateDailyLikes = useCallback(() => {
     if (typeof window === 'undefined' || !currentUser) return
@@ -415,7 +522,7 @@ function LoggedInHome() {
     setDailyLikesUsed(currentCount + 1)
   }, [currentUser, checkDailyLikes])
 
-  // 获取互相喜欢状态 - 从API获取
+  // 获取互相喜欢状态
   const fetchMutualLikes = useCallback(async (): Promise<Map<string, boolean>> => {
     const mutualLikesMap = new Map<string, boolean>()
     
@@ -426,12 +533,9 @@ function LoggedInHome() {
       if (response.ok) {
         const data = await response.json()
         if (data.likes && Array.isArray(data.likes)) {
-          // 我喜欢的人
           const myLikes = new Set(data.likes.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
-          // 喜欢我的人
           const likesMe = new Set(data.likes.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
           
-          // 互相喜欢 = 我喜欢的人 且 喜欢我的人
           myLikes.forEach(userId => {
             if (likesMe.has(userId as string)) {
               mutualLikesMap.set(userId as string, true)
@@ -445,62 +549,6 @@ function LoggedInHome() {
     
     return mutualLikesMap
   }, [currentUser])
-
-  useEffect(() => {
-    setQuestionnaireCompleted(checkQuestionnaireStatus())
-    setDailyLikesUsed(checkDailyLikes())
-    setMounted(true)
-
-    const loadUsers = async () => {
-      setIsLoading(true)
-      try {
-        // 获取互相喜欢状态
-        const mutualLikesMap = await fetchMutualLikes()
-        
-        const response = await fetch('/api/users/list')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.users && data.users.length > 0) {
-            const likedJson = currentUser ? localStorage.getItem(`xindong_likes_${currentUser.id}`) : '[]'
-            const likedUsers: string[] = likedJson ? JSON.parse(likedJson) : []
-
-            const displayUsers: DisplayUser[] = data.users
-              .filter((u: ApiUser) => u.id !== currentUser?.id)
-              .map((u: ApiUser) => {
-                return {
-                  id: u.id,
-                  nickname: u.nickname,
-                  age: u.age,
-                  gender: u.gender || 'male',
-                  city: u.city || '未知',
-                  occupation: u.occupation || '',
-                  education: u.education || '',
-                  height: u.height || 0,
-                  bio: u.bio || '',
-                  interests: u.interests || [],
-                  avatar: u.avatar || null,
-                  photos: u.photos || [],
-                  matchScore: Math.floor(Math.random() * 30) + 70,
-                  isLiked: likedUsers.includes(u.id),
-                  isMutualLike: mutualLikesMap.has(u.id),
-                  isSystemMatch: true,  // API返回的用户都是系统匹配用户
-                }
-              })
-
-            setAllUsers(displayUsers)
-            return
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch users from API:', e)
-      } finally {
-        setIsLoading(false)
-      }
-      setAllUsers([])
-    }
-
-    loadUsers()
-  }, [currentUser, checkQuestionnaireStatus, checkDailyLikes, fetchMutualLikes])
 
   const handleLike = async (userId: string) => {
     if (!currentUser) return
@@ -569,7 +617,33 @@ function LoggedInHome() {
     window.location.href = `/chat/conversation/?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`
   }
 
-  const displayUsers = allUsers
+  // 骨架屏
+  if (isLoading) {
+    return (
+      <AnimatedBackground variant="romance" showFloatingHearts={true}>
+        <div className="min-h-screen pb-20">
+          <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+            <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <Heart className="w-4 h-4 text-white" fill="white" />
+                </div>
+                <span className="font-bold text-lg"><GradientText>心动投递</GradientText></span>
+              </div>
+            </div>
+          </div>
+          <div className="max-w-2xl mx-auto px-4 py-6">
+            <div className="space-y-4">
+              <UserCardSkeleton />
+              <UserCardSkeleton />
+              <UserCardSkeleton />
+            </div>
+          </div>
+          <BottomNav />
+        </div>
+      </AnimatedBackground>
+    )
+  }
 
   return (
     <AnimatedBackground variant="romance" showFloatingHearts={true}>
@@ -593,25 +667,22 @@ function LoggedInHome() {
         </div>
 
         <div className="max-w-2xl mx-auto px-4 py-6">
-          {isLoading ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="h-6 w-32 bg-gray-200 rounded-lg animate-pulse" />
-                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
-              </div>
-              <UserCardSkeleton />
-              <UserCardSkeleton />
-              <UserCardSkeleton />
-            </div>
-          ) : displayUsers.length > 0 ? (
+          {allUsers.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">真实用户推荐</h3>
-                <span className="text-sm text-gray-500">{displayUsers.length} 位用户</span>
+                <span className="text-sm text-gray-500">{allUsers.length} 位用户</span>
               </div>
               <div className="grid gap-4">
-                {displayUsers.map((user, index) => (
-                  <UserCard key={user.id} user={user} index={index} onViewDetail={handleViewDetail} onLike={handleLike} showIncompleteTag={!questionnaireCompleted && user.id === currentUser?.id} />
+                {allUsers.map((user, index) => (
+                  <UserCard 
+                    key={user.id} 
+                    user={user} 
+                    index={index} 
+                    onViewDetail={handleViewDetail} 
+                    onLike={handleLike} 
+                    showIncompleteTag={!questionnaireCompleted && user.id === currentUser?.id} 
+                  />
                 ))}
               </div>
             </div>
@@ -621,39 +692,27 @@ function LoggedInHome() {
         </div>
 
         <AnimatePresence>
-          {selectedUser && <UserDetailModal user={selectedUser} onClose={handleCloseDetail} onLike={handleLike} onSendMessage={handleSendMessage} isLoading={isLoadingDetail} />}
+          {selectedUser && (
+            <UserDetailModal 
+              user={selectedUser} 
+              onClose={handleCloseDetail} 
+              onLike={handleLike} 
+              onSendMessage={handleSendMessage} 
+            />
+          )}
         </AnimatePresence>
 
         <AnimatePresence>
-          {alertMessage && <AlertModal message={alertMessage} onClose={() => setAlertMessage(null)} />}
+          {alertMessage && <AlertModalMemo message={alertMessage} onClose={() => setAlertMessage(null)} />}
         </AnimatePresence>
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3 z-50">
-          <div className="max-w-md mx-auto flex justify-around">
-            <Link href="/" className="flex flex-col items-center text-rose-500">
-              <Heart className="w-6 h-6 fill-current" />
-              <span className="text-xs mt-1 font-medium">首页</span>
-            </Link>
-            <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">匹配</span>
-            </Link>
-            <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <MessageCircle className="w-6 h-6" />
-              <span className="text-xs mt-1">消息</span>
-            </Link>
-            <Link href="/dashboard" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Star className="w-6 h-6" />
-              <span className="text-xs mt-1">我的</span>
-            </Link>
-          </div>
-        </nav>
+        <BottomNav />
       </div>
     </AnimatedBackground>
   )
 }
 
-// Landing page component (shortened for brevity)
+// Landing page component
 function LandingPage() {
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #fff1f2 0%, #ffffff 30%, #fce7f3 70%, #fdf2f8 100%)' }}>
