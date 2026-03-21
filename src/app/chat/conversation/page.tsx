@@ -38,74 +38,159 @@ interface OtherUser {
 }
 
 // 在线状态管理
-const ONLINE_THRESHOLD_MINUTES = 5 // 5分钟内活跃视为在线
+const ONLINE_THRESHOLD_MS = 30000 // 30秒内活跃视为在线
 
-function updateUserLastActive(userId: string) {
+// 广播频道 - 用于跨标签页通信
+const ONLINE_STATUS_CHANNEL = 'xindong_online_status'
+const CHAT_CHANNEL = 'xindong_chat_messages'
+
+// 在线状态事件
+interface OnlineStatusEvent {
+  type: 'online' | 'offline'
+  userId: string
+  timestamp: number
+}
+
+// 消息事件
+interface ChatMessageEvent {
+  type: 'new_message' | 'message_read'
+  chatKey: string
+  message?: Message
+  messageIds?: string[]
+}
+
+// 全局广播频道（单例）
+let onlineChannel: BroadcastChannel | null = null
+let chatChannel: BroadcastChannel | null = null
+
+function getOnlineChannel(): BroadcastChannel {
+  if (!onlineChannel) {
+    onlineChannel = new BroadcastChannel(ONLINE_STATUS_CHANNEL)
+  }
+  return onlineChannel
+}
+
+function getChatChannel(): BroadcastChannel {
+  if (!chatChannel) {
+    chatChannel = new BroadcastChannel(CHAT_CHANNEL)
+  }
+  return chatChannel
+}
+
+// 更新用户在线状态（本地存储 + 广播）
+function updateUserOnlineStatus(userId: string) {
   if (typeof window === 'undefined') return
+  
+  const timestamp = Date.now()
+  
+  // 本地存储
+  localStorage.setItem(`xindong_online_${userId}`, JSON.stringify({
+    userId,
+    timestamp,
+    isOnline: true
+  }))
+  
+  // 广播给其他标签页
   try {
-    localStorage.setItem(`xindong_user_active_${userId}`, JSON.stringify({
-      lastActive: new Date().toISOString()
-    }))
+    const channel = getOnlineChannel()
+    channel.postMessage({
+      type: 'online',
+      userId,
+      timestamp
+    } as OnlineStatusEvent)
   } catch (e) {
-    console.error('Failed to update last active:', e)
+    console.error('Failed to broadcast online status:', e)
   }
 }
 
-function getUserLastActive(userId: string): { isOnline: boolean; lastActiveTime: Date | null; lastActiveText: string } {
+// 获取用户在线状态（从localStorage读取）
+function getUserOnlineStatus(userId: string): { isOnline: boolean; lastActiveText: string } {
   if (typeof window === 'undefined') {
-    return { isOnline: false, lastActiveTime: null, lastActiveText: '离线' }
+    return { isOnline: false, lastActiveText: '离线' }
   }
   
   try {
-    const data = localStorage.getItem(`xindong_user_active_${userId}`)
+    const data = localStorage.getItem(`xindong_online_${userId}`)
     if (!data) {
-      return { isOnline: false, lastActiveTime: null, lastActiveText: '离线' }
+      return { isOnline: false, lastActiveText: '离线' }
     }
     
     const parsed = JSON.parse(data)
-    const lastActiveTime = new Date(parsed.lastActive)
-    const now = new Date()
-    const diffMs = now.getTime() - lastActiveTime.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
+    const now = Date.now()
+    const diffMs = now - parsed.timestamp
+    const diffSecs = Math.floor(diffMs / 1000)
     
-    // 5分钟内视为在线
-    if (diffMins < ONLINE_THRESHOLD_MINUTES) {
-      return { isOnline: true, lastActiveTime, lastActiveText: '在线' }
+    // 30秒内视为在线
+    if (diffSecs < 30) {
+      return { isOnline: true, lastActiveText: '在线' }
     }
     
     // 生成离线时间描述
     let lastActiveText = '离线'
-    if (diffMins < 60) {
-      lastActiveText = `${diffMins}分钟前`
-    } else if (diffMins < 1440) {
-      lastActiveText = `${Math.floor(diffMins / 60)}小时前`
+    if (diffSecs < 60) {
+      lastActiveText = `${diffSecs}秒前`
+    } else if (diffSecs < 3600) {
+      lastActiveText = `${Math.floor(diffSecs / 60)}分钟前`
+    } else if (diffSecs < 86400) {
+      lastActiveText = `${Math.floor(diffSecs / 3600)}小时前`
     } else {
-      lastActiveText = `${Math.floor(diffMins / 1440)}天前`
+      lastActiveText = `${Math.floor(diffSecs / 86400)}天前`
     }
     
-    return { isOnline: false, lastActiveTime, lastActiveText }
+    return { isOnline: false, lastActiveText }
   } catch (e) {
-    return { isOnline: false, lastActiveTime: null, lastActiveText: '离线' }
+    return { isOnline: false, lastActiveText: '离线' }
   }
 }
 
-// 标记消息已读
-function markMessagesAsRead(currentUserId: string, otherUserId: string) {
+// 保存消息到localStorage并广播
+function saveAndBroadcastMessage(chatKey: string, message: Message) {
   if (typeof window === 'undefined') return
   
-  const sortedIds = [currentUserId, otherUserId].sort()
-  const chatKey = `xindong_chat_${sortedIds.join('_')}`
+  // 保存到localStorage
+  const stored = localStorage.getItem(chatKey)
+  let messages: Message[] = []
+  
+  if (stored) {
+    try {
+      messages = JSON.parse(stored)
+    } catch (e) {
+      messages = []
+    }
+  }
+  
+  // 检查是否已存在
+  if (!messages.find(m => m.id === message.id)) {
+    messages.push(message)
+    localStorage.setItem(chatKey, JSON.stringify(messages))
+    
+    // 广播给其他标签页
+    try {
+      const channel = getChatChannel()
+      channel.postMessage({
+        type: 'new_message',
+        chatKey,
+        message
+      } as ChatMessageEvent)
+    } catch (e) {
+      console.error('Failed to broadcast message:', e)
+    }
+  }
+}
+
+// 标记消息已读并广播
+function markMessagesAsRead(chatKey: string, messageIds: string[]) {
+  if (typeof window === 'undefined') return
+  
+  const stored = localStorage.getItem(chatKey)
+  if (!stored) return
   
   try {
-    const stored = localStorage.getItem(chatKey)
-    if (!stored) return
-    
     const messages: Message[] = JSON.parse(stored)
     let hasChanges = false
     
     const updatedMessages = messages.map(m => {
-      // 标记对方发的消息为已读
-      if (m.senderId === otherUserId && m.status !== 'read' && m.status !== 'recalled') {
+      if (messageIds.includes(m.id) && m.status !== 'read' && m.status !== 'recalled') {
         hasChanges = true
         return { ...m, status: 'read' as const }
       }
@@ -114,6 +199,18 @@ function markMessagesAsRead(currentUserId: string, otherUserId: string) {
     
     if (hasChanges) {
       localStorage.setItem(chatKey, JSON.stringify(updatedMessages))
+      
+      // 广播给其他标签页
+      try {
+        const channel = getChatChannel()
+        channel.postMessage({
+          type: 'message_read',
+          chatKey,
+          messageIds
+        } as ChatMessageEvent)
+      } catch (e) {
+        console.error('Failed to broadcast read status:', e)
+      }
     }
   } catch (e) {
     console.error('Failed to mark messages as read:', e)
@@ -142,45 +239,135 @@ function ConversationContent() {
   
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // 更新当前用户在线状态
-  useEffect(() => {
-    if (currentUserId) {
-      updateUserLastActive(currentUserId)
-      
-      // 每30秒更新一次
-      const interval = setInterval(() => {
-        updateUserLastActive(currentUserId)
-      }, 30000)
-      
-      return () => clearInterval(interval)
-    }
-  }, [currentUserId])
-
-  // 获取对方用户在线状态
-  const fetchOtherUserOnlineStatus = useCallback(() => {
-    if (!userId) return
-    
-    const { isOnline, lastActiveTime, lastActiveText } = getUserLastActive(userId)
-    
-    setOtherUser(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        isOnline,
-        lastActive: lastActiveText,
-        lastActiveTime
-      }
-    })
-  }, [userId])
+  const chatKeyRef = useRef<string | null>(null)
 
   // 常用表情
-  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '😘', '🤗', '😎', '🥰', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️']
+  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎']
 
   const addEmoji = (emoji: string) => {
     setInputText(prev => prev + emoji)
     inputRef.current?.focus()
   }
+
+  // 更新当前用户在线状态
+  useEffect(() => {
+    if (currentUserId) {
+      updateUserOnlineStatus(currentUserId)
+      
+      // 每10秒更新一次在线状态
+      const interval = setInterval(() => {
+        updateUserOnlineStatus(currentUserId)
+      }, 10000)
+      
+      // 页面可见性变化时更新
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          updateUserOnlineStatus(currentUserId)
+        }
+      }
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      
+      // 页面关闭时标记离线
+      const handleBeforeUnload = () => {
+        localStorage.setItem(`xindong_online_${currentUserId}`, JSON.stringify({
+          userId: currentUserId,
+          timestamp: Date.now() - 60000, // 设为1分钟前
+          isOnline: false
+        }))
+      }
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      
+      return () => {
+        clearInterval(interval)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+        window.removeEventListener('beforeunload', handleBeforeUnload)
+      }
+    }
+  }, [currentUserId])
+
+  // 监听对方用户在线状态广播
+  useEffect(() => {
+    if (!otherUser) return
+    
+    const channel = getOnlineChannel()
+    
+    const handleOnlineMessage = (event: globalThis.MessageEvent) => {
+      const data = event.data as OnlineStatusEvent
+      if (data.userId === otherUser.id) {
+        const { isOnline, lastActiveText } = getUserOnlineStatus(otherUser.id)
+        setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
+      }
+    }
+    
+    channel.addEventListener('message', handleOnlineMessage)
+    return () => channel.removeEventListener('message', handleOnlineMessage)
+  }, [otherUser?.id])
+
+  // 监听消息广播
+  useEffect(() => {
+    if (!otherUser || !chatKeyRef.current) return
+    
+    const channel = getChatChannel()
+    
+    const handleChatMessage = (event: globalThis.MessageEvent) => {
+      const data = event.data as ChatMessageEvent
+      
+      if (data.chatKey === chatKeyRef.current) {
+        if (data.type === 'new_message' && data.message) {
+          setMessages(prev => {
+            if (prev.find(m => m.id === data.message!.id)) return prev
+            return [...prev, data.message!]
+          })
+          
+          // 如果是对方发的消息，标记为已读
+          if (data.message.senderId === otherUser.id) {
+            markMessagesAsRead(chatKeyRef.current!, [data.message.id])
+          }
+        } else if (data.type === 'message_read' && data.messageIds) {
+          setMessages(prev => prev.map(m => 
+            data.messageIds!.includes(m.id) ? { ...m, status: 'read' } : m
+          ))
+        }
+      }
+    }
+    
+    channel.addEventListener('message', handleChatMessage)
+    return () => channel.removeEventListener('message', handleChatMessage)
+  }, [otherUser?.id])
+
+  // 定期刷新对方在线状态和消息
+  useEffect(() => {
+    if (!otherUser) return
+    
+    const interval = setInterval(() => {
+      // 刷新在线状态
+      const { isOnline, lastActiveText } = getUserOnlineStatus(otherUser.id)
+      setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
+      
+      // 刷新消息
+      if (chatKeyRef.current) {
+        const stored = localStorage.getItem(chatKeyRef.current)
+        if (stored) {
+          try {
+            const storedMessages: Message[] = JSON.parse(stored)
+            setMessages(prev => {
+              // 合并新消息
+              const prevIds = new Set(prev.map(m => m.id))
+              const newMessages = storedMessages.filter(m => !prevIds.has(m.id))
+              if (newMessages.length > 0) {
+                return [...prev, ...newMessages]
+              }
+              return prev
+            })
+          } catch (e) {
+            console.error('Failed to refresh messages:', e)
+          }
+        }
+      }
+    }, 3000) // 每3秒刷新
+    
+    return () => clearInterval(interval)
+  }, [otherUser])
 
   // 获取对方用户信息
   useEffect(() => {
@@ -190,7 +377,7 @@ function ConversationContent() {
       const urlNickname = searchParams.get('nickname')
       
       // 获取在线状态
-      const { isOnline, lastActiveTime, lastActiveText } = getUserLastActive(userId)
+      const { isOnline, lastActiveText } = getUserOnlineStatus(userId)
       
       const basicUser: OtherUser = {
         id: userId,
@@ -201,65 +388,49 @@ function ConversationContent() {
         isOnline,
         avatar: null,
         lastActive: lastActiveText,
-        lastActiveTime
-      }
-      
-      try {
-        const response = await fetch(`/api/users/${userId}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.user) {
-            basicUser.nickname = data.user.nickname || urlNickname || '心动对象'
-            basicUser.age = data.user.age || 26
-            basicUser.city = data.user.city || '北京'
-            basicUser.avatar = data.user.avatar || null
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch user info:', e)
+        lastActiveTime: null
       }
       
       setOtherUser(basicUser)
       setInitialized(true)
+      
+      // 设置聊天key
+      const sortedIds = [currentUserId, userId].sort()
+      chatKeyRef.current = `xindong_chat_${sortedIds.join('_')}`
     }
     
     fetchUserInfo()
-  }, [userId, searchParams, initialized])
+  }, [userId, searchParams, initialized, currentUserId])
 
-  // 获取消息
-  const fetchMessages = useCallback(async () => {
-    if (!otherUser) return
-
-    const sortedIds = [currentUserId, otherUser.id].sort()
-    const chatKey = `xindong_chat_${sortedIds.join('_')}`
+  // 加载消息
+  const loadMessages = useCallback(() => {
+    if (!chatKeyRef.current) return
     
-    const stored = localStorage.getItem(chatKey)
-    let localMessages: Message[] = []
-    
+    const stored = localStorage.getItem(chatKeyRef.current)
     if (stored) {
       try {
-        const parsed = JSON.parse(stored)
-        localMessages = parsed.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp)
-        }))
+        const parsed: Message[] = JSON.parse(stored)
+        setMessages(parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) })))
+        
+        // 标记对方发的消息为已读
+        if (otherUser) {
+          const unreadIds = parsed
+            .filter(m => m.senderId === otherUser.id && m.status !== 'read' && m.status !== 'recalled')
+            .map(m => m.id)
+          
+          if (unreadIds.length > 0) {
+            markMessagesAsRead(chatKeyRef.current!, unreadIds)
+          }
+        }
       } catch (e) {
-        console.error('Failed to parse messages:', e)
+        console.error('Failed to load messages:', e)
       }
     }
-    
-    setMessages(localMessages)
-    
-    // 标记对方发的消息为已读
-    markMessagesAsRead(currentUserId, otherUser.id)
-    
-    // 更新当前用户活跃时间
-    updateUserLastActive(currentUserId)
-  }, [currentUserId, otherUser])
+  }, [otherUser])
 
   // 发送消息
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !otherUser || isSending) return
+    if (!inputText.trim() || !otherUser || isSending || !chatKeyRef.current) return
     sendMessageFeedback()
     
     const newMessage: Message = {
@@ -267,39 +438,25 @@ function ConversationContent() {
       senderId: currentUserId,
       text: inputText.trim(),
       timestamp: new Date(),
-      status: 'sending',
+      status: 'sent',
       type: 'text'
     }
 
     setInputText('')
     setIsSending(true)
 
-    const sortedIds = [currentUserId, otherUser.id].sort()
-    const chatKey = `xindong_chat_${sortedIds.join('_')}`
-
-    setMessages(prev => {
-      if (prev.find(m => m.id === newMessage.id)) return prev
-      const updated = [...prev, newMessage]
-      try { localStorage.setItem(chatKey, JSON.stringify(updated)) } catch {}
-      return updated
-    })
-
-    // 模拟发送延迟
-    setTimeout(() => {
-      setMessages(prev => {
-        const updated = prev.map(m => 
-          m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
-        )
-        localStorage.setItem(chatKey, JSON.stringify(updated))
-        return updated
-      })
-      setIsSending(false)
-    }, 500)
+    // 保存并广播消息
+    saveAndBroadcastMessage(chatKeyRef.current, newMessage)
+    
+    // 更新本地状态
+    setMessages(prev => [...prev, newMessage])
+    
+    setTimeout(() => setIsSending(false), 300)
   }
 
   // 发送图片
   const handleSendImage = async () => {
-    if (!otherUser || isSending) return
+    if (!otherUser || isSending || !chatKeyRef.current) return
 
     try {
       const file = await selectImage()
@@ -322,29 +479,12 @@ function ConversationContent() {
         senderId: currentUserId,
         text: dataUrl,
         timestamp: new Date(),
-        status: 'sending',
+        status: 'sent',
         type: 'image'
       }
 
-      const sortedIds = [currentUserId, otherUser.id].sort()
-      const chatKey = `xindong_chat_${sortedIds.join('_')}`
-
-      setMessages(prev => {
-        if (prev.find(m => m.id === newMessage.id)) return prev
-        const updated = [...prev, newMessage]
-        try { localStorage.setItem(chatKey, JSON.stringify(updated)) } catch {}
-        return updated
-      })
-
-      setTimeout(() => {
-        setMessages(prev => {
-          const updated = prev.map(m => 
-            m.id === newMessage.id ? { ...m, status: 'sent' as const } : m
-          )
-          localStorage.setItem(chatKey, JSON.stringify(updated))
-          return updated
-        })
-      }, 800)
+      saveAndBroadcastMessage(chatKeyRef.current, newMessage)
+      setMessages(prev => [...prev, newMessage])
 
     } catch (error) {
       console.error('Failed to send image:', error)
@@ -364,19 +504,20 @@ function ConversationContent() {
   const handleRetry = async (messageId: string) => {
     errorFeedback()
     setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, status: 'sending' } : m
+      m.id === messageId ? { ...m, status: 'sent' } : m
     ))
-    setTimeout(() => {
-      setMessages(prev => prev.map(m => 
-        m.id === messageId ? { ...m, status: 'sent' } : m
-      ))
-    }, 1000)
   }
 
   const handleRecallMessage = async (messageId: string) => {
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, status: 'recalled' as const, text: '消息已撤回' } : m
-    ))
+    if (!chatKeyRef.current) return
+    
+    setMessages(prev => {
+      const updated = prev.map(m => 
+        m.id === messageId ? { ...m, status: 'recalled' as const, text: '消息已撤回' } : m
+      )
+      localStorage.setItem(chatKeyRef.current!, JSON.stringify(updated))
+      return updated
+    })
   }
 
   const backgrounds = {
@@ -421,16 +562,6 @@ function ConversationContent() {
         case 'delivered': return <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
         case 'read': return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
         default: return null
-      }
-    }
-
-    const statusText = () => {
-      switch (message.status) {
-        case 'sending': return '发送中'
-        case 'sent': return '已发送'
-        case 'delivered': return '已送达'
-        case 'read': return '已读'
-        default: return ''
       }
     }
 
@@ -486,12 +617,10 @@ function ConversationContent() {
             </div>
           </motion.div>
 
-          {/* 已读状态提示 */}
           {isOwn && message.status === 'read' && (
             <p className="text-xs text-blue-500 mt-1 text-right">已读</p>
           )}
 
-          {/* 操作菜单 */}
           <AnimatePresence>
             {showActions && (
               <motion.div
@@ -503,7 +632,7 @@ function ConversationContent() {
                 <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
                   {copied ? '✓ 已复制' : '复制'}
                 </button>
-                {isOwn && message.status !== 'sending' && (
+                {isOwn && (
                   <button onClick={(e) => { e.stopPropagation(); onRecall?.(message.id); setShowActions(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
                     撤回
                   </button>
@@ -523,40 +652,15 @@ function ConversationContent() {
 
   // 初始化
   useEffect(() => {
-    if (initialized && otherUser) {
-      fetchMessages()
+    if (initialized) {
+      loadMessages()
     }
-  }, [initialized, otherUser, fetchMessages])
+  }, [initialized, loadMessages])
 
   // 滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  // 定期刷新消息和在线状态
-  useEffect(() => {
-    if (!otherUser) return
-    const interval = setInterval(() => {
-      fetchMessages()
-      fetchOtherUserOnlineStatus()
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [otherUser, fetchMessages, fetchOtherUserOnlineStatus])
-
-  // 页面可见时更新状态
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        updateUserLastActive(currentUserId)
-        fetchOtherUserOnlineStatus()
-        if (otherUser) {
-          markMessagesAsRead(currentUserId, otherUser.id)
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [currentUserId, fetchOtherUserOnlineStatus, otherUser])
 
   if (!userId) {
     return (
@@ -601,7 +705,7 @@ function ConversationContent() {
                   </div>
                 )}
                 {/* 在线状态指示点 */}
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${otherUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${otherUser.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               </div>
               <div>
                 <h1 className="font-bold text-gray-900">{otherUser.nickname}</h1>
