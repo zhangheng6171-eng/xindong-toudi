@@ -1,431 +1,260 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
+import { useState, useRef, useEffect, Suspense, useMemo, memo } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { 
-  ArrowLeft, Send, Image, Smile, MoreVertical,
-  Check, X, ChevronDown, Loader2, Circle
-} from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ArrowLeft, Send, Image, Smile, MoreVertical, Check, X, ChevronDown, Loader2, Circle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AnimatedBackground, FadeIn } from '@/components/animated-background'
+import { AnimatedBackground } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
-import { sendMessageFeedback } from '@/lib/haptics'
 
 // Supabase 配置
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
-// 消息类型
-interface Message {
-  id: string
-  senderId: string
-  text: string
-  timestamp: Date
-  status: 'sending' | 'sent' | 'delivered' | 'read' | 'recalled'
-  type: 'text' | 'image' | 'system'
-}
-
-// 对方用户信息
-interface OtherUser {
-  id: string
-  nickname: string
-  age: number
-  city: string
-  score: number
-  isOnline: boolean
-  avatar: string | null
-  lastActive: string
-  lastActiveTime: Date | null
-}
-
-// 在线状态存储键名
-const ONLINE_USERS_KEY = 'xindong_online_users'
-
-// 获取所有在线用户（从 localStorage）
-function getOnlineUsers(): Record<string, number> {
-  if (typeof window === 'undefined') return {}
+// 在线状态存储
+const ONLINE_KEY = 'xindong_online'
+const getOnlineMap = () => {
   try {
-    const data = localStorage.getItem(ONLINE_USERS_KEY)
-    return data ? JSON.parse(data) : {}
-  } catch {
-    return {}
+    return JSON.parse(localStorage.getItem(ONLINE_KEY) || '{}')
+  } catch { return {} }
+}
+const setOnline = (uid: string) => {
+  const map = getOnlineMap()
+  map[uid] = Date.now()
+  localStorage.setItem(ONLINE_KEY, JSON.stringify(map))
+}
+const isOnline = (uid: string) => {
+  const map = getOnlineMap()
+  return map[uid] && (Date.now() - map[uid] < 300000) // 5分钟内
+}
+
+// API请求缓存
+const cache = new Map<string, { data: any; time: number }>()
+const CACHE_TTL = 5000 // 5秒缓存
+
+async function cachedFetch(key: string, url: string) {
+  const cached = cache.get(key)
+  if (cached && (Date.now() - cached.time < CACHE_TTL)) {
+    return cached.data
   }
-}
-
-// 标记用户在线
-function setUserOnline(userId: string) {
-  if (typeof window === 'undefined') return
-  const onlineUsers = getOnlineUsers()
-  onlineUsers[userId] = Date.now()
-  localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
-}
-
-// 清理过期在线记录（超过5分钟视为离线）
-function cleanupOnlineUsers() {
-  if (typeof window === 'undefined') return
-  const onlineUsers = getOnlineUsers()
-  const now = Date.now()
-  const fiveMinutes = 5 * 60 * 1000
   
-  Object.keys(onlineUsers).forEach(userId => {
-    if (now - onlineUsers[userId] > fiveMinutes) {
-      delete onlineUsers[userId]
-    }
+  const res = await fetch(url, {
+    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
   })
   
-  localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
+  if (!res.ok) return null
+  const data = await res.json()
+  cache.set(key, { data, time: Date.now() })
+  return data
 }
 
-// 检查用户是否在线
-function isUserOnline(userId: string): boolean {
-  const onlineUsers = getOnlineUsers()
-  const lastActive = onlineUsers[userId]
-  if (!lastActive) return false
+// 获取消息（带缓存）
+async function getMessages(uid1: string, uid2: string) {
+  const key = `msgs_${[uid1, uid2].sort().join('_')}`
+  const url = `${SUPABASE_URL}/rest/v1/messages?or=(and(sender_id.eq.${uid1},receiver_id.eq.${uid2}),and(sender_id.eq.${uid2},receiver_id.eq.${uid1}))&select=id,sender_id,content,type,created_at,status&order=created_at.asc&limit=100`
   
-  const now = Date.now()
-  const fiveMinutes = 5 * 60 * 1000
-  return (now - lastActive) < fiveMinutes
+  const data = await cachedFetch(key, url)
+  if (!Array.isArray(data)) return []
+  
+  return data.map(m => ({
+    id: m.id,
+    senderId: m.sender_id,
+    text: m.content,
+    type: m.type || 'text',
+    timestamp: new Date(m.created_at),
+    status: m.status || 'sent'
+  }))
 }
 
-// 从Supabase获取消息
-async function fetchMessagesFromAPI(userId1: string, userId2: string): Promise<Message[]> {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/messages?or=(and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1}))&select=*&order=created_at.asc`,
-      {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+// 发送消息
+async function sendMsg(from: string, to: string, text: string, type = 'text') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify({ sender_id: from, receiver_id: to, content: text, type, status: 'sent' })
+  })
+  
+  if (!res.ok) return null
+  const data = await res.json()
+  const m = Array.isArray(data) ? data[0] : data
+  
+  // 清除缓存，下次获取最新数据
+  const key = `msgs_${[from, to].sort().join('_')}`
+  cache.delete(key)
+  
+  return {
+    id: m.id,
+    senderId: m.sender_id,
+    text: m.content,
+    type: m.type || 'text',
+    timestamp: new Date(m.created_at),
+    status: 'sent'
+  }
+}
+
+// 获取用户信息（带缓存）
+async function getUser(uid: string) {
+  const key = `user_${uid}`
+  const url = `${SUPABASE_URL}/rest/v1/users?id=eq.${uid}&select=id,nickname,avatar,photos`
+  const data = await cachedFetch(key, url)
+  return Array.isArray(data) && data[0] ? data[0] : null
+}
+
+// 消息气泡组件（memo优化）
+const MsgBubble = memo(function MsgBubble({ msg, isOwn, onImgClick }: { 
+  msg: { id: string; senderId: string; text: string; type: string; timestamp: Date; status: string }
+  isOwn: boolean
+  onImgClick?: (url: string) => void
+}) {
+  const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  
+  return (
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${
+        isOwn 
+          ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-br-md' 
+          : 'bg-white/90 text-gray-800 rounded-bl-md shadow-sm'
+      }`}>
+        {msg.type === 'image' 
+          ? <img src={msg.text} alt="" className="rounded-lg max-w-[200px] cursor-pointer" onClick={() => onImgClick?.(msg.text)} />
+          : <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
         }
-      }
-    )
-    
-    if (!response.ok) return []
-    const data = await response.json()
-    if (!Array.isArray(data)) return []
-    
-    return data.map((m: any) => ({
-      id: m.id,
-      senderId: m.sender_id,
-      text: m.content,
-      type: m.type || 'text',
-      timestamp: new Date(m.created_at),
-      status: m.status || 'sent'
-    }))
-  } catch (error) {
-    console.error('Error fetching messages:', error)
-    return []
-  }
-}
+        <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+          <span className={`text-xs ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>{time}</span>
+          {isOwn && msg.status === 'sending' && <Loader2 className="w-3.5 h-3.5 text-white/70 animate-spin" />}
+          {isOwn && msg.status === 'sent' && <Check className="w-3.5 h-3.5 text-white/70" />}
+        </div>
+      </div>
+    </div>
+  )
+})
 
-// 发送消息到Supabase
-async function sendMessageToAPI(senderId: string, receiverId: string, text: string, type: string = 'text'): Promise<Message | null> {
-  try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({
-        sender_id: senderId,
-        receiver_id: receiverId,
-        content: text,
-        type,
-        status: 'sent'
-      })
-    })
-    
-    if (!response.ok) return null
-    
-    const data = await response.json()
-    const message = Array.isArray(data) ? data[0] : data
-    
-    return {
-      id: message.id,
-      senderId: message.sender_id,
-      text: message.content,
-      type: message.type || 'text',
-      timestamp: new Date(message.created_at),
-      status: message.status || 'sent'
-    }
-  } catch (error) {
-    console.error('Error sending message:', error)
-    return null
-  }
-}
-
-// 获取用户信息（包括头像）
-async function fetchUserInfo(userId: string): Promise<any> {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=*`,
-      {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      }
-    )
-    
-    if (!response.ok) return null
-    const data = await response.json()
-    return Array.isArray(data) && data.length > 0 ? data[0] : null
-  } catch (error) {
-    console.error('Error fetching user info:', error)
-    return null
-  }
-}
-
-function ConversationContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+function ChatContent() {
+  const params = useSearchParams()
   const { currentUser } = useAuth()
   
-  const userId = searchParams.get('userId')
-  const currentUserId = currentUser?.id || 'local_user'
+  const peerId = params.get('userId')
+  const peerName = params.get('nickname')
+  const myId = currentUser?.id || ''
   
-  const [otherUser, setOtherUser] = useState<OtherUser | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [inputText, setInputText] = useState('')
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [peer, setPeer] = useState<{ id: string; name: string; avatar: string | null; online: boolean } | null>(null)
+  const [msgs, setMsgs] = useState<any[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [bg, setBg] = useState('romance')
   const [showMenu, setShowMenu] = useState(false)
-  const [isSending, setIsSending] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(true)
-  const [background, setBackground] = useState('romance')
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [previewImg, setPreviewImg] = useState<string | null>(null)
   
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const prevMessagesLengthRef = useRef(0)
+  const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const loadedRef = useRef(false)
 
-  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫']
+  const emojis = useMemo(() => ['😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '✨', '🌟', '🔥', '💯', '🎉', '😄', '😂', '🤣', '😁', '🤭', '😎', '🤩'], [])
 
-  const addEmoji = (emoji: string) => {
-    setInputText(prev => prev + emoji)
-    inputRef.current?.focus()
-  }
-
-  // 标记当前用户在线
+  // 标记在线
   useEffect(() => {
-    if (!currentUserId || currentUserId === 'local_user') return
-    
-    // 初始标记在线
-    setUserOnline(currentUserId)
-    
-    // 清理过期记录
-    cleanupOnlineUsers()
-    
-    // 每30秒标记一次在线，清理过期记录
-    const interval = setInterval(() => {
-      setUserOnline(currentUserId)
-      cleanupOnlineUsers()
-    }, 30000)
-    
-    // 页面可见性变化时更新
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        setUserOnline(currentUserId)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    
-    // 页面关闭时移除在线状态
-    const handleBeforeUnload = () => {
-      const onlineUsers = getOnlineUsers()
-      delete onlineUsers[currentUserId]
-      localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
-  }, [currentUserId])
+    if (!myId) return
+    setOnline(myId)
+    const t = setInterval(() => setOnline(myId), 30000)
+    return () => clearInterval(t)
+  }, [myId])
 
-  // 获取对方用户信息
+  // 加载对方信息
   useEffect(() => {
-    if (!userId) return
-
-    const loadUserInfo = async () => {
-      const urlNickname = searchParams.get('nickname')
-      const userData = await fetchUserInfo(userId)
-      
-      // 检查对方是否在线
-      const online = isUserOnline(userId)
-      
-      const basicUser: OtherUser = {
-        id: userId,
-        nickname: userData?.nickname || urlNickname || '心动对象',
-        age: userData?.age || 26,
-        city: userData?.city || '北京',
-        score: userData?.score || 92,
-        isOnline: online,
-        avatar: userData?.avatar || userData?.photos?.[0] || null,
-        lastActive: online ? '在线' : '离线',
-        lastActiveTime: null
-      }
-      
-      setOtherUser(basicUser)
-    }
+    if (!peerId || loadedRef.current) return
     
-    loadUserInfo()
-  }, [userId, searchParams])
-
-  // 加载消息
-  const loadMessages = useCallback(async (isRefresh: boolean = false) => {
-    if (!currentUserId || !userId || currentUserId === 'local_user') return
-    
-    const msgs = await fetchMessagesFromAPI(currentUserId, userId)
-    
-    setMessages(prev => {
-      if (isRefresh) {
-        const prevIds = new Set(prev.map(m => m.id))
-        const newMessages = msgs.filter(m => !prevIds.has(m.id))
-        if (newMessages.length > 0) {
-          return [...prev, ...newMessages]
-        }
-        return prev
-      } else {
-        return msgs
-      }
-    })
-  }, [currentUserId, userId])
-
-  // 初始加载消息
-  useEffect(() => {
-    if (otherUser && currentUserId && currentUserId !== 'local_user') {
-      loadMessages(false)
-    }
-  }, [otherUser, currentUserId, loadMessages])
-
-  // 定期刷新消息和在线状态
-  useEffect(() => {
-    if (!otherUser || !currentUserId || currentUserId === 'local_user') return
-    
-    const interval = setInterval(async () => {
-      // 刷新消息
-      loadMessages(true)
-      
-      // 刷新在线状态
-      const online = isUserOnline(userId!)
-      setOtherUser(prev => {
-        if (prev && prev.isOnline !== online) {
-          return { ...prev, isOnline: online, lastActive: online ? '在线' : '离线' }
-        }
-        return prev
+    const loadPeer = async () => {
+      loadedRef.current = true
+      const u = await getUser(peerId)
+      setPeer({
+        id: peerId,
+        name: u?.nickname || peerName || '用户',
+        avatar: u?.avatar || u?.photos?.[0] || null,
+        online: isOnline(peerId)
       })
-    }, 3000)
-    
-    return () => clearInterval(interval)
-  }, [otherUser, currentUserId, userId, loadMessages])
+      
+      // 同时加载消息
+      const m = await getMessages(myId, peerId)
+      setMsgs(m)
+    }
+    loadPeer()
+  }, [peerId, peerName, myId])
 
-  // 只在消息数量变化时滚动到底部
+  // 刷新消息和状态
   useEffect(() => {
-    if (messages.length > prevMessagesLengthRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-    prevMessagesLengthRef.current = messages.length
-  }, [messages.length])
-
-  // 发送消息
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || !otherUser || isSending || !currentUserId || currentUserId === 'local_user') {
-      if (!currentUserId || currentUserId === 'local_user') {
-        alert('请先登录后再发送消息')
-      }
-      return
-    }
+    if (!peerId || !myId) return
     
-    sendMessageFeedback()
-    setIsSending(true)
+    const t = setInterval(async () => {
+      const m = await getMessages(myId, peerId)
+      setMsgs(prev => {
+        const ids = new Set(prev.map(x => x.id))
+        const newOnes = m.filter(x => !ids.has(x.id))
+        return newOnes.length ? [...prev, ...newOnes] : prev
+      })
+      
+      const online = isOnline(peerId)
+      setPeer(p => p && p.online !== online ? { ...p, online } : p)
+    }, 5000) // 5秒刷新
     
-    const tempId = `temp-${Date.now()}`
-    const newMessage: Message = {
-      id: tempId,
-      senderId: currentUserId,
-      text: inputText.trim(),
-      timestamp: new Date(),
-      status: 'sending',
-      type: 'text'
-    }
+    return () => clearInterval(t)
+  }, [peerId, myId])
 
-    setInputText('')
-    setMessages(prev => [...prev, newMessage])
+  // 滚动
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [msgs.length])
 
-    const sentMessage = await sendMessageToAPI(currentUserId, userId!, inputText.trim(), 'text')
+  // 发送
+  const send = async () => {
+    if (!input.trim() || sending || !myId || !peerId) return
     
-    if (sentMessage) {
-      setMessages(prev => prev.map(m => 
-        m.id === tempId ? sentMessage : m
-      ))
+    setSending(true)
+    const tempId = `t${Date.now()}`
+    const text = input.trim()
+    setInput('')
+    
+    setMsgs(prev => [...prev, { id: tempId, senderId: myId, text, type: 'text', timestamp: new Date(), status: 'sending' }])
+    
+    const sent = await sendMsg(myId, peerId, text)
+    if (sent) {
+      setMsgs(prev => prev.map(m => m.id === tempId ? sent : m))
     } else {
-      setMessages(prev => prev.map(m => 
-        m.id === tempId ? { ...m, status: 'sent' as const } : m
-      ))
+      setMsgs(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m))
     }
     
-    setIsSending(false)
+    setSending(false)
   }
 
   // 发送图片
-  const handleSendImage = async () => {
-    if (!otherUser || isSending || !currentUserId || currentUserId === 'local_user') return
-
+  const sendImg = async () => {
+    if (sending || !myId || !peerId) return
+    
     try {
       const file = await selectImage()
       if (!file) return
-
-      if (!isValidImageType(file)) {
-        alert('请选择 JPG、PNG 或 GIF 格式的图片')
-        return
-      }
-
-      if (!isValidImageSize(file, 3)) {
-        alert('图片大小不能超过 3MB')
-        return
-      }
-
+      
+      if (!isValidImageType(file)) { alert('请选择 JPG、PNG 或 GIF 格式'); return }
+      if (!isValidImageSize(file, 3)) { alert('图片不能超过 3MB'); return }
+      
       const dataUrl = await compressImage(file, 300, 300, 0.5)
+      const tempId = `t${Date.now()}`
       
-      const tempId = `temp-${Date.now()}`
-      const newMessage: Message = {
-        id: tempId,
-        senderId: currentUserId,
-        text: dataUrl,
-        timestamp: new Date(),
-        status: 'sending',
-        type: 'image'
-      }
-
-      setMessages(prev => [...prev, newMessage])
-
-      const sentMessage = await sendMessageToAPI(currentUserId, userId!, dataUrl, 'image')
+      setMsgs(prev => [...prev, { id: tempId, senderId: myId, text: dataUrl, type: 'image', timestamp: new Date(), status: 'sending' }])
       
-      if (sentMessage) {
-        setMessages(prev => prev.map(m => 
-          m.id === tempId ? sentMessage : m
-        ))
+      const sent = await sendMsg(myId, peerId, dataUrl, 'image')
+      if (sent) {
+        setMsgs(prev => prev.map(m => m.id === tempId ? sent : m))
       }
-
-    } catch (error) {
-      console.error('Failed to send image:', error)
-      alert('图片发送失败，请重试')
-    } finally {
-      setTimeout(() => setIsSending(false), 300)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -433,150 +262,72 @@ function ConversationContent() {
     romance: 'from-rose-100/50 via-pink-100/50 to-purple-100/50',
     ocean: 'from-blue-100/50 via-cyan-100/50 to-teal-100/50',
     sunset: 'from-orange-100/50 via-rose-100/50 to-pink-100/50',
-    mint: 'from-emerald-100/50 via-teal-100/50 to-cyan-100/50',
-    lavender: 'from-purple-100/50 via-violet-100/50 to-indigo-100/50',
   }
 
-  const topicSuggestions = [
-    { text: '你好，很高兴认识你！', icon: '👋' },
-    { text: '你平时喜欢做什么呢？', icon: '😊' },
-    { text: '最近有什么有趣的事吗？', icon: '✨' },
-    { text: '你喜欢什么类型的电影？', icon: '🎬' },
-  ]
-
-  // 消息气泡组件
-  const MessageBubble = ({ message, isOwn }: {
-    message: Message
-    isOwn: boolean
-  }) => {
-    const statusIcon = () => {
-      if (!isOwn) return null
-      switch (message.status) {
-        case 'sending': return <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
-        case 'sent': return <Check className="w-3.5 h-3.5 text-gray-400" />
-        default: return null
-      }
-    }
-
-    if (message.type === 'system') {
-      return (
-        <div className="flex justify-center">
-          <div className="px-4 py-2 bg-gray-100/80 rounded-full text-sm text-gray-500">
-            {message.text}
-          </div>
-        </div>
-      )
-    }
-
+  if (!peerId) {
     return (
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-        <div className="relative max-w-[75%]">
-          <div
-            className={`
-              relative px-4 py-2.5 rounded-2xl
-              ${isOwn 
-                ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-br-md' 
-                : 'bg-white/90 backdrop-blur-sm text-gray-800 rounded-bl-md shadow-sm border border-gray-100/50'
-              }
-            `}
-          >
-            {message.type === 'image' ? (
-              <img src={message.text} alt="图片" className="rounded-lg max-w-[200px]" onClick={() => setSelectedImage(message.text)} />
-            ) : (
-              <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
-            )}
-            
-            <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-              <span className={`text-xs ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-                {new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              {isOwn && statusIcon()}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!userId) {
-    return (
-      <AnimatedBackground variant="romance" showFloatingHearts={false}>
+      <AnimatedBackground variant="romance">
         <div className="min-h-screen flex flex-col items-center justify-center p-4">
           <div className="text-6xl mb-4">😕</div>
           <h1 className="text-xl font-bold text-gray-800 mb-2">未找到用户</h1>
-          <p className="text-gray-500 mb-4">请从会话列表或用户详情页进入聊天</p>
-          <Link href="/chat" className="px-4 py-2 bg-rose-500 text-white rounded-full">返回会话列表</Link>
+          <Link href="/chat" className="px-4 py-2 bg-rose-500 text-white rounded-full">返回</Link>
         </div>
       </AnimatedBackground>
     )
   }
 
-  if (!otherUser) {
+  if (!peer) {
     return (
-      <AnimatedBackground variant="romance" showFloatingHearts={false}>
+      <AnimatedBackground variant="romance">
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-rose-500">加载中...</div>
+          <div className="text-rose-500">加载中...</div>
         </div>
       </AnimatedBackground>
     )
   }
 
   return (
-    <AnimatedBackground variant="romance" showFloatingHearts={false}>
-      <div className="min-h-screen flex flex-col" style={{ background: `linear-gradient(180deg, var(--tw-gradient-stops))`, backgroundImage: `linear-gradient(to bottom, ${backgrounds[background as keyof typeof backgrounds]})` }}>
+    <AnimatedBackground variant="romance">
+      <div className="min-h-screen flex flex-col" style={{ backgroundImage: `linear-gradient(to bottom, ${backgrounds[bg as keyof typeof backgrounds]})` }}>
         
         {/* Header */}
         <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100/50">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
-              <Link href="/chat" className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <Link href="/chat" className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full">
                 <ArrowLeft className="w-5 h-5 text-gray-600" />
               </Link>
               <div className="relative">
-                {otherUser.avatar ? (
-                  <img src={otherUser.avatar} alt={otherUser.nickname} className="w-10 h-10 rounded-full object-cover" />
-                ) : (
-                  <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    {otherUser.nickname[0]}
-                  </div>
-                )}
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${otherUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+                {peer.avatar 
+                  ? <img src={peer.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  : <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg">{peer.name[0]}</div>
+                }
+                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${peer.online ? 'bg-green-500' : 'bg-gray-400'}`} />
               </div>
               <div>
-                <h1 className="font-bold text-gray-900">{otherUser.nickname}</h1>
-                <div className="flex items-center gap-1.5">
-                  <Circle className={`w-2 h-2 ${otherUser.isOnline ? 'fill-green-500 text-green-500' : 'fill-gray-400 text-gray-400'}`} />
-                  <p className={`text-xs ${otherUser.isOnline ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
-                    {otherUser.isOnline ? '在线' : '离线'}
+                <h1 className="font-bold text-gray-900">{peer.name}</h1>
+                <div className="flex items-center gap-1">
+                  <Circle className={`w-2 h-2 ${peer.online ? 'fill-green-500 text-green-500' : 'fill-gray-400 text-gray-400'}`} />
+                  <p className={`text-xs ${peer.online ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
+                    {peer.online ? '在线' : '离线'}
                   </p>
                 </div>
               </div>
             </div>
-            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-100 rounded-full">
               <MoreVertical className="w-5 h-5 text-gray-500" />
             </button>
           </div>
-
+          
           <AnimatePresence>
             {showMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute right-4 top-16 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
-              >
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                className="absolute right-4 top-16 bg-white rounded-xl shadow-xl border py-2 z-50">
                 <p className="px-4 py-1 text-xs text-gray-400">聊天背景</p>
-                {Object.keys(backgrounds).map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => { setBackground(key); setShowMenu(false); }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${background === key ? 'text-rose-500 font-medium' : 'text-gray-700'}`}
-                  >
-                    {key === 'romance' && '💕 浪漫粉'}
-                    {key === 'ocean' && '🌊 海洋蓝'}
-                    {key === 'sunset' && '🌅 日落橙'}
-                    {key === 'mint' && '🌿 薄荷绿'}
-                    {key === 'lavender' && '💜 薰衣草'}
+                {Object.keys(backgrounds).map(k => (
+                  <button key={k} onClick={() => { setBg(k); setShowMenu(false) }}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${bg === k ? 'text-rose-500 font-medium' : 'text-gray-700'}`}>
+                    {k === 'romance' && '💕 浪漫'} {k === 'ocean' && '🌊 海洋'} {k === 'sunset' && '🌅 日落'}
                   </button>
                 ))}
               </motion.div>
@@ -585,84 +336,26 @@ function ConversationContent() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <div className="text-gray-400 text-sm">暂无消息，开始聊天吧～</div>
-            </div>
-          ) : (
-            <>
-              <MessageBubble
-                message={{
-                  id: 'system-1',
-                  senderId: 'system',
-                  text: '🎉 你们匹配成功！开始聊天吧～',
-                  timestamp: new Date(Date.now() - 3600000),
-                  status: 'read',
-                  type: 'system'
-                }}
-                isOwn={false}
-              />
-
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  isOwn={message.senderId === currentUserId}
-                />
-              ))}
-            </>
-          )}
-
-          <div ref={messagesEndRef} />
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div className="flex justify-center">
+            <div className="px-4 py-2 bg-gray-100/80 rounded-full text-sm text-gray-500">🎉 开始聊天吧～</div>
+          </div>
+          
+          {msgs.map(m => (
+            <MsgBubble key={m.id} msg={m} isOwn={m.senderId === myId} onImgClick={setPreviewImg} />
+          ))}
+          <div ref={endRef} />
         </div>
 
-        {/* 话题推荐 */}
+        {/* Emoji */}
         <AnimatePresence>
-          {showSuggestions && messages.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="px-4 py-3 bg-white/80 backdrop-blur-sm border-t border-gray-200/50"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">💡 话题推荐</span>
-                <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-gray-600">
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {topicSuggestions.map((topic, index) => (
-                  <motion.button
-                    key={index}
-                    onClick={() => { setInputText(topic.text); inputRef.current?.focus(); }}
-                    className="px-3 py-2 bg-white/80 rounded-full text-sm text-gray-700 hover:bg-rose-50 hover:text-rose-600 transition-colors shadow-sm border border-gray-200/50"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {topic.icon} {topic.text}
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Emoji Picker */}
-        <AnimatePresence>
-          {showEmojiPicker && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-white/80 backdrop-blur-sm border-t border-gray-200/50 px-4 py-2"
-            >
-              <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
-                {commonEmojis.map((emoji, index) => (
-                  <button key={index} onClick={() => addEmoji(emoji)} className="w-8 h-8 text-lg hover:bg-gray-100 rounded transition-colors">
-                    {emoji}
-                  </button>
+          {showEmoji && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className="bg-white/80 border-t px-4 py-2">
+              <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                {emojis.map((e, i) => (
+                  <button key={i} onClick={() => { setInput(p => p + e); inputRef.current?.focus() }} 
+                    className="w-8 h-8 text-lg hover:bg-gray-100 rounded">{e}</button>
                 ))}
               </div>
             </motion.div>
@@ -670,50 +363,35 @@ function ConversationContent() {
         </AnimatePresence>
 
         {/* Input */}
-        <div className="sticky bottom-0 bg-white/90 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3">
+        <div className="sticky bottom-0 bg-white/90 backdrop-blur-xl border-t px-4 py-3">
           <div className="flex items-end gap-2">
-            <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <Smile className={`w-6 h-6 ${showEmojiPicker ? 'text-rose-500' : 'text-gray-500'}`} />
+            <button onClick={() => setShowEmoji(!showEmoji)} className="p-2 hover:bg-gray-100 rounded-full">
+              <Smile className={`w-6 h-6 ${showEmoji ? 'text-rose-500' : 'text-gray-500'}`} />
             </button>
-            <button onClick={handleSendImage} disabled={isSending} className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50">
+            <button onClick={sendImg} disabled={sending} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50">
               <Image className="w-6 h-6 text-gray-500" />
             </button>
-            <div className="flex-1 relative">
-              <textarea
-                ref={inputRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="输入消息..."
-                rows={1}
-                className="w-full px-4 py-2.5 bg-gray-100/50 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 transition-all text-sm"
-                style={{ minHeight: '40px', maxHeight: '120px' }}
-              />
-            </div>
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputText.trim() || isSending}
-              className="p-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full shadow-lg shadow-rose-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:shadow-none"
-            >
+            <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              placeholder="输入消息..." rows={1}
+              className="flex-1 px-4 py-2.5 bg-gray-100/50 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 text-sm"
+              style={{ minHeight: '40px', maxHeight: '80px' }} />
+            <button onClick={send} disabled={!input.trim() || sending}
+              className="p-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full shadow-lg disabled:opacity-50">
               <Send className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Image Preview */}
+        {/* Preview */}
         <AnimatePresence>
-          {selectedImage && (
-            <motion.div
-              className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedImage(null)}
-            >
-              <button className="absolute top-4 right-4 p-2 bg-white/20 rounded-full text-white hover:bg-white/30 transition-colors">
+          {previewImg && (
+            <motion.div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPreviewImg(null)}>
+              <button className="absolute top-4 right-4 p-2 bg-white/20 rounded-full text-white">
                 <X className="w-6 h-6" />
               </button>
-              <img src={selectedImage} alt="预览" className="max-w-full max-h-full object-contain" />
+              <img src={previewImg} alt="" className="max-w-full max-h-full object-contain" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -726,10 +404,10 @@ export default function ConversationPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
-        <div className="animate-pulse text-rose-500">加载中...</div>
+        <div className="text-rose-500">加载中...</div>
       </div>
     }>
-      <ConversationContent />
+      <ChatContent />
     </Suspense>
   )
 }
