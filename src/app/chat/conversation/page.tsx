@@ -1,96 +1,79 @@
 'use client'
 
-import { useState, useRef, useEffect, Suspense, memo } from 'react'
+import { useState, useRef, useEffect, Suspense, memo, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Send, Image, Smile, MoreVertical, Check, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Send, Image, Check, X, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
 
 // Supabase 配置
-const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
-const api = (url: string) => fetch(`${SUPABASE_URL}${url}`, {
-  headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-})
+// 缓存用户信息
+const userCache = new Map<string, { data: any; time: number }>()
+const CACHE_TTL = 60000 // 1分钟缓存
 
-// 获取用户信息
-async function getUserInfo(uid: string) {
-  try {
-    const res = await api(`/rest/v1/users?id=eq.${uid}&select=id,nickname,avatar`)
-    const data = await res.json()
-    return Array.isArray(data) && data[0] ? data[0] : null
-  } catch { return null }
-}
-
-// 获取聊天消息
-async function getMessages(uid1: string, uid2: string) {
-  try {
-    const res = await api(`/rest/v1/messages?or=(and(sender_id.eq.${uid1},receiver_id.eq.${uid2}),and(sender_id.eq.${uid2},receiver_id.eq.${uid1}))&select=id,sender_id,content,type,created_at,status&order=created_at.asc&limit=50`)
-    const data = await res.json()
-    if (!Array.isArray(data)) return []
-    return data.map((m: any) => ({
-      id: m.id,
-      senderId: m.sender_id,
-      text: m.content,
-      type: m.type || 'text',
-      timestamp: new Date(m.created_at),
-      status: 'sent'
-    }))
-  } catch { return [] }
-}
-
-// 发送消息
-async function sendMessage(from: string, to: string, text: string, type = 'text') {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({ sender_id: from, receiver_id: to, content: text, type, status: 'sent' })
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const m = Array.isArray(data) ? data[0] : data
-    return {
-      id: m.id,
-      senderId: m.sender_id,
-      text: m.content,
-      type: m.type || 'text',
-      timestamp: new Date(m.created_at),
-      status: 'sent'
-    }
-  } catch { return null }
-}
-
-// 消息气泡组件
-const MessageBubble = memo(function MessageBubble({ 
-  msg, isOwn, onImgClick 
-}: { 
-  msg: any; 
-  isOwn: boolean; 
-  onImgClick?: (url: string) => void 
-}) {
-  const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+async function fetchUser(uid: string) {
+  const cached = userCache.get(uid)
+  if (cached && Date.now() - cached.time < CACHE_TTL) return cached.data
   
+  const res = await fetch(`${SUPABASE}/rest/v1/users?id=eq.${uid}&select=id,nickname,avatar`, {
+    headers: { 'apikey': KEY, 'Authorization': `Bearer ${KEY}` }
+  })
+  const data = await res.json()
+  const user = Array.isArray(data) && data[0] ? data[0] : null
+  userCache.set(uid, { data: user, time: Date.now() })
+  return user
+}
+
+async function fetchMessages(uid1: string, uid2: string) {
+  const res = await fetch(
+    `${SUPABASE}/rest/v1/messages?or=(and(sender_id.eq.${uid1},receiver_id.eq.${uid2}),and(sender_id.eq.${uid2},receiver_id.eq.${uid1}))&select=id,sender_id,content,type,created_at&order=created_at.asc&limit=50`,
+    { headers: { 'apikey': KEY, 'Authorization': `Bearer ${KEY}` } }
+  )
+  const data = await res.json()
+  if (!Array.isArray(data)) return []
+  return data.map((m: any) => ({
+    id: m.id,
+    senderId: m.sender_id,
+    text: m.content,
+    type: m.type || 'text',
+    timestamp: new Date(m.created_at)
+  }))
+}
+
+async function postMessage(from: string, to: string, text: string, type = 'text') {
+  const res = await fetch(`${SUPABASE}/rest/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': KEY,
+      'Authorization': `Bearer ${KEY}`,
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify({ sender_id: from, receiver_id: to, content: text, type, status: 'sent' })
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  const m = Array.isArray(data) ? data[0] : data
+  return { id: m.id, senderId: m.sender_id, text: m.content, type: m.type || 'text', timestamp: new Date(m.created_at), status: 'sent' }
+}
+
+// 消息气泡
+const Bubble = memo(function Bubble({ msg, isOwn, onImg }: { msg: any; isOwn: boolean; onImg?: (url: string) => void }) {
+  const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   return (
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
-        isOwn 
-          ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-br-md' 
-          : 'bg-white/90 text-gray-800 rounded-bl-md shadow-sm'
-      }`}>
-        {msg.type === 'image' 
-          ? <img src={msg.text} alt="" className="rounded-lg max-w-full cursor-pointer" onClick={() => onImgClick?.(msg.text)} />
-          : <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-        }
+      <div className={`max-w-[80%] px-4 py-2 rounded-2xl ${isOwn ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
+        {msg.type === 'image' ? (
+          <img src={msg.text} alt="" className="rounded-lg max-w-full" onClick={() => onImg?.(msg.text)} />
+        ) : (
+          <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+        )}
         <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
           <span className={`text-xs ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>{time}</span>
           {isOwn && msg.status === 'sending' && <Loader2 className="w-3 h-3 text-white/70 animate-spin" />}
@@ -100,7 +83,7 @@ const MessageBubble = memo(function MessageBubble({
   )
 })
 
-function ChatContent() {
+function Chat() {
   const params = useSearchParams()
   const { currentUser } = useAuth()
   
@@ -108,86 +91,76 @@ function ChatContent() {
   const peerName = params.get('nickname') || '用户'
   const myId = currentUser?.id || ''
   
-  const [peer, setPeer] = useState<{ id: string; name: string; avatar: string | null } | null>(null)
-  const [messages, setMessages] = useState<any[]>([])
-  const [input, setInput] = useState('')
+  const [peer, setPeer] = useState<{ name: string; avatar: string | null } | null>(null)
+  const [msgs, setMsgs] = useState<any[]>([])
+  const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
-  const [previewImg, setPreviewImg] = useState<string | null>(null)
+  const [img, setImg] = useState<string | null>(null)
   
   const endRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  const loadedRef = useRef(false)
-  const lastMsgCountRef = useRef(0)
+  const initRef = useRef(false)
+  const lastCount = useRef(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const emojis = ['😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '✨', '🌟', '🔥', '💯', '🎉', '😄', '😂', '😎', '🤩']
-
-  // 加载对方信息（只执行一次）
+  // 初始化加载
   useEffect(() => {
-    if (!peerId || loadedRef.current) return
-    loadedRef.current = true
+    if (!peerId || initRef.current || !myId) return
+    initRef.current = true
     
-    const load = async () => {
-      const u = await getUserInfo(peerId)
-      setPeer({
-        id: peerId,
-        name: u?.nickname || peerName,
-        avatar: u?.avatar || null
-      })
-      
-      // 加载初始消息
-      if (myId) {
-        const msgs = await getMessages(myId, peerId)
-        setMessages(msgs)
-        lastMsgCountRef.current = msgs.length
-      }
-    }
-    load()
+    Promise.all([
+      fetchUser(peerId),
+      fetchMessages(myId, peerId)
+    ]).then(([user, messages]) => {
+      setPeer({ name: user?.nickname || peerName, avatar: user?.avatar || null })
+      setMsgs(messages)
+      lastCount.current = messages.length
+      // 初始滚动到底部
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto' }), 100)
+    })
   }, [peerId, peerName, myId])
 
-  // 定期刷新消息（10秒间隔，减少请求）
+  // 轮询刷新（15秒间隔，减少服务器压力）
   useEffect(() => {
     if (!peerId || !myId) return
     
-    const timer = setInterval(async () => {
-      const msgs = await getMessages(myId, peerId)
-      if (msgs.length > lastMsgCountRef.current) {
-        setMessages(msgs)
-        lastMsgCountRef.current = msgs.length
+    const poll = setInterval(async () => {
+      const newMsgs = await fetchMessages(myId, peerId)
+      if (newMsgs.length > lastCount.current) {
+        setMsgs(newMsgs)
+        lastCount.current = newMsgs.length
+        // 新消息时滚动到底部
+        endRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
-    }, 10000)
+    }, 15000)
     
-    return () => clearInterval(timer)
+    return () => clearInterval(poll)
   }, [peerId, myId])
 
-  // 滚动到底部
-  useEffect(() => {
-    if (messages.length > lastMsgCountRef.current) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages.length])
-
-  // 发送消息
-  const handleSend = async () => {
-    if (!input.trim() || sending || !myId || !peerId) return
+  // 发送
+  const send = useCallback(async () => {
+    if (!text.trim() || sending || !myId || !peerId) return
     
     setSending(true)
-    const text = input.trim()
+    const content = text.trim()
     const tempId = `t${Date.now()}`
     
-    setInput('')
-    setMessages(prev => [...prev, { id: tempId, senderId: myId, text, type: 'text', timestamp: new Date(), status: 'sending' }])
+    setText('')
+    setMsgs(prev => [...prev, { id: tempId, senderId: myId, text: content, type: 'text', timestamp: new Date(), status: 'sending' }])
     
-    const sent = await sendMessage(myId, peerId, text)
+    // 滚动到底部
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    
+    const sent = await postMessage(myId, peerId, content)
     if (sent) {
-      setMessages(prev => prev.map(m => m.id === tempId ? sent : m))
+      setMsgs(prev => prev.map(m => m.id === tempId ? sent : m))
+      lastCount.current++
     }
-    
-    lastMsgCountRef.current = messages.length + 1
     setSending(false)
-  }
+    textareaRef.current?.focus()
+  }, [text, sending, myId, peerId])
 
   // 发送图片
-  const handleSendImage = async () => {
+  const sendImg = useCallback(async () => {
     if (sending || !myId || !peerId) return
     
     try {
@@ -199,16 +172,18 @@ function ChatContent() {
       const dataUrl = await compressImage(file, 300, 300, 0.5)
       const tempId = `t${Date.now()}`
       
-      setMessages(prev => [...prev, { id: tempId, senderId: myId, text: dataUrl, type: 'image', timestamp: new Date(), status: 'sending' }])
+      setMsgs(prev => [...prev, { id: tempId, senderId: myId, text: dataUrl, type: 'image', timestamp: new Date(), status: 'sending' }])
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       
-      const sent = await sendMessage(myId, peerId, dataUrl, 'image')
+      const sent = await postMessage(myId, peerId, dataUrl, 'image')
       if (sent) {
-        setMessages(prev => prev.map(m => m.id === tempId ? sent : m))
+        setMsgs(prev => prev.map(m => m.id === tempId ? sent : m))
+        lastCount.current++
       }
     } catch (e) {
       console.error(e)
     }
-  }
+  }, [sending, myId, peerId])
 
   if (!peerId) {
     return (
@@ -225,7 +200,6 @@ function ChatContent() {
   return (
     <AnimatedBackground variant="romance">
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-rose-50 via-pink-50 to-purple-50">
-        
         {/* Header */}
         <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100">
           <div className="flex items-center gap-3 px-4 py-3">
@@ -233,20 +207,15 @@ function ChatContent() {
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </Link>
             
-            {/* 头像显示 */}
-            <div className="relative">
-              {peer?.avatar ? (
-                <img src={peer.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-              ) : (
-                <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-                  {peer?.name?.[0] || '?'}
-                </div>
-              )}
-            </div>
+            {peer?.avatar ? (
+              <img src={peer.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
+                {peer?.name?.[0] || peerName[0] || '?'}
+              </div>
+            )}
             
-            <div>
-              <h1 className="font-bold text-gray-900">{peer?.name || peerName}</h1>
-            </div>
+            <h1 className="font-bold text-gray-900">{peer?.name || peerName}</h1>
           </div>
         </div>
 
@@ -256,41 +225,24 @@ function ChatContent() {
             <div className="px-4 py-2 bg-gray-100/80 rounded-full text-sm text-gray-500">🎉 开始聊天吧～</div>
           </div>
           
-          {messages.map(m => (
-            <MessageBubble key={m.id} msg={m} isOwn={m.senderId === myId} onImgClick={setPreviewImg} />
+          {msgs.map(m => (
+            <Bubble key={m.id} msg={m} isOwn={m.senderId === myId} onImg={setImg} />
           ))}
           <div ref={endRef} />
         </div>
 
-        {/* Emoji */}
-        <AnimatePresence>
-          {false && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-              className="bg-white/90 border-t px-4 py-2">
-              <div className="flex flex-wrap gap-1">
-                {emojis.map((e, i) => (
-                  <button key={i} onClick={() => setInput(p => p + e)} className="w-8 h-8 text-lg hover:bg-gray-100 rounded">{e}</button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Input */}
         <div className="sticky bottom-0 bg-white/90 backdrop-blur-xl border-t px-4 py-3">
           <div className="flex items-end gap-2">
-            <button onClick={() => {}} className="p-2 hover:bg-gray-100 rounded-full">
-              <Smile className="w-6 h-6 text-gray-500" />
-            </button>
-            <button onClick={handleSendImage} disabled={sending} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50">
+            <button onClick={sendImg} disabled={sending} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50">
               <Image className="w-6 h-6 text-gray-500" />
             </button>
-            <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+            <textarea ref={textareaRef} value={text} onChange={e => setText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               placeholder="输入消息..." rows={1}
               className="flex-1 px-4 py-2.5 bg-gray-100/50 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 text-sm"
               style={{ minHeight: '40px', maxHeight: '80px' }} />
-            <button onClick={handleSend} disabled={!input.trim() || sending}
+            <button onClick={send} disabled={!text.trim() || sending}
               className="p-2.5 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full shadow-lg disabled:opacity-50">
               <Send className="w-5 h-5" />
             </button>
@@ -299,13 +251,13 @@ function ChatContent() {
 
         {/* Preview */}
         <AnimatePresence>
-          {previewImg && (
+          {img && (
             <motion.div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPreviewImg(null)}>
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setImg(null)}>
               <button className="absolute top-4 right-4 p-2 bg-white/20 rounded-full text-white">
                 <X className="w-6 h-6" />
               </button>
-              <img src={previewImg} alt="" className="max-w-full max-h-full object-contain" />
+              <img src={img} alt="" className="max-w-full max-h-full object-contain" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -314,14 +266,14 @@ function ChatContent() {
   )
 }
 
-export default function ConversationPage() {
+export default function Page() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
         <div className="text-rose-500">加载中...</div>
       </div>
     }>
-      <ChatContent />
+      <Chat />
     </Suspense>
   )
 }
