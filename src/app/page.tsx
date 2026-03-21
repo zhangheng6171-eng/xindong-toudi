@@ -468,8 +468,16 @@ function LoggedInHome() {
     setDailyLikesUsed(checkDailyLikes())
     setMounted(true)
 
+    // 页面加载时获取用户列表
     loadUsers()
   }, [])
+
+  // 当用户登录状态变化时，重新加载用户列表
+  useEffect(() => {
+    if (mounted && currentUser) {
+      loadUsers()
+    }
+  }, [currentUser])
 
   // 分离用户加载逻辑
   const loadUsers = async () => {

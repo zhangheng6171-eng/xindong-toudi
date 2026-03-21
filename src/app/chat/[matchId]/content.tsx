@@ -236,33 +236,31 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 获取消息列表
   const fetchMessages = useCallback(async () => {
-    if (!currentUser || !matchId) return
+    if (!currentUser || !matchId || !otherUser) return
 
     setIsLoading(true)
 
     try {
-      // 尝试从 API 获取
-      if (conversationId) {
-        const response = await fetch(`/api/chat/messages?conversationId=${conversationId}`, {
-          headers: {
-            'X-User-Id': currentUser.id,
-          },
-        })
+      // 尝试从 API 获取 - 使用 userId1 和 userId2 参数
+      const response = await fetch(`/api/chat/messages?userId1=${currentUser.id}&userId2=${otherUser.id}`, {
+        headers: {
+          'X-User-Id': currentUser.id,
+        },
+      })
 
-        if (response.ok) {
-          const data = await response.json()
-          const apiMessages = (data.messages || []).map((m: any) => ({
-            id: m.id,
-            senderId: m.senderId,
-            text: m.content,
-            timestamp: new Date(m.createdAt),
-            status: m.status as 'sending' | 'sent' | 'read',
-            type: m.type as 'text' | 'image' | 'system',
-          }))
-          setMessages(apiMessages)
-          setIsLoading(false)
-          return
-        }
+      if (response.ok) {
+        const data = await response.json()
+        const apiMessages = (data.messages || []).map((m: any) => ({
+          id: m.id,
+          senderId: m.senderId,
+          text: m.content,
+          timestamp: new Date(m.createdAt),
+          status: m.status as 'sending' | 'sent' | 'read',
+          type: m.type as 'text' | 'image' | 'system',
+        }))
+        setMessages(apiMessages)
+        setIsLoading(false)
+        return
       }
 
       // 从 localStorage 获取（后备方案）
@@ -280,7 +278,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     } finally {
       setIsLoading(false)
     }
-  }, [currentUser, matchId, conversationId])
+  }, [currentUser, matchId, otherUser])
 
   // 发送消息
   const handleSendMessage = async () => {
@@ -308,28 +306,27 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
     try {
       // 尝试通过 API 发送
-      if (conversationId) {
-        const response = await fetch('/api/chat/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Id': currentUser.id,
-          },
-          body: JSON.stringify({
-            conversationId,
-            content: newMessage.text,
-            type: 'text',
-          }),
-        })
+      const response = await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': currentUser.id,
+        },
+        body: JSON.stringify({
+          senderId: currentUser.id,
+          receiverId: otherUser.id,
+          text: newMessage.text,
+          type: 'text',
+        }),
+      })
 
-        if (response.ok) {
-          // 更新本地存储
-          saveMessageToLocal(newMessage)
-          setMessages(prev =>
-            prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
-          )
-          return
-        }
+      if (response.ok) {
+        // 更新本地存储
+        saveMessageToLocal(newMessage)
+        setMessages(prev =>
+          prev.map(m => m.id === newMessage.id ? { ...m, status: 'sent' as const } : m)
+        )
+        return
       }
 
       // 保存到 localStorage（后备方案）
