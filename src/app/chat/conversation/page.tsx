@@ -4,11 +4,11 @@ import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { 
-  ArrowLeft, Send, Image, Smile, MoreVertical, Phone, Video,
+  ArrowLeft, Send, Image, Smile, MoreVertical,
   Check, CheckCheck, X, ChevronDown, Loader2, Circle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AnimatedBackground, GlassCard, FadeIn } from '@/components/animated-background'
+import { AnimatedBackground, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
 import { sendMessageFeedback, errorFeedback } from '@/lib/haptics'
@@ -64,7 +64,6 @@ async function fetchMessagesFromAPI(userId1: string, userId2: string): Promise<M
     return data.map((m: any) => ({
       id: m.id,
       senderId: m.sender_id,
-      receiverId: m.receiver_id,
       text: m.content,
       type: m.type || 'text',
       timestamp: new Date(m.created_at),
@@ -143,7 +142,6 @@ async function fetchUserInfo(userId: string): Promise<any> {
 // 更新用户在线状态到Supabase
 async function updateOnlineStatus(userId: string, isOnline: boolean) {
   try {
-    // 存储到users表的last_active字段
     await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -175,12 +173,10 @@ async function getUserOnlineStatus(userId: string): Promise<{ isOnline: boolean;
     const diffMs = now.getTime() - lastActive.getTime()
     const diffSecs = Math.floor(diffMs / 1000)
     
-    // 60秒内视为在线
     if (diffSecs < 60) {
       return { isOnline: true, lastActiveText: '在线' }
     }
     
-    // 生成离线时间描述
     let lastActiveText = '离线'
     if (diffSecs < 3600) {
       lastActiveText = `${Math.floor(diffSecs / 60)}分钟前`
@@ -199,7 +195,7 @@ async function getUserOnlineStatus(userId: string): Promise<{ isOnline: boolean;
 function ConversationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentUser, isLoading: authLoading } = useAuth()
+  const { currentUser } = useAuth()
   
   const userId = searchParams.get('userId')
   const currentUserId = currentUser?.id || 'local_user'
@@ -213,27 +209,26 @@ function ConversationContent() {
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [background, setBackground] = useState('romance')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // 使用 ref 追踪状态，避免不必要的重渲染
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const prevMessagesLengthRef = useRef(0)
+  const isInitialLoadRef = useRef(true)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // 常用表情
-  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎']
+  const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫']
 
   const addEmoji = (emoji: string) => {
     setInputText(prev => prev + emoji)
     inputRef.current?.focus()
   }
 
-  // 获取对方用户信息（包括头像）
+  // 获取对方用户信息
   useEffect(() => {
     if (!userId) return
 
     const loadUserInfo = async () => {
       const urlNickname = searchParams.get('nickname')
-      
-      // 从Supabase获取用户信息
       const userData = await fetchUserInfo(userId)
       
       const basicUser: OtherUser = {
@@ -248,7 +243,6 @@ function ConversationContent() {
         lastActiveTime: null
       }
       
-      // 获取在线状态
       const { isOnline, lastActiveText } = await getUserOnlineStatus(userId)
       basicUser.isOnline = isOnline
       basicUser.lastActive = lastActiveText
@@ -263,15 +257,12 @@ function ConversationContent() {
   useEffect(() => {
     if (!currentUserId || currentUserId === 'local_user') return
     
-    // 初始更新
     updateOnlineStatus(currentUserId, true)
     
-    // 每30秒更新一次
     const interval = setInterval(() => {
       updateOnlineStatus(currentUserId, true)
     }, 30000)
     
-    // 页面关闭时标记离线
     const handleBeforeUnload = () => {
       updateOnlineStatus(currentUserId, false)
     }
@@ -284,52 +275,64 @@ function ConversationContent() {
     }
   }, [currentUserId])
 
-  // 从API加载消息
-  const loadMessages = useCallback(async () => {
+  // 加载消息（静默加载，不显示loading）
+  const loadMessages = useCallback(async (isRefresh: boolean = false) => {
     if (!currentUserId || !userId || currentUserId === 'local_user') return
     
-    setIsLoadingMessages(true)
     const msgs = await fetchMessagesFromAPI(currentUserId, userId)
-    setMessages(msgs)
-    setIsLoadingMessages(false)
-  }, [currentUserId, userId])
-
-  // 加载消息
-  useEffect(() => {
-    if (otherUser && currentUserId && currentUserId !== 'local_user') {
-      loadMessages()
-    }
-  }, [otherUser, currentUserId, loadMessages])
-
-  // 定期刷新消息和在线状态
-  useEffect(() => {
-    if (!otherUser || !currentUserId || currentUserId === 'local_user') return
     
-    const interval = setInterval(async () => {
-      // 刷新消息
-      const msgs = await fetchMessagesFromAPI(currentUserId, userId!)
-      setMessages(prev => {
-        // 合并新消息
+    setMessages(prev => {
+      if (isRefresh) {
+        // 刷新模式：只添加新消息
         const prevIds = new Set(prev.map(m => m.id))
         const newMessages = msgs.filter(m => !prevIds.has(m.id))
         if (newMessages.length > 0) {
           return [...prev, ...newMessages]
         }
         return prev
-      })
+      } else {
+        // 初次加载：替换全部
+        return msgs
+      }
+    })
+  }, [currentUserId, userId])
+
+  // 初始加载消息
+  useEffect(() => {
+    if (otherUser && currentUserId && currentUserId !== 'local_user') {
+      loadMessages(false)
+      isInitialLoadRef.current = false
+    }
+  }, [otherUser, currentUserId, loadMessages])
+
+  // 定期刷新消息和在线状态（静默刷新）
+  useEffect(() => {
+    if (!otherUser || !currentUserId || currentUserId === 'local_user') return
+    
+    const interval = setInterval(async () => {
+      // 静默刷新消息
+      loadMessages(true)
       
-      // 刷新在线状态
+      // 静默刷新在线状态
       const { isOnline, lastActiveText } = await getUserOnlineStatus(userId!)
-      setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
-    }, 3000) // 每3秒刷新
+      setOtherUser(prev => {
+        if (prev && (prev.isOnline !== isOnline || prev.lastActive !== lastActiveText)) {
+          return { ...prev, isOnline, lastActive: lastActiveText }
+        }
+        return prev
+      })
+    }, 3000)
     
     return () => clearInterval(interval)
-  }, [otherUser, currentUserId, userId])
+  }, [otherUser, currentUserId, userId, loadMessages])
 
-  // 滚动到底部
+  // 只在消息数量变化时滚动到底部
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (messages.length > prevMessagesLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length])
 
   // 发送消息
   const handleSendMessage = async () => {
@@ -356,7 +359,6 @@ function ConversationContent() {
     setInputText('')
     setMessages(prev => [...prev, newMessage])
 
-    // 发送到Supabase
     const sentMessage = await sendMessageToAPI(currentUserId, userId!, inputText.trim(), 'text')
     
     if (sentMessage) {
@@ -364,7 +366,6 @@ function ConversationContent() {
         m.id === tempId ? sentMessage : m
       ))
     } else {
-      // 发送失败，标记为sent以便用户可以重试
       setMessages(prev => prev.map(m => 
         m.id === tempId ? { ...m, status: 'sent' as const } : m
       ))
@@ -448,17 +449,6 @@ function ConversationContent() {
     message: Message
     isOwn: boolean
   }) => {
-    const [showActions, setShowActions] = useState(false)
-    const [copied, setCopied] = useState(false)
-
-    const handleCopy = () => {
-      if (message.type === 'text') {
-        navigator.clipboard.writeText(message.text)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }
-    }
-
     const statusIcon = () => {
       if (!isOwn) return null
       switch (message.status) {
@@ -483,16 +473,14 @@ function ConversationContent() {
     return (
       <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
         <div className="relative max-w-[75%]">
-          <motion.div
+          <div
             className={`
-              relative px-4 py-2.5 rounded-2xl cursor-pointer
+              relative px-4 py-2.5 rounded-2xl
               ${isOwn 
                 ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-br-md' 
                 : 'bg-white/90 backdrop-blur-sm text-gray-800 rounded-bl-md shadow-sm border border-gray-100/50'
               }
             `}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowActions(!showActions)}
           >
             {message.type === 'image' ? (
               <img src={message.text} alt="图片" className="rounded-lg max-w-[200px]" onClick={() => setSelectedImage(message.text)} />
@@ -506,26 +494,11 @@ function ConversationContent() {
               </span>
               {isOwn && statusIcon()}
             </div>
-          </motion.div>
+          </div>
 
           {isOwn && message.status === 'read' && (
             <p className="text-xs text-blue-500 mt-1 text-right">已读</p>
           )}
-
-          <AnimatePresence>
-            {showActions && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className={`absolute ${isOwn ? 'right-0' : 'left-0'} top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 min-w-[100px]`}
-              >
-                <button onClick={(e) => { e.stopPropagation(); handleCopy(); setShowActions(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
-                  {copied ? '✓ 已复制' : '复制'}
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     )
@@ -573,8 +546,7 @@ function ConversationContent() {
                     {otherUser.nickname[0]}
                   </div>
                 )}
-                {/* 在线状态指示点 */}
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${otherUser.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${otherUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
               </div>
               <div>
                 <h1 className="font-bold text-gray-900">{otherUser.nickname}</h1>
@@ -586,14 +558,11 @@ function ConversationContent() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <MoreVertical className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
+            <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <MoreVertical className="w-5 h-5 text-gray-500" />
+            </button>
           </div>
 
-          {/* Menu */}
           <AnimatePresence>
             {showMenu && (
               <motion.div
@@ -623,11 +592,7 @@ function ConversationContent() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {isLoadingMessages ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-pulse text-gray-400">加载消息中...</div>
-            </div>
-          ) : messages.length === 0 ? (
+          {messages.length === 0 ? (
             <div className="flex justify-center py-8">
               <div className="text-gray-400 text-sm">暂无消息，开始聊天吧～</div>
             </div>
@@ -660,7 +625,7 @@ function ConversationContent() {
 
         {/* 话题推荐 */}
         <AnimatePresence>
-          {showSuggestions && messages.length === 0 && !isLoadingMessages && (
+          {showSuggestions && messages.length === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
