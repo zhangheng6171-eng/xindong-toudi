@@ -85,11 +85,43 @@ const Bubble = memo(function Bubble({ msg, isOwn, onImg }: { msg: any; isOwn: bo
 
 function Chat() {
   const params = useSearchParams()
-  const { currentUser } = useAuth()
+  const { currentUser, isLoading } = useAuth()
   
   const peerId = params.get('userId') || ''
   const peerName = params.get('nickname') || '用户'
   const myId = currentUser?.id || ''
+  
+  // 加载状态
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+        <div className="text-rose-500">正在加载用户信息...</div>
+      </div>
+    )
+  }
+  
+  // 未登录或无效的 peerId
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+        <div className="text-center">
+          <div className="text-rose-500 mb-4">请先登录</div>
+          <a href="/login" className="text-rose-500 underline">去登录</a>
+        </div>
+      </div>
+    )
+  }
+  
+  if (!peerId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50">
+        <div className="text-center">
+          <div className="text-rose-500 mb-4">无效的聊天对象</div>
+          <a href="/" className="text-rose-500 underline">返回首页</a>
+        </div>
+      </div>
+    )
+  }
   
   const [peer, setPeer] = useState<{ name: string; avatar: string | null } | null>(null)
   const [msgs, setMsgs] = useState<any[]>([])

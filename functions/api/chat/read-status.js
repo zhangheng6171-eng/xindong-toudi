@@ -1,5 +1,6 @@
 /**
  * 获取已读状态 API - 使用 Supabase REST API
+ * 查询对方发送给我的最新已读消息的时间
  */
 
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
@@ -20,9 +21,9 @@ export async function onRequestGet(context) {
       })
     }
     
-    // 从 read_receipts 表查询已读状态
+    // 查询对方发送给我的已读消息中，最新的已读消息的创建时间
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/read_receipts?user_id=eq.${userId}&other_user_id=eq.${otherUserId}&select=last_read_at`,
+      `${SUPABASE_URL}/rest/v1/messages?sender_id=eq.${otherUserId}&receiver_id=eq.${userId}&status=eq.read&select=created_at&order=created_at.desc&limit=1`,
       {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -31,11 +32,11 @@ export async function onRequestGet(context) {
       }
     )
     
-    const receipts = await response.json()
+    const messages = await response.json()
     
     let lastReadAt = null
-    if (Array.isArray(receipts) && receipts.length > 0) {
-      lastReadAt = receipts[0].last_read_at
+    if (Array.isArray(messages) && messages.length > 0) {
+      lastReadAt = messages[0].created_at
     }
     
     return new Response(JSON.stringify({ 
@@ -66,7 +67,7 @@ export async function onRequestOptions() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, X-User-Id'
     }
   })
 }

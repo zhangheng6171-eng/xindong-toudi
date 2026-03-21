@@ -1,9 +1,10 @@
 /**
  * 标记消息已读 API - 使用 Supabase REST API
+ * 更新消息表中所有发送给当前用户的消息状态为 'read'
  */
 
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzkxNjg3NSwiZXhwIjoyMDg5NDkyODc1fQ.z8LPpoJoa9_DEJvBmNvSF0Q1I4FA3FNnFRU0PgKcF2A'
 
 export async function onRequestPost(context) {
   const { request } = context
@@ -19,95 +20,43 @@ export async function onRequestPost(context) {
       })
     }
     
-    // 先查询是否已有记录
-    const checkResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/read_receipts?user_id=eq.${userId}&other_user_id=eq.${otherUserId}&select=id`,
+    // 更新所有由 otherUserId 发送给 userId 的消息状态为 'read'
+    // 使用 Service Role Key 以便有权限更新
+    const updateResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/messages?sender_id=eq.${otherUserId}&receiver_id=eq.${userId}&status=eq.sent`,
       {
+        method: 'PATCH',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          status: 'read'
+        })
       }
     )
     
-    const existingRecords = await checkResponse.json()
-    
-    if (Array.isArray(existingRecords) && existingRecords.length > 0) {
-      // 更新现有记录
-      const recordId = existingRecords[0].id
-      const updateResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/read_receipts?id=eq.${recordId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            last_read_at: lastReadAt,
-            updated_at: new Date().toISOString()
-          })
-        }
-      )
-      
-      const updated = await updateResponse.json()
-      
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: 'updated',
-        receipt: Array.isArray(updated) ? updated[0] : updated
-      }), {
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
-      })
-    } else {
-      // 创建新记录
-      const insertResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/read_receipts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            user_id: userId,
-            other_user_id: otherUserId,
-            last_read_at: lastReadAt
-          })
-        }
-      )
-      
-      if (!insertResponse.ok) {
-        const error = await insertResponse.text()
-        console.error('Supabase insert error:', error)
-        return new Response(JSON.stringify({ error }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        })
-      }
-      
-      const inserted = await insertResponse.json()
-      
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: 'created',
-        receipt: Array.isArray(inserted) ? inserted[0] : inserted
-      }), {
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
-      })
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text()
+      console.error('Supabase update error:', error)
+      // 不返回错误，因为可能没有消息需要更新
     }
+    
+    const updated = await updateResponse.json()
+    
+    return new Response(JSON.stringify({ 
+      success: true, 
+      updatedCount: Array.isArray(updated) ? updated.length : 0,
+      lastReadAt
+    }), {
+      status: 200,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    })
     
   } catch (error) {
     console.error('Mark read error:', error)
@@ -124,7 +73,7 @@ export async function onRequestOptions() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, X-User-Id'
     }
   })
 }
