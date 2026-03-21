@@ -491,7 +491,13 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
   // 标记消息为已读（当对方打开聊天时）
   const markMessagesAsRead = () => {
     if (!currentUser || !matchId) return
-    localStorage.setItem(`xindong_last_read_${currentUser.id}_${matchId}`, new Date().toISOString())
+    const now = new Date().toISOString()
+    // 存储自己已读的时间戳（供对方读取）
+    localStorage.setItem(`xindong_last_read_${currentUser.id}_${matchId}`, now)
+    // 同时存储到共享存储，供对方检查
+    localStorage.setItem(`xindong_read_${matchId}_${currentUser.id}`, now)
+    // 通知对方我已读
+    localStorage.setItem(`xindong_read_receipt_${matchId}_${currentUser.id}_${otherUser?.id}`, now)
   }
   
   // 进入聊天时标记已读
@@ -502,6 +508,35 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
       markMessagesAsRead()
     }
   }, [currentUser, matchId])
+
+  // 定期检查对方是否已读我们的消息
+  useEffect(() => {
+    if (!currentUser || !matchId || !otherUser) return
+
+    const checkReadReceipt = () => {
+      // 检查对方是否已读我的消息
+      const lastReadTime = localStorage.getItem(`xindong_read_${matchId}_${otherUser.id}`)
+      if (!lastReadTime) return
+
+      const readTime = new Date(lastReadTime).getTime()
+      setMessages(prev => 
+        prev.map(m => {
+          // 只更新我发送的消息，且时间早于对方已读时间
+          if (m.senderId === currentUser.id && m.timestamp.getTime() <= readTime && m.status !== 'read') {
+            return { ...m, status: 'read' as const }
+          }
+          return m
+        })
+      )
+    }
+
+    // 立即检查一次
+    checkReadReceipt()
+    
+    // 每3秒检查一次
+    const interval = setInterval(checkReadReceipt, 3000)
+    return () => clearInterval(interval)
+  }, [currentUser, matchId, otherUser])
 
   // 话题建议
   const topicSuggestions = [
@@ -919,15 +954,21 @@ function MessageBubble({ message, isOwn, onRetry, onRecall }: { message: Message
           </motion.div>
         )}
 
-        <div className={`flex items-center mt-1 text-xs text-gray-400 ${isOwn ? 'justify-end' : ''}`}>
-          <span>{formatTime(message.timestamp)}</span>
+        <div className={`flex items-center mt-1 text-xs ${isOwn ? 'justify-end' : ''}`}>
+          <span className="text-gray-400">{formatTime(message.timestamp)}</span>
           {isOwn && message.status !== 'sending' && (
-            <span className="ml-1">
-              {message.status === 'read' ? <span className="text-rose-500">✓✓</span> : '✓'}
+            <span className="ml-1 flex items-center gap-0.5">
+              {message.status === 'read' ? (
+                <span className="text-blue-400 flex items-center" title="对方已读">
+                  <span>✓</span><span>✓</span>
+                </span>
+              ) : (
+                <span className="text-gray-400" title="已送达">✓</span>
+              )}
             </span>
           )}
           {message.status === 'sending' && (
-            <span className="ml-1">发送中...</span>
+            <span className="ml-1 text-gray-400">发送中...</span>
           )}
         </div>
       </div>
