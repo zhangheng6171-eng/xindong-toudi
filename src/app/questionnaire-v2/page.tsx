@@ -18,52 +18,52 @@ interface QuestionnaireProps {
   onComplete?: (answers: Record<string, any>) => void
 }
 
-export default function Questionnaire() {
+export default function Questionnaire({ onComplete }: QuestionnaireProps) {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [isCompleted, setIsCompleted] = useState(false)
-  
-  const onComplete = (answers: Record<string, any>) => {
-    console.log('Questionnaire completed:', answers)
-    // 保存答案到 localStorage
-    localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
-  }
 
-  const handleViewResults = () => {
+  const handleViewResults = useCallback(() => {
     router.push('/dashboard')
-  }
+  }, [router])
 
   const currentQuestion = questions[currentIndex]
-  const progress = ((currentIndex + 1) / questions.length) * 100
+  
+  // 使用 useMemo 缓存进度计算
+  const progress = useMemo(() => 
+    ((currentIndex + 1) / questions.length) * 100,
+    [currentIndex]
+  )
 
-  const handleAnswer = (answer: any) => {
+  const handleAnswer = useCallback((answer: any) => {
     setAnswers(prev => ({
       ...prev,
       [currentQuestion.code]: answer
     }))
-  }
+  }, [currentQuestion.code])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1)
     } else {
       setIsCompleted(true)
+      localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
       onComplete?.(answers)
     }
-  }
+  }, [currentIndex, answers, onComplete])
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1)
     }
-  }
+  }, [currentIndex])
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1)
     }
-  }
+  }, [currentIndex])
 
   if (isCompleted) {
     return (
@@ -213,8 +213,8 @@ export default function Questionnaire() {
   )
 }
 
-// 题型渲染组件
-function QuestionRenderer({ 
+// 题型渲染组件 - 使用 memo 优化
+const QuestionRenderer = memo(function QuestionRenderer({ 
   question, 
   answer, 
   onAnswer 
@@ -272,10 +272,10 @@ function QuestionRenderer({
     default:
       return <div className="text-gray-400">暂不支持此题型</div>
   }
-}
+})
 
-// 单选题
-function SingleChoice({ 
+// 单选题 - 使用 memo 优化
+const SingleChoice = memo(function SingleChoice({ 
   options, 
   value, 
   onChange 
@@ -300,7 +300,7 @@ function SingleChoice({
           whileTap={{ scale: 0.99 }}
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: index * 0.03 }}
         >
           <input
             type="radio"
@@ -319,7 +319,6 @@ function SingleChoice({
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500 }}
               >
                 <Check className="w-4 h-4 text-white" strokeWidth={3} />
               </motion.div>
@@ -330,10 +329,10 @@ function SingleChoice({
       ))}
     </div>
   )
-}
+})
 
-// 多选题
-function MultipleChoice({ 
+// 多选题 - 使用 memo 优化
+const MultipleChoice = memo(function MultipleChoice({ 
   options, 
   values, 
   onChange 
@@ -342,13 +341,13 @@ function MultipleChoice({
   values: string[] 
   onChange: (v: string[]) => void 
 }) {
-  const toggleOption = (optionValue: string) => {
+  const toggleOption = useCallback((optionValue: string) => {
     if (values.includes(optionValue)) {
       onChange(values.filter(v => v !== optionValue))
     } else {
       onChange([...values, optionValue])
     }
-  }
+  }, [values, onChange])
 
   return (
     <div className="space-y-3">
@@ -366,7 +365,7 @@ function MultipleChoice({
           whileTap={{ scale: 0.99 }}
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: index * 0.03 }}
         >
           <input
             type="checkbox"
@@ -383,7 +382,6 @@ function MultipleChoice({
               <motion.div
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 500 }}
               >
                 <Check className="w-4 h-4 text-white" strokeWidth={3} />
               </motion.div>
@@ -394,10 +392,10 @@ function MultipleChoice({
       ))}
     </div>
   )
-}
+})
 
-// 量表题
-function LikertScale({ 
+// 量表题 - 使用 memo 优化
+const LikertScale = memo(function LikertScale({ 
   question,
   value, 
   onChange 
@@ -410,14 +408,16 @@ function LikertScale({
   if (!config) return null
 
   const max = config.max
-  const labels = []
-  for (let i = config.min; i <= max; i++) {
-    labels.push(i)
-  }
+  const labels = useMemo(() => {
+    const arr = []
+    for (let i = config.min; i <= max; i++) {
+      arr.push(i)
+    }
+    return arr
+  }, [config.min, max])
 
   return (
     <div className="space-y-6 py-4">
-      {/* 量表 */}
       <div className="flex justify-between gap-2 sm:gap-3">
         {labels.map((num, index) => (
           <motion.button
@@ -432,24 +432,22 @@ function LikertScale({
             whileTap={{ scale: 0.95 }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
+            transition={{ delay: index * 0.03 }}
           >
             {num}
           </motion.button>
         ))}
       </div>
-      
-      {/* 标签 */}
       <div className="flex justify-between text-sm text-gray-500 px-1">
         <span className="max-w-[40%] text-left">{config.minLabel}</span>
         <span className="max-w-[40%] text-right">{config.maxLabel}</span>
       </div>
     </div>
   )
-}
+})
 
-// 排序题
-function RankingQuestion({ 
+// 排序题 - 使用 memo 优化
+const RankingQuestion = memo(function RankingQuestion({ 
   items, 
   value, 
   onChange 
@@ -462,20 +460,19 @@ function RankingQuestion({
     value.length > 0 ? value : [...items]
   )
 
-  const moveItem = (fromIndex: number, direction: 'up' | 'down') => {
+  const moveItem = useCallback((fromIndex: number, direction: 'up' | 'down') => {
     const newOrder = [...currentOrder]
     const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1
     
     if (toIndex < 0 || toIndex >= newOrder.length) return
     
-    // 交换
     const temp = newOrder[fromIndex]
     newOrder[fromIndex] = newOrder[toIndex]
     newOrder[toIndex] = temp
     
     setCurrentOrder(newOrder)
     onChange(newOrder)
-  }
+  }, [currentOrder, onChange])
 
   return (
     <div className="space-y-3">
@@ -496,7 +493,7 @@ function RankingQuestion({
           `}
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: index * 0.03 }}
         >
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm mr-4 shadow-lg ${
             index === 0 
@@ -534,10 +531,10 @@ function RankingQuestion({
       ))}
     </div>
   )
-}
+})
 
-// 开放文本题
-function OpenText({ 
+// 开放文本题 - 使用 memo 优化
+const OpenText = memo(function OpenText({ 
   value, 
   onChange 
 }: { 
@@ -554,4 +551,4 @@ function OpenText({
       animate={{ opacity: 1, y: 0 }}
     />
   )
-}
+})
