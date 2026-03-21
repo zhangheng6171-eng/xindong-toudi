@@ -5,14 +5,17 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   ArrowLeft, Send, Image, Smile, MoreVertical, Phone, Video,
-  ArrowRight, Check, CheckCheck, Copy, RefreshCw, Trash2,
-  Download, X, ChevronDown, Sparkles, Loader2, Circle
+  Check, CheckCheck, X, ChevronDown, Loader2, Circle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AnimatedBackground, GlassCard, GradientButton, GradientText, FadeIn } from '@/components/animated-background'
+import { AnimatedBackground, GlassCard, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
 import { sendMessageFeedback, errorFeedback } from '@/lib/haptics'
+
+// Supabase 配置
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
 // 消息类型
 interface Message {
@@ -37,99 +40,149 @@ interface OtherUser {
   lastActiveTime: Date | null
 }
 
-// 在线状态管理
-const ONLINE_THRESHOLD_MS = 30000 // 30秒内活跃视为在线
-
-// 广播频道 - 用于跨标签页通信
-const ONLINE_STATUS_CHANNEL = 'xindong_online_status'
-const CHAT_CHANNEL = 'xindong_chat_messages'
-
-// 在线状态事件
-interface OnlineStatusEvent {
-  type: 'online' | 'offline'
-  userId: string
-  timestamp: number
-}
-
-// 消息事件
-interface ChatMessageEvent {
-  type: 'new_message' | 'message_read'
-  chatKey: string
-  message?: Message
-  messageIds?: string[]
-}
-
-// 全局广播频道（单例）
-let onlineChannel: BroadcastChannel | null = null
-let chatChannel: BroadcastChannel | null = null
-
-function getOnlineChannel(): BroadcastChannel {
-  if (!onlineChannel) {
-    onlineChannel = new BroadcastChannel(ONLINE_STATUS_CHANNEL)
-  }
-  return onlineChannel
-}
-
-function getChatChannel(): BroadcastChannel {
-  if (!chatChannel) {
-    chatChannel = new BroadcastChannel(CHAT_CHANNEL)
-  }
-  return chatChannel
-}
-
-// 更新用户在线状态（本地存储 + 广播）
-function updateUserOnlineStatus(userId: string) {
-  if (typeof window === 'undefined') return
-  
-  const timestamp = Date.now()
-  
-  // 本地存储
-  localStorage.setItem(`xindong_online_${userId}`, JSON.stringify({
-    userId,
-    timestamp,
-    isOnline: true
-  }))
-  
-  // 广播给其他标签页
+// 从Supabase获取消息
+async function fetchMessagesFromAPI(userId1: string, userId2: string): Promise<Message[]> {
   try {
-    const channel = getOnlineChannel()
-    channel.postMessage({
-      type: 'online',
-      userId,
-      timestamp
-    } as OnlineStatusEvent)
-  } catch (e) {
-    console.error('Failed to broadcast online status:', e)
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/messages?or=(and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1}))&select=*&order=created_at.asc`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      }
+    )
+    
+    if (!response.ok) {
+      console.error('Failed to fetch messages:', await response.text())
+      return []
+    }
+    
+    const data = await response.json()
+    if (!Array.isArray(data)) return []
+    
+    return data.map((m: any) => ({
+      id: m.id,
+      senderId: m.sender_id,
+      receiverId: m.receiver_id,
+      text: m.content,
+      type: m.type || 'text',
+      timestamp: new Date(m.created_at),
+      status: m.status || 'sent'
+    }))
+  } catch (error) {
+    console.error('Error fetching messages:', error)
+    return []
   }
 }
 
-// 获取用户在线状态（从localStorage读取）
-function getUserOnlineStatus(userId: string): { isOnline: boolean; lastActiveText: string } {
-  if (typeof window === 'undefined') {
-    return { isOnline: false, lastActiveText: '离线' }
-  }
-  
+// 发送消息到Supabase
+async function sendMessageToAPI(senderId: string, receiverId: string, text: string, type: string = 'text'): Promise<Message | null> {
   try {
-    const data = localStorage.getItem(`xindong_online_${userId}`)
-    if (!data) {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: text,
+        type,
+        status: 'sent'
+      })
+    })
+    
+    if (!response.ok) {
+      console.error('Failed to send message:', await response.text())
+      return null
+    }
+    
+    const data = await response.json()
+    const message = Array.isArray(data) ? data[0] : data
+    
+    return {
+      id: message.id,
+      senderId: message.sender_id,
+      text: message.content,
+      type: message.type || 'text',
+      timestamp: new Date(message.created_at),
+      status: message.status || 'sent'
+    }
+  } catch (error) {
+    console.error('Error sending message:', error)
+    return null
+  }
+}
+
+// 获取用户信息（包括头像）
+async function fetchUserInfo(userId: string): Promise<any> {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=*`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      }
+    )
+    
+    if (!response.ok) return null
+    const data = await response.json()
+    return Array.isArray(data) && data.length > 0 ? data[0] : null
+  } catch (error) {
+    console.error('Error fetching user info:', error)
+    return null
+  }
+}
+
+// 更新用户在线状态到Supabase
+async function updateOnlineStatus(userId: string, isOnline: boolean) {
+  try {
+    // 存储到users表的last_active字段
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        last_active: new Date().toISOString(),
+        is_online: isOnline
+      })
+    })
+  } catch (error) {
+    console.error('Error updating online status:', error)
+  }
+}
+
+// 获取用户在线状态
+async function getUserOnlineStatus(userId: string): Promise<{ isOnline: boolean; lastActiveText: string }> {
+  try {
+    const user = await fetchUserInfo(userId)
+    if (!user || !user.last_active) {
       return { isOnline: false, lastActiveText: '离线' }
     }
     
-    const parsed = JSON.parse(data)
-    const now = Date.now()
-    const diffMs = now - parsed.timestamp
+    const lastActive = new Date(user.last_active)
+    const now = new Date()
+    const diffMs = now.getTime() - lastActive.getTime()
     const diffSecs = Math.floor(diffMs / 1000)
     
-    // 30秒内视为在线
-    if (diffSecs < 30) {
+    // 60秒内视为在线
+    if (diffSecs < 60) {
       return { isOnline: true, lastActiveText: '在线' }
     }
     
     // 生成离线时间描述
     let lastActiveText = '离线'
-    if (diffSecs < 60) {
-      lastActiveText = `${diffSecs}秒前`
-    } else if (diffSecs < 3600) {
+    if (diffSecs < 3600) {
       lastActiveText = `${Math.floor(diffSecs / 60)}分钟前`
     } else if (diffSecs < 86400) {
       lastActiveText = `${Math.floor(diffSecs / 3600)}小时前`
@@ -138,82 +191,8 @@ function getUserOnlineStatus(userId: string): { isOnline: boolean; lastActiveTex
     }
     
     return { isOnline: false, lastActiveText }
-  } catch (e) {
+  } catch (error) {
     return { isOnline: false, lastActiveText: '离线' }
-  }
-}
-
-// 保存消息到localStorage并广播
-function saveAndBroadcastMessage(chatKey: string, message: Message) {
-  if (typeof window === 'undefined') return
-  
-  // 保存到localStorage
-  const stored = localStorage.getItem(chatKey)
-  let messages: Message[] = []
-  
-  if (stored) {
-    try {
-      messages = JSON.parse(stored)
-    } catch (e) {
-      messages = []
-    }
-  }
-  
-  // 检查是否已存在
-  if (!messages.find(m => m.id === message.id)) {
-    messages.push(message)
-    localStorage.setItem(chatKey, JSON.stringify(messages))
-    
-    // 广播给其他标签页
-    try {
-      const channel = getChatChannel()
-      channel.postMessage({
-        type: 'new_message',
-        chatKey,
-        message
-      } as ChatMessageEvent)
-    } catch (e) {
-      console.error('Failed to broadcast message:', e)
-    }
-  }
-}
-
-// 标记消息已读并广播
-function markMessagesAsRead(chatKey: string, messageIds: string[]) {
-  if (typeof window === 'undefined') return
-  
-  const stored = localStorage.getItem(chatKey)
-  if (!stored) return
-  
-  try {
-    const messages: Message[] = JSON.parse(stored)
-    let hasChanges = false
-    
-    const updatedMessages = messages.map(m => {
-      if (messageIds.includes(m.id) && m.status !== 'read' && m.status !== 'recalled') {
-        hasChanges = true
-        return { ...m, status: 'read' as const }
-      }
-      return m
-    })
-    
-    if (hasChanges) {
-      localStorage.setItem(chatKey, JSON.stringify(updatedMessages))
-      
-      // 广播给其他标签页
-      try {
-        const channel = getChatChannel()
-        channel.postMessage({
-          type: 'message_read',
-          chatKey,
-          messageIds
-        } as ChatMessageEvent)
-      } catch (e) {
-        console.error('Failed to broadcast read status:', e)
-      }
-    }
-  } catch (e) {
-    console.error('Failed to mark messages as read:', e)
   }
 }
 
@@ -229,17 +208,15 @@ function ConversationContent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [isOtherTyping, setIsOtherTyping] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const [initialized, setInitialized] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [background, setBackground] = useState('romance')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true)
   
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const chatKeyRef = useRef<string | null>(null)
 
   // 常用表情
   const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎']
@@ -249,214 +226,156 @@ function ConversationContent() {
     inputRef.current?.focus()
   }
 
-  // 更新当前用户在线状态
+  // 获取对方用户信息（包括头像）
   useEffect(() => {
-    if (currentUserId) {
-      updateUserOnlineStatus(currentUserId)
-      
-      // 每10秒更新一次在线状态
-      const interval = setInterval(() => {
-        updateUserOnlineStatus(currentUserId)
-      }, 10000)
-      
-      // 页面可见性变化时更新
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          updateUserOnlineStatus(currentUserId)
-        }
-      }
-      document.addEventListener('visibilitychange', handleVisibilityChange)
-      
-      // 页面关闭时标记离线
-      const handleBeforeUnload = () => {
-        localStorage.setItem(`xindong_online_${currentUserId}`, JSON.stringify({
-          userId: currentUserId,
-          timestamp: Date.now() - 60000, // 设为1分钟前
-          isOnline: false
-        }))
-      }
-      window.addEventListener('beforeunload', handleBeforeUnload)
-      
-      return () => {
-        clearInterval(interval)
-        document.removeEventListener('visibilitychange', handleVisibilityChange)
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-      }
-    }
-  }, [currentUserId])
+    if (!userId) return
 
-  // 监听对方用户在线状态广播
-  useEffect(() => {
-    if (!otherUser) return
-    
-    const channel = getOnlineChannel()
-    
-    const handleOnlineMessage = (event: globalThis.MessageEvent) => {
-      const data = event.data as OnlineStatusEvent
-      if (data.userId === otherUser.id) {
-        const { isOnline, lastActiveText } = getUserOnlineStatus(otherUser.id)
-        setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
-      }
-    }
-    
-    channel.addEventListener('message', handleOnlineMessage)
-    return () => channel.removeEventListener('message', handleOnlineMessage)
-  }, [otherUser?.id])
-
-  // 监听消息广播
-  useEffect(() => {
-    if (!otherUser || !chatKeyRef.current) return
-    
-    const channel = getChatChannel()
-    
-    const handleChatMessage = (event: globalThis.MessageEvent) => {
-      const data = event.data as ChatMessageEvent
-      
-      if (data.chatKey === chatKeyRef.current) {
-        if (data.type === 'new_message' && data.message) {
-          setMessages(prev => {
-            if (prev.find(m => m.id === data.message!.id)) return prev
-            return [...prev, data.message!]
-          })
-          
-          // 如果是对方发的消息，标记为已读
-          if (data.message.senderId === otherUser.id) {
-            markMessagesAsRead(chatKeyRef.current!, [data.message.id])
-          }
-        } else if (data.type === 'message_read' && data.messageIds) {
-          setMessages(prev => prev.map(m => 
-            data.messageIds!.includes(m.id) ? { ...m, status: 'read' } : m
-          ))
-        }
-      }
-    }
-    
-    channel.addEventListener('message', handleChatMessage)
-    return () => channel.removeEventListener('message', handleChatMessage)
-  }, [otherUser?.id])
-
-  // 定期刷新对方在线状态和消息
-  useEffect(() => {
-    if (!otherUser) return
-    
-    const interval = setInterval(() => {
-      // 刷新在线状态
-      const { isOnline, lastActiveText } = getUserOnlineStatus(otherUser.id)
-      setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
-      
-      // 刷新消息
-      if (chatKeyRef.current) {
-        const stored = localStorage.getItem(chatKeyRef.current)
-        if (stored) {
-          try {
-            const storedMessages: Message[] = JSON.parse(stored)
-            setMessages(prev => {
-              // 合并新消息
-              const prevIds = new Set(prev.map(m => m.id))
-              const newMessages = storedMessages.filter(m => !prevIds.has(m.id))
-              if (newMessages.length > 0) {
-                return [...prev, ...newMessages]
-              }
-              return prev
-            })
-          } catch (e) {
-            console.error('Failed to refresh messages:', e)
-          }
-        }
-      }
-    }, 3000) // 每3秒刷新
-    
-    return () => clearInterval(interval)
-  }, [otherUser])
-
-  // 获取对方用户信息
-  useEffect(() => {
-    if (!userId || initialized) return
-
-    const fetchUserInfo = async () => {
+    const loadUserInfo = async () => {
       const urlNickname = searchParams.get('nickname')
       
-      // 获取在线状态
-      const { isOnline, lastActiveText } = getUserOnlineStatus(userId)
+      // 从Supabase获取用户信息
+      const userData = await fetchUserInfo(userId)
       
       const basicUser: OtherUser = {
         id: userId,
-        nickname: urlNickname || '心动对象',
-        age: 26,
-        city: '北京',
-        score: 92,
-        isOnline,
-        avatar: null,
-        lastActive: lastActiveText,
+        nickname: userData?.nickname || urlNickname || '心动对象',
+        age: userData?.age || 26,
+        city: userData?.city || '北京',
+        score: userData?.score || 92,
+        isOnline: false,
+        avatar: userData?.avatar || userData?.photos?.[0] || null,
+        lastActive: '离线',
         lastActiveTime: null
       }
       
-      setOtherUser(basicUser)
-      setInitialized(true)
+      // 获取在线状态
+      const { isOnline, lastActiveText } = await getUserOnlineStatus(userId)
+      basicUser.isOnline = isOnline
+      basicUser.lastActive = lastActiveText
       
-      // 设置聊天key
-      const sortedIds = [currentUserId, userId].sort()
-      chatKeyRef.current = `xindong_chat_${sortedIds.join('_')}`
+      setOtherUser(basicUser)
     }
     
-    fetchUserInfo()
-  }, [userId, searchParams, initialized, currentUserId])
+    loadUserInfo()
+  }, [userId, searchParams])
+
+  // 更新当前用户在线状态
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'local_user') return
+    
+    // 初始更新
+    updateOnlineStatus(currentUserId, true)
+    
+    // 每30秒更新一次
+    const interval = setInterval(() => {
+      updateOnlineStatus(currentUserId, true)
+    }, 30000)
+    
+    // 页面关闭时标记离线
+    const handleBeforeUnload = () => {
+      updateOnlineStatus(currentUserId, false)
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      updateOnlineStatus(currentUserId, false)
+    }
+  }, [currentUserId])
+
+  // 从API加载消息
+  const loadMessages = useCallback(async () => {
+    if (!currentUserId || !userId || currentUserId === 'local_user') return
+    
+    setIsLoadingMessages(true)
+    const msgs = await fetchMessagesFromAPI(currentUserId, userId)
+    setMessages(msgs)
+    setIsLoadingMessages(false)
+  }, [currentUserId, userId])
 
   // 加载消息
-  const loadMessages = useCallback(() => {
-    if (!chatKeyRef.current) return
-    
-    const stored = localStorage.getItem(chatKeyRef.current)
-    if (stored) {
-      try {
-        const parsed: Message[] = JSON.parse(stored)
-        setMessages(parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) })))
-        
-        // 标记对方发的消息为已读
-        if (otherUser) {
-          const unreadIds = parsed
-            .filter(m => m.senderId === otherUser.id && m.status !== 'read' && m.status !== 'recalled')
-            .map(m => m.id)
-          
-          if (unreadIds.length > 0) {
-            markMessagesAsRead(chatKeyRef.current!, unreadIds)
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load messages:', e)
-      }
+  useEffect(() => {
+    if (otherUser && currentUserId && currentUserId !== 'local_user') {
+      loadMessages()
     }
-  }, [otherUser])
+  }, [otherUser, currentUserId, loadMessages])
+
+  // 定期刷新消息和在线状态
+  useEffect(() => {
+    if (!otherUser || !currentUserId || currentUserId === 'local_user') return
+    
+    const interval = setInterval(async () => {
+      // 刷新消息
+      const msgs = await fetchMessagesFromAPI(currentUserId, userId!)
+      setMessages(prev => {
+        // 合并新消息
+        const prevIds = new Set(prev.map(m => m.id))
+        const newMessages = msgs.filter(m => !prevIds.has(m.id))
+        if (newMessages.length > 0) {
+          return [...prev, ...newMessages]
+        }
+        return prev
+      })
+      
+      // 刷新在线状态
+      const { isOnline, lastActiveText } = await getUserOnlineStatus(userId!)
+      setOtherUser(prev => prev ? { ...prev, isOnline, lastActive: lastActiveText } : null)
+    }, 3000) // 每3秒刷新
+    
+    return () => clearInterval(interval)
+  }, [otherUser, currentUserId, userId])
+
+  // 滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   // 发送消息
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !otherUser || isSending || !chatKeyRef.current) return
-    sendMessageFeedback()
+    if (!inputText.trim() || !otherUser || isSending || !currentUserId || currentUserId === 'local_user') {
+      if (!currentUserId || currentUserId === 'local_user') {
+        alert('请先登录后再发送消息')
+      }
+      return
+    }
     
+    sendMessageFeedback()
+    setIsSending(true)
+    
+    const tempId = `temp-${Date.now()}`
     const newMessage: Message = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: tempId,
       senderId: currentUserId,
       text: inputText.trim(),
       timestamp: new Date(),
-      status: 'sent',
+      status: 'sending',
       type: 'text'
     }
 
     setInputText('')
-    setIsSending(true)
-
-    // 保存并广播消息
-    saveAndBroadcastMessage(chatKeyRef.current, newMessage)
-    
-    // 更新本地状态
     setMessages(prev => [...prev, newMessage])
+
+    // 发送到Supabase
+    const sentMessage = await sendMessageToAPI(currentUserId, userId!, inputText.trim(), 'text')
     
-    setTimeout(() => setIsSending(false), 300)
+    if (sentMessage) {
+      setMessages(prev => prev.map(m => 
+        m.id === tempId ? sentMessage : m
+      ))
+    } else {
+      // 发送失败，标记为sent以便用户可以重试
+      setMessages(prev => prev.map(m => 
+        m.id === tempId ? { ...m, status: 'sent' as const } : m
+      ))
+    }
+    
+    setIsSending(false)
   }
 
   // 发送图片
   const handleSendImage = async () => {
-    if (!otherUser || isSending || !chatKeyRef.current) return
+    if (!otherUser || isSending || !currentUserId || currentUserId === 'local_user') return
 
     try {
       const file = await selectImage()
@@ -474,17 +393,25 @@ function ConversationContent() {
 
       const dataUrl = await compressImage(file, 300, 300, 0.5)
       
+      const tempId = `temp-${Date.now()}`
       const newMessage: Message = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: tempId,
         senderId: currentUserId,
         text: dataUrl,
         timestamp: new Date(),
-        status: 'sent',
+        status: 'sending',
         type: 'image'
       }
 
-      saveAndBroadcastMessage(chatKeyRef.current, newMessage)
       setMessages(prev => [...prev, newMessage])
+
+      const sentMessage = await sendMessageToAPI(currentUserId, userId!, dataUrl, 'image')
+      
+      if (sentMessage) {
+        setMessages(prev => prev.map(m => 
+          m.id === tempId ? sentMessage : m
+        ))
+      }
 
     } catch (error) {
       console.error('Failed to send image:', error)
@@ -499,25 +426,6 @@ function ConversationContent() {
       e.preventDefault()
       handleSendMessage()
     }
-  }
-
-  const handleRetry = async (messageId: string) => {
-    errorFeedback()
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, status: 'sent' } : m
-    ))
-  }
-
-  const handleRecallMessage = async (messageId: string) => {
-    if (!chatKeyRef.current) return
-    
-    setMessages(prev => {
-      const updated = prev.map(m => 
-        m.id === messageId ? { ...m, status: 'recalled' as const, text: '消息已撤回' } : m
-      )
-      localStorage.setItem(chatKeyRef.current!, JSON.stringify(updated))
-      return updated
-    })
   }
 
   const backgrounds = {
@@ -536,12 +444,9 @@ function ConversationContent() {
   ]
 
   // 消息气泡组件
-  const MessageBubble = ({ message, isOwn, onRetry, onRecall, onImageClick }: {
+  const MessageBubble = ({ message, isOwn }: {
     message: Message
     isOwn: boolean
-    onRetry?: (id: string) => void
-    onRecall?: (id: string) => void
-    onImageClick?: () => void
   }) => {
     const [showActions, setShowActions] = useState(false)
     const [copied, setCopied] = useState(false)
@@ -575,16 +480,6 @@ function ConversationContent() {
       )
     }
 
-    if (message.status === 'recalled') {
-      return (
-        <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-          <div className="px-4 py-2 bg-gray-100/80 rounded-2xl text-sm text-gray-400 italic">
-            {message.text}
-          </div>
-        </div>
-      )
-    }
-
     return (
       <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
         <div className="relative max-w-[75%]">
@@ -597,14 +492,10 @@ function ConversationContent() {
               }
             `}
             whileTap={{ scale: 0.98 }}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              setShowActions(!showActions)
-            }}
             onClick={() => setShowActions(!showActions)}
           >
             {message.type === 'image' ? (
-              <img src={message.text} alt="图片" className="rounded-lg max-w-[200px] cursor-pointer hover:opacity-90 transition-opacity" onClick={(e) => { e.stopPropagation(); onImageClick?.() }} />
+              <img src={message.text} alt="图片" className="rounded-lg max-w-[200px]" onClick={() => setSelectedImage(message.text)} />
             ) : (
               <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
             )}
@@ -624,24 +515,14 @@ function ConversationContent() {
           <AnimatePresence>
             {showActions && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
                 className={`absolute ${isOwn ? 'right-0' : 'left-0'} top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 min-w-[100px]`}
               >
-                <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
+                <button onClick={(e) => { e.stopPropagation(); handleCopy(); setShowActions(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
                   {copied ? '✓ 已复制' : '复制'}
                 </button>
-                {isOwn && (
-                  <button onClick={(e) => { e.stopPropagation(); onRecall?.(message.id); setShowActions(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
-                    撤回
-                  </button>
-                )}
-                {message.status === 'sending' && (
-                  <button onClick={(e) => { e.stopPropagation(); onRetry?.(message.id); setShowActions(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-gray-700">
-                    重试
-                  </button>
-                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -649,18 +530,6 @@ function ConversationContent() {
       </div>
     )
   }
-
-  // 初始化
-  useEffect(() => {
-    if (initialized) {
-      loadMessages()
-    }
-  }, [initialized, loadMessages])
-
-  // 滚动到底部
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
 
   if (!userId) {
     return (
@@ -718,9 +587,6 @@ function ConversationContent() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Phone className="w-5 h-5 text-gray-500" />
-              </button>
               <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                 <MoreVertical className="w-5 h-5 text-gray-500" />
               </button>
@@ -757,35 +623,44 @@ function ConversationContent() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          <MessageBubble
-            message={{
-              id: 'system-1',
-              senderId: 'system',
-              text: '🎉 你们匹配成功！开始聊天吧～',
-              timestamp: new Date(Date.now() - 3600000),
-              status: 'read',
-              type: 'system'
-            }}
-            isOwn={false}
-          />
+          {isLoadingMessages ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-pulse text-gray-400">加载消息中...</div>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <div className="text-gray-400 text-sm">暂无消息，开始聊天吧～</div>
+            </div>
+          ) : (
+            <>
+              <MessageBubble
+                message={{
+                  id: 'system-1',
+                  senderId: 'system',
+                  text: '🎉 你们匹配成功！开始聊天吧～',
+                  timestamp: new Date(Date.now() - 3600000),
+                  status: 'read',
+                  type: 'system'
+                }}
+                isOwn={false}
+              />
 
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              isOwn={message.senderId === currentUserId}
-              onRetry={handleRetry}
-              onRecall={handleRecallMessage}
-              onImageClick={message.type === 'image' ? () => setSelectedImage(message.text) : undefined}
-            />
-          ))}
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isOwn={message.senderId === currentUserId}
+                />
+              ))}
+            </>
+          )}
 
           <div ref={messagesEndRef} />
         </div>
 
         {/* 话题推荐 */}
         <AnimatePresence>
-          {showSuggestions && messages.length === 0 && (
+          {showSuggestions && messages.length === 0 && !isLoadingMessages && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
