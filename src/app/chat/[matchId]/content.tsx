@@ -252,19 +252,19 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         const data = await response.json()
         const apiMessages = (data.messages || []).map((m: any) => ({
           id: m.id,
-          senderId: m.senderId,
-          text: m.content,
-          timestamp: new Date(m.createdAt),
-          status: m.status as 'sending' | 'sent' | 'read',
-          type: m.type as 'text' | 'image' | 'system',
+          senderId: m.senderId || m.sender_id,
+          text: m.text || m.content,
+          timestamp: new Date(m.timestamp || m.created_at || m.createdAt),
+          status: (m.status as 'sending' | 'sent' | 'read') || 'sent',
+          type: (m.type as 'text' | 'image' | 'system') || 'text',
         }))
         setMessages(apiMessages)
         setIsLoading(false)
         return
       }
 
-      // 从 localStorage 获取（后备方案）
-      const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+      // 从 localStorage 获取（后备方案）- 使用其他用户的 ID
+      const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
       const chatJson = localStorage.getItem(chatKey)
       if (chatJson) {
         const localMessages = JSON.parse(chatJson)
@@ -348,8 +348,8 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 保存消息到本地存储
   const saveMessageToLocal = (message: Message) => {
-    if (!currentUser || !matchId) return
-    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
+    if (!currentUser || !otherUser) return
+    const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
     const chatJson = localStorage.getItem(chatKey)
     const chatMessages = chatJson ? JSON.parse(chatJson) : []
     chatMessages.push({
