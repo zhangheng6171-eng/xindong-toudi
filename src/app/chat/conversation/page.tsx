@@ -102,8 +102,9 @@ function Chat() {
   const lastCount = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 初始化加载
+  // 初始化加载 - 当 myId 可用时立即加载
   useEffect(() => {
+    console.log('[Chat] Init effect:', { peerId, myId, initRef: initRef.current })
     if (!peerId || initRef.current || !myId) return
     initRef.current = true
     
@@ -123,6 +124,8 @@ function Chat() {
   useEffect(() => {
     if (!peerId || !myId) return
     
+    console.log('[Chat] Starting poll for:', { peerId, myId })
+    
     const poll = setInterval(async () => {
       const newMsgs = await fetchMessages(myId, peerId)
       if (newMsgs.length > lastCount.current) {
@@ -138,7 +141,11 @@ function Chat() {
 
   // 发送
   const send = useCallback(async () => {
-    if (!text.trim() || sending || !myId || !peerId) return
+    console.log('[Chat] Send attempt:', { text: text.trim(), sending, myId, peerId })
+    if (!text.trim() || sending || !myId || !peerId) {
+      console.log('[Chat] Send blocked:', { noText: !text.trim(), sending, noMyId: !myId, noPeerId: !peerId })
+      return
+    }
     
     setSending(true)
     const content = text.trim()
@@ -150,7 +157,9 @@ function Chat() {
     // 滚动到底部
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     
+    console.log('[Chat] Calling postMessage:', { myId, peerId, content })
     const sent = await postMessage(myId, peerId, content)
+    console.log('[Chat] postMessage result:', sent)
     if (sent) {
       setMsgs(prev => prev.map(m => m.id === tempId ? sent : m))
       lastCount.current++

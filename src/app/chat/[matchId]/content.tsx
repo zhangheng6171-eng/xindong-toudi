@@ -236,13 +236,16 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 获取消息列表
   const fetchMessages = useCallback(async () => {
-    if (!currentUser || !matchId || !otherUser) return
+    if (!currentUser || !matchId) return
 
     setIsLoading(true)
 
     try {
+      // 使用 matchId 作为对方用户 ID（这是更可靠的方式）
+      const otherUserId = otherUser?.id || matchId
+      
       // 尝试从 API 获取 - 使用 userId1 和 userId2 参数
-      const response = await fetch(`/api/chat/messages?userId1=${currentUser.id}&userId2=${otherUser.id}`, {
+      const response = await fetch(`/api/chat/messages?userId1=${currentUser.id}&userId2=${otherUserId}`, {
         headers: {
           'X-User-Id': currentUser.id,
         },
@@ -263,8 +266,8 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         return
       }
 
-      // 从 localStorage 获取（后备方案）- 使用其他用户的 ID
-      const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+      // 从 localStorage 获取（后备方案）- 使用 matchId
+      const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
       const chatJson = localStorage.getItem(chatKey)
       if (chatJson) {
         const localMessages = JSON.parse(chatJson)
@@ -282,7 +285,10 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 发送消息
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !currentUser || !otherUser) return
+    if (!inputText.trim() || !currentUser || !matchId) return
+
+    // 使用 matchId 作为接收者 ID（这是更可靠的方式）
+    const receiverId = otherUser?.id || matchId
 
     const newMessage: Message = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -314,7 +320,7 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
         },
         body: JSON.stringify({
           senderId: currentUser.id,
-          receiverId: otherUser.id,
+          receiverId: receiverId,
           text: newMessage.text,
           type: 'text',
         }),
@@ -348,8 +354,9 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
 
   // 保存消息到本地存储
   const saveMessageToLocal = (message: Message) => {
-    if (!currentUser || !otherUser) return
-    const chatKey = `xindong_chat_${[currentUser.id, otherUser.id].sort().join('_')}`
+    if (!currentUser || !matchId) return
+    // 使用 matchId 作为对方用户 ID（与发送消息保持一致）
+    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
     const chatJson = localStorage.getItem(chatKey)
     const chatMessages = chatJson ? JSON.parse(chatJson) : []
     chatMessages.push({
@@ -459,42 +466,65 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     return () => clearInterval(interval)
   }, [fetchMessages])
   
-  // 检查消息已读状态
-  const checkReadStatus = () => {
+  // 检查消息已读状态（从 Supabase 获取）
+  const checkReadStatus = async () => {
     if (!currentUser || !matchId) return
     
-    const chatKey = `xindong_chat_${[currentUser.id, matchId].sort().join('_')}`
-    const chatJson = localStorage.getItem(chatKey)
-    if (!chatJson) return
-    
-    const chatMessages: Message[] = JSON.parse(chatJson)
-    const otherUserLastRead = localStorage.getItem(`xindong_last_read_${matchId}_${currentUser.id}`)
-    
-    if (otherUserLastRead) {
-      const lastReadTime = new Date(otherUserLastRead).getTime()
+    try {
+      // 从 API 获取已读状态
+      const response = await fetch(`/api/chat/read-status?userId=${matchId}&otherUserId=${currentUser.id}`, {
+        headers: {
+          'X-User-Id': currentUser.id,
+        },
+      })
       
-      // 更新消息状态为已读
-      setMessages(prev => 
-        prev.map(m => {
-          if (m.senderId === currentUser.id && m.timestamp.getTime() <= lastReadTime && m.status !== 'read') {
-            return { ...m, status: 'read' as const }
-          }
-          return m
-        })
-      )
+      if (response.ok) {
+        const data = await response.json()
+        if (data.lastReadAt) {
+          const lastReadTime = new Date(data.lastReadAt).getTime()
+          
+          // 更新消息状态为已读
+          setMessages(prev => 
+            prev.map(m => {
+              if (m.senderId === currentUser.id && m.timestamp.getTime() <= lastReadTime && m.status !== 'read') {
+                return { ...m, status: 'read' as const }
+              }
+              return m
+            })
+          )
+        }
+      }
+    } catch (err) {
+      console.error('检查已读状态失败:', err)
     }
   }
   
-  // 标记消息为已读（当对方打开聊天时）
-  const markMessagesAsRead = () => {
+  // 标记消息为已读（当打开聊天时）
+  const markMessagesAsRead = async () => {
     if (!currentUser || !matchId) return
     const now = new Date().toISOString()
-    // 存储自己已读的时间戳（供对方读取）
+    
+    // 存储到本地（后备）
     localStorage.setItem(`xindong_last_read_${currentUser.id}_${matchId}`, now)
-    // 同时存储到共享存储，供对方检查
     localStorage.setItem(`xindong_read_${matchId}_${currentUser.id}`, now)
-    // 通知对方我已读
-    localStorage.setItem(`xindong_read_receipt_${matchId}_${currentUser.id}_${otherUser?.id}`, now)
+    
+    // 同步到 Supabase（主要方式）
+    try {
+      await fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': currentUser.id,
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          otherUserId: matchId,
+          lastReadAt: now,
+        }),
+      })
+    } catch (err) {
+      console.error('标记已读失败:', err)
+    }
   }
   
   // 进入聊天时标记已读
@@ -506,25 +536,38 @@ export default function ChatContent({ params }: { params: Promise<{ matchId: str
     }
   }, [currentUser, matchId])
 
-  // 定期检查对方是否已读我们的消息
+  // 定期检查对方是否已读我们的消息（从 Supabase 获取）
   useEffect(() => {
-    if (!currentUser || !matchId || !otherUser) return
+    if (!currentUser || !matchId) return
 
-    const checkReadReceipt = () => {
-      // 检查对方是否已读我的消息
-      const lastReadTime = localStorage.getItem(`xindong_read_${matchId}_${otherUser.id}`)
-      if (!lastReadTime) return
-
-      const readTime = new Date(lastReadTime).getTime()
-      setMessages(prev => 
-        prev.map(m => {
-          // 只更新我发送的消息，且时间早于对方已读时间
-          if (m.senderId === currentUser.id && m.timestamp.getTime() <= readTime && m.status !== 'read') {
-            return { ...m, status: 'read' as const }
-          }
-          return m
+    const checkReadReceipt = async () => {
+      try {
+        // 从 API 获取对方已读状态
+        const otherUserId = otherUser?.id || matchId
+        const response = await fetch(`/api/chat/read-status?userId=${currentUser.id}&otherUserId=${otherUserId}`, {
+          headers: {
+            'X-User-Id': currentUser.id,
+          },
         })
-      )
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.lastReadAt) {
+            const readTime = new Date(data.lastReadAt).getTime()
+            setMessages(prev => 
+              prev.map(m => {
+                // 只更新我发送的消息，且时间早于对方已读时间
+                if (m.senderId === currentUser.id && m.timestamp.getTime() <= readTime && m.status !== 'read') {
+                  return { ...m, status: 'read' as const }
+                }
+                return m
+              })
+            )
+          }
+        }
+      } catch (err) {
+        console.error('检查已读回执失败:', err)
+      }
     }
 
     // 立即检查一次
