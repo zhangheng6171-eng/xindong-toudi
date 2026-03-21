@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { 
   ArrowLeft, Send, Image, Smile, MoreVertical,
-  Check, CheckCheck, X, ChevronDown, Loader2, Circle
+  Check, X, ChevronDown, Loader2, Circle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
-import { sendMessageFeedback, errorFeedback } from '@/lib/haptics'
+import { sendMessageFeedback } from '@/lib/haptics'
 
 // Supabase 配置
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
@@ -40,6 +40,55 @@ interface OtherUser {
   lastActiveTime: Date | null
 }
 
+// 在线状态存储键名
+const ONLINE_USERS_KEY = 'xindong_online_users'
+
+// 获取所有在线用户（从 localStorage）
+function getOnlineUsers(): Record<string, number> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const data = localStorage.getItem(ONLINE_USERS_KEY)
+    return data ? JSON.parse(data) : {}
+  } catch {
+    return {}
+  }
+}
+
+// 标记用户在线
+function setUserOnline(userId: string) {
+  if (typeof window === 'undefined') return
+  const onlineUsers = getOnlineUsers()
+  onlineUsers[userId] = Date.now()
+  localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
+}
+
+// 清理过期在线记录（超过5分钟视为离线）
+function cleanupOnlineUsers() {
+  if (typeof window === 'undefined') return
+  const onlineUsers = getOnlineUsers()
+  const now = Date.now()
+  const fiveMinutes = 5 * 60 * 1000
+  
+  Object.keys(onlineUsers).forEach(userId => {
+    if (now - onlineUsers[userId] > fiveMinutes) {
+      delete onlineUsers[userId]
+    }
+  })
+  
+  localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
+}
+
+// 检查用户是否在线
+function isUserOnline(userId: string): boolean {
+  const onlineUsers = getOnlineUsers()
+  const lastActive = onlineUsers[userId]
+  if (!lastActive) return false
+  
+  const now = Date.now()
+  const fiveMinutes = 5 * 60 * 1000
+  return (now - lastActive) < fiveMinutes
+}
+
 // 从Supabase获取消息
 async function fetchMessagesFromAPI(userId1: string, userId2: string): Promise<Message[]> {
   try {
@@ -53,11 +102,7 @@ async function fetchMessagesFromAPI(userId1: string, userId2: string): Promise<M
       }
     )
     
-    if (!response.ok) {
-      console.error('Failed to fetch messages:', await response.text())
-      return []
-    }
-    
+    if (!response.ok) return []
     const data = await response.json()
     if (!Array.isArray(data)) return []
     
@@ -95,10 +140,7 @@ async function sendMessageToAPI(senderId: string, receiverId: string, text: stri
       })
     })
     
-    if (!response.ok) {
-      console.error('Failed to send message:', await response.text())
-      return null
-    }
+    if (!response.ok) return null
     
     const data = await response.json()
     const message = Array.isArray(data) ? data[0] : data
@@ -139,59 +181,6 @@ async function fetchUserInfo(userId: string): Promise<any> {
   }
 }
 
-// 更新用户在线状态到Supabase
-async function updateOnlineStatus(userId: string, isOnline: boolean) {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        last_active: new Date().toISOString(),
-        is_online: isOnline
-      })
-    })
-  } catch (error) {
-    console.error('Error updating online status:', error)
-  }
-}
-
-// 获取用户在线状态
-async function getUserOnlineStatus(userId: string): Promise<{ isOnline: boolean; lastActiveText: string }> {
-  try {
-    const user = await fetchUserInfo(userId)
-    if (!user || !user.last_active) {
-      return { isOnline: false, lastActiveText: '离线' }
-    }
-    
-    const lastActive = new Date(user.last_active)
-    const now = new Date()
-    const diffMs = now.getTime() - lastActive.getTime()
-    const diffSecs = Math.floor(diffMs / 1000)
-    
-    if (diffSecs < 60) {
-      return { isOnline: true, lastActiveText: '在线' }
-    }
-    
-    let lastActiveText = '离线'
-    if (diffSecs < 3600) {
-      lastActiveText = `${Math.floor(diffSecs / 60)}分钟前`
-    } else if (diffSecs < 86400) {
-      lastActiveText = `${Math.floor(diffSecs / 3600)}小时前`
-    } else {
-      lastActiveText = `${Math.floor(diffSecs / 86400)}天前`
-    }
-    
-    return { isOnline: false, lastActiveText }
-  } catch (error) {
-    return { isOnline: false, lastActiveText: '离线' }
-  }
-}
-
 function ConversationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -210,10 +199,8 @@ function ConversationContent() {
   const [background, setBackground] = useState('romance')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   
-  // 使用 ref 追踪状态，避免不必要的重渲染
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
-  const isInitialLoadRef = useRef(true)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const commonEmojis = ['😀', '😊', '😍', '🥰', '😘', '❤️', '💕', '💖', '💗', '💓', '💞', '💌', '💘', '💝', '✨', '🌟', '💫', '⭐', '🔥', '💯', '🎉', '🎊', '🥳', '😄', '😂', '🤣', '😁', '🤭', '😳', '🥺', '🤗', '😎', '🤩', '😻', '💑', '👫']
@@ -223,6 +210,45 @@ function ConversationContent() {
     inputRef.current?.focus()
   }
 
+  // 标记当前用户在线
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'local_user') return
+    
+    // 初始标记在线
+    setUserOnline(currentUserId)
+    
+    // 清理过期记录
+    cleanupOnlineUsers()
+    
+    // 每30秒标记一次在线，清理过期记录
+    const interval = setInterval(() => {
+      setUserOnline(currentUserId)
+      cleanupOnlineUsers()
+    }, 30000)
+    
+    // 页面可见性变化时更新
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setUserOnline(currentUserId)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // 页面关闭时移除在线状态
+    const handleBeforeUnload = () => {
+      const onlineUsers = getOnlineUsers()
+      delete onlineUsers[currentUserId]
+      localStorage.setItem(ONLINE_USERS_KEY, JSON.stringify(onlineUsers))
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [currentUserId])
+
   // 获取对方用户信息
   useEffect(() => {
     if (!userId) return
@@ -231,21 +257,20 @@ function ConversationContent() {
       const urlNickname = searchParams.get('nickname')
       const userData = await fetchUserInfo(userId)
       
+      // 检查对方是否在线
+      const online = isUserOnline(userId)
+      
       const basicUser: OtherUser = {
         id: userId,
         nickname: userData?.nickname || urlNickname || '心动对象',
         age: userData?.age || 26,
         city: userData?.city || '北京',
         score: userData?.score || 92,
-        isOnline: false,
+        isOnline: online,
         avatar: userData?.avatar || userData?.photos?.[0] || null,
-        lastActive: '离线',
+        lastActive: online ? '在线' : '离线',
         lastActiveTime: null
       }
-      
-      const { isOnline, lastActiveText } = await getUserOnlineStatus(userId)
-      basicUser.isOnline = isOnline
-      basicUser.lastActive = lastActiveText
       
       setOtherUser(basicUser)
     }
@@ -253,29 +278,7 @@ function ConversationContent() {
     loadUserInfo()
   }, [userId, searchParams])
 
-  // 更新当前用户在线状态
-  useEffect(() => {
-    if (!currentUserId || currentUserId === 'local_user') return
-    
-    updateOnlineStatus(currentUserId, true)
-    
-    const interval = setInterval(() => {
-      updateOnlineStatus(currentUserId, true)
-    }, 30000)
-    
-    const handleBeforeUnload = () => {
-      updateOnlineStatus(currentUserId, false)
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      updateOnlineStatus(currentUserId, false)
-    }
-  }, [currentUserId])
-
-  // 加载消息（静默加载，不显示loading）
+  // 加载消息
   const loadMessages = useCallback(async (isRefresh: boolean = false) => {
     if (!currentUserId || !userId || currentUserId === 'local_user') return
     
@@ -283,7 +286,6 @@ function ConversationContent() {
     
     setMessages(prev => {
       if (isRefresh) {
-        // 刷新模式：只添加新消息
         const prevIds = new Set(prev.map(m => m.id))
         const newMessages = msgs.filter(m => !prevIds.has(m.id))
         if (newMessages.length > 0) {
@@ -291,7 +293,6 @@ function ConversationContent() {
         }
         return prev
       } else {
-        // 初次加载：替换全部
         return msgs
       }
     })
@@ -301,23 +302,22 @@ function ConversationContent() {
   useEffect(() => {
     if (otherUser && currentUserId && currentUserId !== 'local_user') {
       loadMessages(false)
-      isInitialLoadRef.current = false
     }
   }, [otherUser, currentUserId, loadMessages])
 
-  // 定期刷新消息和在线状态（静默刷新）
+  // 定期刷新消息和在线状态
   useEffect(() => {
     if (!otherUser || !currentUserId || currentUserId === 'local_user') return
     
     const interval = setInterval(async () => {
-      // 静默刷新消息
+      // 刷新消息
       loadMessages(true)
       
-      // 静默刷新在线状态
-      const { isOnline, lastActiveText } = await getUserOnlineStatus(userId!)
+      // 刷新在线状态
+      const online = isUserOnline(userId!)
       setOtherUser(prev => {
-        if (prev && (prev.isOnline !== isOnline || prev.lastActive !== lastActiveText)) {
-          return { ...prev, isOnline, lastActive: lastActiveText }
+        if (prev && prev.isOnline !== online) {
+          return { ...prev, isOnline: online, lastActive: online ? '在线' : '离线' }
         }
         return prev
       })
@@ -454,8 +454,6 @@ function ConversationContent() {
       switch (message.status) {
         case 'sending': return <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
         case 'sent': return <Check className="w-3.5 h-3.5 text-gray-400" />
-        case 'delivered': return <CheckCheck className="w-3.5 h-3.5 text-gray-400" />
-        case 'read': return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
         default: return null
       }
     }
@@ -495,10 +493,6 @@ function ConversationContent() {
               {isOwn && statusIcon()}
             </div>
           </div>
-
-          {isOwn && message.status === 'read' && (
-            <p className="text-xs text-blue-500 mt-1 text-right">已读</p>
-          )}
         </div>
       </div>
     )
@@ -553,7 +547,7 @@ function ConversationContent() {
                 <div className="flex items-center gap-1.5">
                   <Circle className={`w-2 h-2 ${otherUser.isOnline ? 'fill-green-500 text-green-500' : 'fill-gray-400 text-gray-400'}`} />
                   <p className={`text-xs ${otherUser.isOnline ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
-                    {otherUser.isOnline ? '在线' : otherUser.lastActive}
+                    {otherUser.isOnline ? '在线' : '离线'}
                   </p>
                 </div>
               </div>
