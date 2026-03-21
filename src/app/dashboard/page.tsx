@@ -11,6 +11,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, AnimatedCounter, FadeIn } from '@/components/animated-background'
 import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import { BottomNav } from '@/components/bottom-nav'
 
 // 互相喜欢用户类型
 interface MutualLikeUser {
@@ -266,6 +268,9 @@ export default function DashboardPage() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [mutualLikeUsers, setMutualLikeUsers] = useState<MutualLikeUser[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
+  
+  // 未读消息
+  const { unreadInfo, refresh: refreshUnread } = useUnreadMessages(currentUser?.id || null)
 
   // 计算完成度
   const calculateProgress = useCallback(() => {
@@ -454,12 +459,15 @@ export default function DashboardPage() {
                 <button onClick={handleLogout} className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors" title="退出登录">
                   <LogOut className="w-5 h-5 text-gray-600" />
                 </button>
-                <button onClick={() => setShowNotifications(true)} className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors relative">
+                {/* 消息铃铛 - 点击进入聊天页面 */}
+                <Link href="/chat" className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors relative">
                   <Bell className="w-5 h-5 text-gray-600" />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
+                  {unreadInfo.total > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full">
+                      {unreadInfo.total > 99 ? '99+' : unreadInfo.total}
+                    </span>
                   )}
-                </button>
+                </Link>
                 <Link href="/profile/edit" className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors">
                   <Settings className="w-5 h-5 text-gray-600" />
                 </Link>
@@ -713,26 +721,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 底部导航 */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/50 z-50">
-          <div className="max-w-md mx-auto flex justify-around py-3">
-            <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">首页</span>
-            </Link>
-            <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">匹配</span>
-            </Link>
-            <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <MessageCircle className="w-6 h-6" />
-              <span className="text-xs mt-1">消息</span>
-            </Link>
-            <Link href="/dashboard" className="flex flex-col items-center text-rose-500">
-              <User className="w-6 h-6 fill-current" />
-              <span className="text-xs mt-1 font-medium">我的</span>
-            </Link>
-          </div>
-        </nav>
+        <BottomNav unreadCount={unreadInfo.total} />
       </div>
 
       {/* 互相喜欢弹窗 */}

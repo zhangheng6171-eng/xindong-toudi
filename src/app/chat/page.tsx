@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Heart, MessageCircle, Star, Search, RefreshCw } from 'lucide-react'
 import { AnimatedBackground, GlassCard, FadeIn } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 
 // 会话数据类型
 interface Conversation {
@@ -34,6 +35,9 @@ export default function ChatListPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showOnlineOnly, setShowOnlineOnly] = useState(false)
+  
+  // 未读消息管理
+  const { unreadInfo, markAllAsRead } = useUnreadMessages(currentUser?.id || null)
 
   // 获取会话列表
   const fetchConversations = useCallback(async () => {
@@ -210,8 +214,10 @@ export default function ChatListPage() {
   useEffect(() => {
     if (mounted && currentUser) {
       fetchConversations()
+      // 查看聊天页面时，标记所有消息为已读
+      markAllAsRead()
     }
-  }, [mounted, currentUser, fetchConversations])
+  }, [mounted, currentUser, fetchConversations, markAllAsRead])
 
   if (authLoading || !mounted) {
     return (

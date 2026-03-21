@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Settings, Edit2, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, LogOut } from 'lucide-react'
+import { Settings, Edit2, Heart, MessageCircle, Star, MapPin, Briefcase, GraduationCap, LogOut, Bell } from 'lucide-react'
 import { 
   AnimatedBackground, 
   GlassCard, 
@@ -13,6 +13,8 @@ import {
 } from '@/components/animated-background'
 import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
 import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import { BottomNav } from '@/components/bottom-nav'
 
 export default function ProfilePage() {
   const { currentUser, isLoading, getUserData, setUserData, logout } = useAuth()
@@ -20,6 +22,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
+  
+  // 未读消息
+  const { unreadInfo } = useUnreadMessages(currentUser?.id || null)
 
   // 从用户专属存储加载数据
   useEffect(() => {
@@ -188,9 +193,20 @@ export default function ProfilePage() {
                 <LogOut className="w-6 h-6" />
               </button>
               <h1 className="text-xl font-bold">我的主页</h1>
-              <Link href="/profile/edit" className="p-2 hover:bg-white/20 rounded-full transition-colors">
-                <Edit2 className="w-6 h-6" />
-              </Link>
+              <div className="flex items-center gap-1">
+                {/* 消息铃铛 */}
+                <Link href="/chat" className="p-2 hover:bg-white/20 rounded-full transition-colors relative">
+                  <Bell className="w-6 h-6" />
+                  {unreadInfo.total > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full">
+                      {unreadInfo.total > 99 ? '99+' : unreadInfo.total}
+                    </span>
+                  )}
+                </Link>
+                <Link href="/profile/edit" className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                  <Edit2 className="w-6 h-6" />
+                </Link>
+              </div>
             </div>
 
             {/* Avatar & Info */}
@@ -376,28 +392,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Bottom Navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100/50 px-4 py-3 z-50">
-          <div className="max-w-md mx-auto flex justify-around">
-            <Link href="/" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="text-xs mt-1">首页</span>
-            </Link>
-            <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <Heart className="w-6 h-6" />
-              <span className="text-xs mt-1">匹配</span>
-            </Link>
-            <Link href="/chat" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
-              <MessageCircle className="w-6 h-6" />
-              <span className="text-xs mt-1">消息</span>
-            </Link>
-            <Link href="/profile" className="flex flex-col items-center text-rose-500">
-              <Star className="w-6 h-6 fill-current" />
-              <span className="text-xs mt-1 font-medium">我的</span>
-            </Link>
-          </div>
-        </div>
+        <BottomNav unreadCount={unreadInfo.total} />
       </div>
     </AnimatedBackground>
   )
