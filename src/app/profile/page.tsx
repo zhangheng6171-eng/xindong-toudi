@@ -14,6 +14,7 @@ import {
 import { AvatarUploader, PhotoGallery } from '@/components/image-uploader'
 import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import { useNotifications } from '@/hooks/useNotifications'
 import { BottomNav } from '@/components/bottom-nav'
 
 export default function ProfilePage() {
@@ -25,6 +26,9 @@ export default function ProfilePage() {
   
   // 未读消息
   const { unreadInfo } = useUnreadMessages(currentUser?.id || null)
+  
+  // 应用通知
+  const { unreadCount: notificationUnread } = useNotifications(currentUser?.id || null)
 
   // 从用户专属存储加载数据
   useEffect(() => {
@@ -194,12 +198,12 @@ export default function ProfilePage() {
               </button>
               <h1 className="text-xl font-bold">我的主页</h1>
               <div className="flex items-center gap-1">
-                {/* 消息铃铛 */}
+                {/* 消息铃铛 - 显示消息+通知总数 */}
                 <Link href="/chat" className="p-2 hover:bg-white/20 rounded-full transition-colors relative">
                   <Bell className="w-6 h-6" />
-                  {unreadInfo.total > 0 && (
+                  {(unreadInfo.total > 0 || notificationUnread > 0) && (
                     <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full">
-                      {unreadInfo.total > 99 ? '99+' : unreadInfo.total}
+                      {unreadInfo.total + notificationUnread > 99 ? '99+' : unreadInfo.total + notificationUnread}
                     </span>
                   )}
                 </Link>
@@ -392,7 +396,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Bottom Navigation */}
-        <BottomNav unreadCount={unreadInfo.total} />
+        <BottomNav unreadCount={unreadInfo.total + notificationUnread} />
       </div>
     </AnimatedBackground>
   )

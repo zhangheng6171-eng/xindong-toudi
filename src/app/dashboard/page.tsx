@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground, GlassCard, GradientText, AnimatedCounter, FadeIn } from '@/components/animated-background'
 import { useAuth, defaultProfile, UserProfile } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import { useNotifications, AppNotification } from '@/hooks/useNotifications'
 import { BottomNav } from '@/components/bottom-nav'
 
 // 互相喜欢用户类型
@@ -94,6 +95,157 @@ function MutualLikesModal({ users, onClose, onChat }: { users: MutualLikeUser[];
               <Heart className="w-12 h-12 mx-auto mb-3 text-gray-200" />
               <p className="text-gray-400">暂无互相喜欢的用户</p>
               <p className="text-sm text-gray-300 mt-1">去首页看看有没有心动的人吧~</p>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// 通知面板 - 整合消息和系统通知
+function NotificationPanel({ 
+  notifications, 
+  onClose, 
+  onMarkRead, 
+  onMarkAllRead,
+  onChatClick
+}: { 
+  notifications: AppNotification[]; 
+  onClose: () => void; 
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+  onChatClick: () => void;
+}) {
+  const unreadCount = notifications.filter(n => !n.read).length
+  
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'match': return '🎯'
+      case 'like': return '❤️'
+      case 'message': return '💬'
+      case 'reminder': return '📝'
+      case 'system': return '👋'
+      default: return '🔔'
+    }
+  }
+
+  const getGradient = (type: string) => {
+    switch (type) {
+      case 'match': return 'from-rose-500 to-pink-500'
+      case 'like': return 'from-red-500 to-orange-500'
+      case 'message': return 'from-blue-500 to-indigo-500'
+      case 'reminder': return 'from-amber-500 to-orange-500'
+      case 'system': return 'from-purple-500 to-pink-500'
+      default: return 'from-gray-500 to-gray-600'
+    }
+  }
+
+  const handleClick = (notif: AppNotification) => {
+    onMarkRead(notif.id)
+    if (notif.action) {
+      window.location.href = notif.action.href
+    }
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md max-h-[85vh] overflow-hidden shadow-2xl"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 p-4 md:p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="w-6 h-6" />
+              <h2 className="text-xl font-bold">通知中心</h2>
+              {unreadCount > 0 && (
+                <span className="px-2 py-0.5 bg-white/20 rounded-full text-sm">{unreadCount}条未读</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button 
+                  onClick={onMarkAllRead}
+                  className="text-xs bg-white/20 px-3 py-1 rounded-full hover:bg-white/30 transition-colors"
+                >
+                  全部已读
+                </button>
+              )}
+              <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          
+          {/* 快捷操作 */}
+          <div className="flex gap-2 mt-4 overflow-x-auto pb-1">
+            <button 
+              onClick={onChatClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-sm whitespace-nowrap hover:bg-white/30 transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              查看消息
+            </button>
+            <Link 
+              href="/match"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-sm whitespace-nowrap hover:bg-white/30 transition-colors"
+            >
+              <Heart className="w-4 h-4" />
+              查看匹配
+            </Link>
+          </div>
+        </div>
+        
+        {/* 通知列表 */}
+        <div className="p-3 md:p-4 max-h-[50vh] md:max-h-[60vh] overflow-y-auto">
+          {notifications.length > 0 ? (
+            <div className="space-y-3">
+              {notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className={`flex items-start gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:scale-[1.02] ${
+                    notif.read ? 'bg-gray-50' : 'bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100'
+                  }`}
+                  onClick={() => handleClick(notif)}
+                >
+                  <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${getGradient(notif.type)} flex items-center justify-center text-lg flex-shrink-0`}>
+                    {getIcon(notif.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-gray-900 text-sm">{notif.title}</h3>
+                      {!notif.read && <span className="w-2 h-2 bg-rose-500 rounded-full flex-shrink-0" />}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{notif.content}</p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <p className="text-xs text-gray-400">{notif.time}</p>
+                      {notif.action && (
+                        <span className="text-xs text-rose-500 font-medium flex items-center gap-0.5">
+                          {notif.action.label} <ChevronRight className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Bell className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+              <p className="text-gray-400">暂无通知</p>
             </div>
           )}
         </div>
@@ -271,6 +423,14 @@ export default function DashboardPage() {
   
   // 未读消息
   const { unreadInfo, refresh: refreshUnread } = useUnreadMessages(currentUser?.id || null)
+  
+  // 应用通知
+  const { 
+    notifications: appNotifications, 
+    unreadCount: notificationUnread,
+    markAsRead: markNotificationRead,
+    markAllAsRead: markAllNotificationsRead 
+  } = useNotifications(currentUser?.id || null)
 
   // 计算完成度
   const calculateProgress = useCallback(() => {
@@ -459,15 +619,18 @@ export default function DashboardPage() {
                 <button onClick={handleLogout} className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors" title="退出登录">
                   <LogOut className="w-5 h-5 text-gray-600" />
                 </button>
-                {/* 消息铃铛 - 点击进入聊天页面 */}
-                <Link href="/chat" className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors relative">
+                {/* 通知铃铛 - 点击显示通知面板 */}
+                <button 
+                  onClick={() => setShowNotifications(true)} 
+                  className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors relative"
+                >
                   <Bell className="w-5 h-5 text-gray-600" />
-                  {unreadInfo.total > 0 && (
+                  {(unreadInfo.total > 0 || notificationUnread > 0) && (
                     <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-rose-500 rounded-full">
-                      {unreadInfo.total > 99 ? '99+' : unreadInfo.total}
+                      {unreadInfo.total + notificationUnread > 99 ? '99+' : unreadInfo.total + notificationUnread}
                     </span>
                   )}
-                </Link>
+                </button>
                 <Link href="/profile/edit" className="p-2.5 hover:bg-gray-100/50 rounded-full transition-colors">
                   <Settings className="w-5 h-5 text-gray-600" />
                 </Link>
@@ -738,10 +901,15 @@ export default function DashboardPage() {
       {/* 通知弹窗 */}
       <AnimatePresence>
         {showNotifications && (
-          <NotificationModal
-            notifications={notifications}
+          <NotificationPanel
+            notifications={appNotifications}
             onClose={() => setShowNotifications(false)}
-            onMarkRead={handleMarkRead}
+            onMarkRead={markNotificationRead}
+            onMarkAllRead={markAllNotificationsRead}
+            onChatClick={() => {
+              setShowNotifications(false)
+              window.location.href = '/chat'
+            }}
           />
         )}
       </AnimatePresence>

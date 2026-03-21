@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Sparkles, ChevronLeft, ChevronRight, Check, SkipForward, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
@@ -14,11 +14,7 @@ const fadeInUp = {
   exit: { opacity: 0, y: -20 }
 }
 
-interface QuestionnaireProps {
-  onComplete?: (answers: Record<string, any>) => void
-}
-
-export default function Questionnaire({ onComplete }: QuestionnaireProps) {
+export default function Questionnaire() {
   const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
@@ -49,9 +45,8 @@ export default function Questionnaire({ onComplete }: QuestionnaireProps) {
     } else {
       setIsCompleted(true)
       localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
-      onComplete?.(answers)
     }
-  }, [currentIndex, answers, onComplete])
+  }, [currentIndex, answers])
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
