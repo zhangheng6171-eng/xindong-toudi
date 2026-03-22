@@ -4,7 +4,7 @@
  * 整合所有优化模块的一站式匹配服务
  */
 
-import { calculateMatchV2 as calculateAdvancedMatch, MatchingResultV2 as MatchingResult, MatchConfigV2 } from './matching-algorithm-v2'
+import { calculateMatchV2 as calculateAdvancedMatch, MatchScoreV2 as MatchingResult, MatchConfigV2 } from './matching-algorithm-v2'
 import { extractAdvancedFeatures, ExtractedFeatures } from './feature-engineering-v2'
 import { generatePersonalityProfile, PersonalityProfile } from './scoring-system'
 
@@ -111,9 +111,10 @@ export class MatchServiceV2 {
         const candidateProfile = await this.buildUserProfile(candidate)
         
         const result = calculateAdvancedMatch(
-          userProfile,
-          candidateProfile,
-          this.config
+          userProfile.answers,
+          candidateProfile.answers,
+          user.id,
+          candidate.id
         )
         
         // 添加用户信息
@@ -121,7 +122,7 @@ export class MatchServiceV2 {
         result.matchedUserId = candidate.id
         
         // 过滤低分匹配
-        if (!filters?.minScore || result.scores.totalScore >= filters.minScore) {
+        if (!filters?.minScore || result.totalScore >= filters.minScore) {
           matches.push(result)
         }
       } catch (error) {
@@ -130,7 +131,7 @@ export class MatchServiceV2 {
     }
 
     // 4. 排序并返回结果
-    matches.sort((a, b) => b.scores.totalScore - a.scores.totalScore)
+    matches.sort((a, b) => b.totalScore - a.totalScore)
 
     const processingTime = Date.now() - startTime
 
@@ -312,7 +313,7 @@ export async function batchMatch(
   }
   
   // 全局排序
-  allMatches.sort((a, b) => b.scores.totalScore - a.scores.totalScore)
+  allMatches.sort((a, b) => b.totalScore - a.totalScore)
   
   return {
     matches: allMatches,
@@ -335,13 +336,15 @@ export async function batchMatch(
  * 保守型配置 - 重视匹配质量
  */
 export const CONSERVATIVE_CONFIG: Partial<MatchConfigV2> = {
-  hardFilter: {
-    enableDealbreakerFilter: true,
-    dealbreakerMatchThreshold: 0.9
+  weights: {
+    personality: 0.30,
+    values: 0.30,
+    interests: 0.25,
+    lifestyle: 0.15
   },
-  dynamicWeights: {
+  hardFilter: {
     enable: true,
-    personalizationStrength: 0.5
+    minCompatibility: 0.7
   },
   complementarity: {
     enable: true,
@@ -359,13 +362,15 @@ export const CONSERVATIVE_CONFIG: Partial<MatchConfigV2> = {
  * 激进型配置 - 重视匹配数量
  */
 export const AGGRESSIVE_CONFIG: Partial<MatchConfigV2> = {
-  hardFilter: {
-    enableDealbreakerFilter: true,
-    dealbreakerMatchThreshold: 0.6
+  weights: {
+    personality: 0.25,
+    values: 0.25,
+    interests: 0.30,
+    lifestyle: 0.20
   },
-  dynamicWeights: {
+  hardFilter: {
     enable: false,
-    personalizationStrength: 0
+    minCompatibility: 0.5
   },
   complementarity: {
     enable: true,
@@ -383,13 +388,15 @@ export const AGGRESSIVE_CONFIG: Partial<MatchConfigV2> = {
  * 平衡型配置 - 默认推荐
  */
 export const BALANCED_CONFIG: Partial<MatchConfigV2> = {
-  hardFilter: {
-    enableDealbreakerFilter: true,
-    dealbreakerMatchThreshold: 0.8
+  weights: {
+    personality: 0.25,
+    values: 0.25,
+    interests: 0.30,
+    lifestyle: 0.20
   },
-  dynamicWeights: {
+  hardFilter: {
     enable: true,
-    personalizationStrength: 0.3
+    minCompatibility: 0.6
   },
   complementarity: {
     enable: true,
