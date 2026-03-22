@@ -152,17 +152,38 @@ export default function ProfilePage() {
           matchCount: mutualLikes.length // 匹配数 = 互相喜欢数
         })
 
-        // 4. 获取问卷完成度（从 localStorage 读取）
+        // 4. 获取问卷完成度（从 users 表读取）
         try {
-          const answers = localStorage.getItem('questionnaireAnswers')
-          if (answers) {
-            const parsed = JSON.parse(answers)
-            const answeredCount = Object.keys(parsed).length
-            const progress = Math.round((answeredCount / 66) * 100)
-            setQuestionnaireProgress(progress)
+          const userResponse = await fetch(
+            `${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}&select=questionnaire_answers,questionnaire_completed_at`,
+            {
+              headers: {
+                'apikey': KEY,
+                'Authorization': `Bearer ${KEY}`
+              }
+            }
+          )
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json()
+            if (Array.isArray(userData) && userData.length > 0) {
+              const user = userData[0]
+              if (user.questionnaire_completed_at) {
+                // 如果有完成时间，说明已完成全部问卷
+                setQuestionnaireProgress(100)
+              } else if (user.questionnaire_answers) {
+                // 计算实际完成的题目数量
+                const answeredCount = Object.keys(user.questionnaire_answers).length
+                const progress = Math.round((answeredCount / 66) * 100)
+                setQuestionnaireProgress(progress)
+              } else {
+                // 没有问卷记录，完成度为0
+                setQuestionnaireProgress(0)
+              }
+            }
           }
         } catch (e) {
-          console.error('Failed to parse questionnaire answers:', e)
+          console.error('Failed to fetch questionnaire progress:', e)
         }
       } catch (e) {
         console.error('Failed to fetch stats:', e)
