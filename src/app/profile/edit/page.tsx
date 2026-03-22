@@ -149,12 +149,15 @@ export default function EditProfilePage() {
         })
       })
       
+      console.log('Save response status:', response.status)
+      console.log('Save response ok:', response.ok)
+      
       if (response.ok) {
         // 保存成功提示
         alert('✅ 资料保存成功！')
       } else {
         const errorText = await response.text()
-        console.error('Save error:', errorText)
+        console.error('Save error:', response.status, errorText)
         alert('⚠️ 保存成功，但云端同步失败，请检查网络')
       }
     } catch (e) {
@@ -315,53 +318,115 @@ export default function EditProfilePage() {
                     </div>
                     <div>
                       <label className="block text-sm text-gray-500 mb-1.5">城市</label>
-                      <div className="flex items-center px-4 py-2.5 bg-gray-50/50 rounded-xl border border-gray-100 focus-within:ring-2 focus-within:ring-rose-300 focus-within:border-rose-300 transition-all">
-                        <MapPin className="w-4 h-4 text-gray-400 mr-2" />
-                        <input 
-                          type="text"
-                          value={profile.city}
-                          onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                          className="flex-1 bg-transparent focus:outline-none"
-                        />
-                      </div>
+                      <select 
+                        value={profile.city}
+                        onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-gray-50/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-300 border border-gray-100 focus:border-rose-300 transition-all"
+                      >
+                        <option value="">请选择城市</option>
+                        <option value="北京">北京</option>
+                        <option value="上海">上海</option>
+                        <option value="广州">广州</option>
+                        <option value="深圳">深圳</option>
+                        <option value="杭州">杭州</option>
+                        <option value="成都">成都</option>
+                        <option value="南京">南京</option>
+                        <option value="武汉">武汉</option>
+                        <option value="西安">西安</option>
+                        <option value="重庆">重庆</option>
+                        <option value="天津">天津</option>
+                        <option value="苏州">苏州</option>
+                        <option value="郑州">郑州</option>
+                        <option value="长沙">长沙</option>
+                        <option value="济南">济南</option>
+                        <option value="青岛">青岛</option>
+                        <option value="大连">大连</option>
+                        <option value="沈阳">沈阳</option>
+                        <option value="厦门">厦门</option>
+                        <option value="福州">福州</option>
+                        <option value="昆明">昆明</option>
+                        <option value="哈尔滨">哈尔滨</option>
+                        <option value="石家庄">石家庄</option>
+                        <option value="长春">长春</option>
+                        <option value="南昌">南昌</option>
+                        <option value="贵阳">贵阳</option>
+                        <option value="太原">太原</option>
+                        <option value="东莞">东莞</option>
+                        <option value="佛山">佛山</option>
+                        <option value="宁波">宁波</option>
+                        <option value="无锡">无锡</option>
+                        <option value="徐州">徐州</option>
+                        <option value="常州">常州</option>
+                        <option value="南通">南通</option>
+                        <option value="扬州">扬州</option>
+                        <option value="烟台">烟台</option>
+                        <option value="潍坊">潍坊</option>
+                        <option value="临沂">临沂</option>
+                      </select>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-500 mb-1.5">职业</label>
-                      <div className="flex items-center px-4 py-2.5 bg-gray-50/50 rounded-xl border border-gray-100 focus-within:ring-2 focus-within:ring-rose-300 focus-within:border-rose-300 transition-all">
-                        <Briefcase className="w-4 h-4 text-gray-400 mr-2" />
-                        <input 
-                          type="text"
-                          value={profile.occupation}
-                          onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
-                          className="flex-1 bg-transparent focus:outline-none"
-                        />
-                      </div>
+                      <select 
+                        value={profile.occupation}
+                        onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-gray-50/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-300 border border-gray-100 focus:border-rose-300 transition-all"
+                      >
+                        <option value="">请选择职业</option>
+                        <option value="互联网/IT">互联网/IT</option>
+                        <option value="金融">金融</option>
+                        <option value="教育">教育</option>
+                        <option value="医疗">医疗</option>
+                        <option value="法律">法律</option>
+                        <option value="建筑">建筑</option>
+                        <option value="制造">制造</option>
+                        <option value="零售">零售</option>
+                        <option value="媒体">媒体</option>
+                        <option value="咨询">咨询</option>
+                        <option value="旅游">旅游</option>
+                        <option value="物流">物流</option>
+                        <option value="房地产">房地产</option>
+                        <option value="能源">能源</option>
+                        <option value="政府/公共事业">政府/公共事业</option>
+                        <option value="自由职业">自由职业</option>
+                        <option value="学生">学生</option>
+                        <option value="其他">其他</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm text-gray-500 mb-1.5">学历</label>
-                      <div className="flex items-center px-4 py-2.5 bg-gray-50/50 rounded-xl border border-gray-100 focus-within:ring-2 focus-within:ring-rose-300 focus-within:border-rose-300 transition-all">
-                        <GraduationCap className="w-4 h-4 text-gray-400 mr-2" />
-                        <input 
-                          type="text"
-                          value={profile.education}
-                          onChange={(e) => setProfile({ ...profile, education: e.target.value })}
-                          className="flex-1 bg-transparent focus:outline-none"
-                        />
-                      </div>
+                      <select 
+                        value={profile.education}
+                        onChange={(e) => setProfile({ ...profile, education: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-gray-50/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-300 border border-gray-100 focus:border-rose-300 transition-all"
+                      >
+                        <option value="">请选择学历</option>
+                        <option value="小学">小学</option>
+                        <option value="初中">初中</option>
+                        <option value="高中">高中</option>
+                        <option value="中专/技校">中专/技校</option>
+                        <option value="大专">大专</option>
+                        <option value="本科">本科</option>
+                        <option value="硕士">硕士</option>
+                        <option value="博士">博士</option>
+                      </select>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm text-gray-500 mb-1.5">身高 (cm)</label>
-                    <input 
-                      type="number"
+                    <select 
                       value={profile.height}
-                      onChange={(e) => setProfile({ ...profile, height: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setProfile({ ...profile, height: parseInt(e.target.value) })}
                       className="w-full px-4 py-2.5 bg-gray-50/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-300 border border-gray-100 focus:border-rose-300 transition-all"
-                    />
+                    >
+                      <option value={0}>请选择身高</option>
+                      {Array.from({length: 71}, (_, i) => 140 + i).map(h => (
+                        <option key={h} value={h}>{h} cm</option>
+                      ))}
+                    </select>
                   </div>
                 </motion.div>
               )}
