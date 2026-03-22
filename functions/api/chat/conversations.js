@@ -1,14 +1,14 @@
 /**
- * 获取会话列表 API - 使用 Supabase REST API
+ * 获取会话列表 API - 安全版本
+ * 从环境变量读取配置
  */
 
-const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../../lib/config.js'
 
 // 获取用户信息缓存
 const userCache = new Map()
 
-async function getUserInfo(userId) {
+async function getUserInfo(userId, config) {
   // 先检查缓存
   if (userCache.has(userId)) {
     return userCache.get(userId)
@@ -16,11 +16,11 @@ async function getUserInfo(userId) {
   
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=id,nickname,avatar`,
+      `${config.url}/rest/v1/users?id=eq.${userId}&select=id,nickname,avatar`,
       {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`
         }
       }
     )
@@ -40,26 +40,24 @@ async function getUserInfo(userId) {
 }
 
 export async function onRequestGet(context) {
-  const { request } = context
+  const { request, env } = context
+  const config = getSupabaseConfig(env)
   
   try {
     const url = new URL(request.url)
     const userId = url.searchParams.get('userId')
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing user ID' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse('Missing user ID', 400)
     }
     
     // 查询用户发送的消息
     const sentResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/messages?sender_id=eq.${userId}&select=receiver_id,content,created_at&order=created_at.desc`,
+      `${config.url}/rest/v1/messages?sender_id=eq.${userId}&select=receiver_id,content,created_at&order=created_at.desc`,
       {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`
         }
       }
     )
@@ -68,11 +66,11 @@ export async function onRequestGet(context) {
     
     // 查询用户接收的消息
     const receivedResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/messages?receiver_id=eq.${userId}&select=sender_id,content,created_at&order=created_at.desc`,
+      `${config.url}/rest/v1/messages?receiver_id=eq.${userId}&select=sender_id,content,created_at&order=created_at.desc`,
       {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`
         }
       }
     )
@@ -90,7 +88,7 @@ export async function onRequestGet(context) {
           matchId: msg.receiver_id,
           otherUser: {
             id: msg.receiver_id,
-            nickname: '心动对象', // 暂时默认值，后续会更新
+            nickname: '心动对象',
             isOnline: true
           },
           lastMessage: msg.content,
@@ -109,7 +107,7 @@ export async function onRequestGet(context) {
           matchId: msg.sender_id,
           otherUser: {
             id: msg.sender_id,
-            nickname: '心动对象', // 暂时默认值，后续会更新
+            nickname: '心动对象',
             isOnline: true
           },
           lastMessage: msg.content,
@@ -132,7 +130,7 @@ export async function onRequestGet(context) {
     const otherUserIds = Array.from(conversationMap.keys())
     
     for (const otherUserId of otherUserIds) {
-      const userInfo = await getUserInfo(otherUserId)
+      const userInfo = await getUserInfo(otherUserId, config)
       if (userInfo && userInfo.nickname) {
         const conv = conversationMap.get(otherUserId)
         conv.otherUser.nickname = userInfo.nickname
@@ -142,34 +140,20 @@ export async function onRequestGet(context) {
     
     const conversations = Array.from(conversationMap.values())
     
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return successResponse({
       conversations,
       count: conversations.length
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
     })
     
   } catch (error) {
     console.error('Get conversations error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    return errorResponse(error.message, 500)
   }
 }
 
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
+    headers: corsHeaders()
   })
 }

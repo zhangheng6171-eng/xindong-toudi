@@ -80,16 +80,37 @@ export function useUnreadMessages(currentUserId: string | null) {
     localStorage.setItem(`xindong_unread_${currentUserId}`, JSON.stringify(newInfo))
   }, [currentUserId, unreadInfo])
 
-  // 定期刷新未读数
+  // 定期刷新未读数 - 优化为10秒轮询
   useEffect(() => {
     if (!currentUserId) return
 
     fetchUnreadCount()
     
-    // 每30秒刷新一次
-    const interval = setInterval(fetchUnreadCount, 30000)
+    // 每10秒刷新一次（优化：减少轮询间隔提升实时性）
+    const interval = setInterval(fetchUnreadCount, 10000)
     return () => clearInterval(interval)
   }, [currentUserId, fetchUnreadCount])
+
+  // 同步已读状态到服务器
+  const syncReadStatus = useCallback(async (conversationId: string, messageIds: string[]) => {
+    if (!currentUserId || messageIds.length === 0) return
+
+    try {
+      const response = await fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, messageIds, userId: currentUserId })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          markAsRead(conversationId)
+        }
+      }
+    } catch (e) {
+      console.log('[UnreadMessages] Sync read status failed:', e)
+    }
+  }, [currentUserId, markAsRead])
 
   return {
     unreadInfo,
@@ -97,7 +118,8 @@ export function useUnreadMessages(currentUserId: string | null) {
     refresh: fetchUnreadCount,
     markAsRead,
     markAllAsRead,
-    addUnread
+    addUnread,
+    syncReadStatus
   }
 }
 

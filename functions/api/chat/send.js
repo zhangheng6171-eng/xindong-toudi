@@ -1,31 +1,29 @@
 /**
- * 发送消息 API - 使用 Supabase REST API
+ * 发送消息 API - 安全版本
+ * 从环境变量读取配置
  */
 
-const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../../lib/config.js'
 
 export async function onRequestPost(context) {
-  const { request } = context
+  const { request, env } = context
+  const config = getSupabaseConfig(env)
   
   try {
     const body = await request.json()
     const { senderId, receiverId, text, type = 'text' } = body
     
     if (!senderId || !receiverId || !text) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse('Missing required fields: senderId, receiverId, text', 400)
     }
     
     // 使用 REST API 插入消息
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    const response = await fetch(`${config.url}/rest/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': config.anonKey,
+        'Authorization': `Bearer ${config.anonKey}`,
         'Prefer': 'return=representation'
       },
       body: JSON.stringify({
@@ -40,17 +38,13 @@ export async function onRequestPost(context) {
     if (!response.ok) {
       const error = await response.text()
       console.error('Supabase insert error:', error)
-      return new Response(JSON.stringify({ error }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse(error, 500)
     }
     
     const data = await response.json()
     const message = Array.isArray(data) ? data[0] : data
     
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return successResponse({
       message: {
         id: message.id,
         senderId: message.sender_id,
@@ -60,30 +54,17 @@ export async function onRequestPost(context) {
         timestamp: message.created_at,
         status: message.status
       }
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
     })
     
   } catch (error) {
     console.error('Send message error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    return errorResponse(error.message, 500)
   }
 }
 
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
+    headers: corsHeaders()
   })
 }

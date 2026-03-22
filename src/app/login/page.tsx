@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Heart, Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -19,6 +20,7 @@ interface UserData {
 }
 
 export default function LoginPage() {
+  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -110,17 +112,17 @@ export default function LoginPage() {
 
   const handleForgotPassword = () => {
     // 忘记密码功能 - 跳转到忘记密码页面
-    alert('忘记密码功能开发中，请联系客服：support@xindong.com')
+    router.push('/forgot-password')
   }
 
   const handleGoogleLogin = () => {
-    // Google 登录功能
-    alert('Google 登录功能开发中，敬请期待！')
+    // Google 登录功能 - 提示用户
+    alert('Google 登录功能即将上线，敬请期待！\n\n目前可使用手机号登录。')
   }
 
   const handleWechatLogin = () => {
-    // 微信登录功能
-    alert('微信登录功能开发中，敬请期待！')
+    // 微信登录功能 - 提示用户
+    alert('微信登录功能即将上线，敬请期待！\n\n目前可使用手机号登录。')
   }
 
   return (

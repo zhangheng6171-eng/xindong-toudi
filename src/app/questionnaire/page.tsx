@@ -3,9 +3,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Sparkles, Heart, Check, PartyPopper, Stars, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Heart, Check, PartyPopper, Stars, X, Loader2 } from 'lucide-react'
 import { AnimatedBackground, GlassCard, GradientButton, FadeIn, Tag } from '@/components/animated-background'
 import { QuestionnaireProgress, QuestionnaireComplete } from '@/components/questionnaire-progress'
+import { useAuth } from '@/hooks/useAuth'
+
+// Supabase 配置 - 从环境变量获取
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 // 问卷问题数据 - 66道题基于婚恋心理学专业设计
 const questions = [
@@ -387,9 +392,44 @@ export default function QuestionnairePage() {
     if (currentQuestion > 0) setCurrentQuestion(prev => prev - 1)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // 保存到 localStorage
     localStorage.setItem('questionnaireAnswers', JSON.stringify(answers))
-    localStorage.removeItem('questionnaireProgress') // 清除进度
+    localStorage.removeItem('questionnaireProgress')
+    
+    // 标记问卷完成状态
+    localStorage.setItem('questionnaire_completed', 'true')
+    
+    // 尝试同步到 Supabase
+    try {
+      const currentUser = localStorage.getItem('xindong_current_user')
+      let userId = null
+      if (currentUser) {
+        const user = JSON.parse(currentUser)
+        userId = user.id
+      }
+      
+      if (userId) {
+        // 保存问卷答案
+        await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            questionnaire_answers: answers,
+            questionnaire_completed: true,
+            questionnaire_completed_at: new Date().toISOString()
+          })
+        })
+      }
+    } catch (e) {
+      console.error('Failed to sync questionnaire to cloud:', e)
+    }
+    
     setShowCelebration(true)
   }
 

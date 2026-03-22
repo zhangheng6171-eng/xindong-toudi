@@ -9,6 +9,53 @@ import { AnimatedBackground, GlassCard, GradientText, FadeIn } from '@/component
 import { useAuth } from '@/hooks/useAuth'
 import { UserCardSkeleton, EmptyState } from '@/components/skeleton'
 
+// Supabase 配置 - 从环境变量获取
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+// 计算匹配度
+function calculateMatchScore(currentUser: any, targetUser: any): number {
+  let score = 70 // 基础分
+  
+  // 1. 同城市加分
+  if (currentUser.city && targetUser.city && currentUser.city === targetUser.city) {
+    score += 8
+  }
+  
+  // 2. 年龄匹配度
+  if (currentUser.age && targetUser.age) {
+    const ageDiff = Math.abs(currentUser.age - targetUser.age)
+    if (ageDiff <= 2) score += 7
+    else if (ageDiff <= 5) score += 4
+    else if (ageDiff <= 10) score += 2
+  }
+  
+  // 3. 兴趣爱好匹配
+  if (currentUser.interests && targetUser.interests) {
+    const myInterests = new Set(currentUser.interests)
+    const commonInterests = targetUser.interests.filter((i: string) => myInterests.has(i))
+    score += Math.min(10, commonInterests.length * 2)
+  }
+  
+  // 4. 完成问卷的用户加分
+  if (targetUser.questionnaire_completed) {
+    score += 5
+  }
+  
+  // 5. 有头像加分
+  if (targetUser.avatar) {
+    score += 2
+  }
+  
+  // 6. 有个人简介加分
+  if (targetUser.bio && targetUser.bio.length > 20) {
+    score += 3
+  }
+  
+  // 限制在70-99之间
+  return Math.min(99, Math.max(70, score))
+}
+
 // 用户数据类型（从 API 返回）
 interface ApiUser {
   id: string
@@ -24,6 +71,8 @@ interface ApiUser {
   avatar: string | null
   photos: string[]
   createdAt: string
+  questionnaire_completed?: boolean
+  questionnaire_answers?: Record<string, any>
 }
 
 // 显示用户类型
@@ -399,39 +448,50 @@ function LoggedInHome() {
     return 0
   }, [currentUser])
 
-  // 获取用户列表和互相喜欢状态 - 合并为一个 API 调用
+  // 获取用户列表 - 直接从 Supabase 获取
   const fetchUsers = useCallback(async () => {
     if (!currentUser) return
     
     try {
-      const [likesResponse, usersResponse] = await Promise.all([
-        fetch('/api/users/likes?action=all'),
-        fetch('/api/users/list')
-      ])
+      // 直接从 Supabase 获取用户列表，包含问卷完成状态
+      const usersResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?select=id,nickname,age,gender,city,occupation,education,height,bio,interests,avatar,photos,questionnaire_completed,questionnaire_answers&order=createdAt.desc&limit=20`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+      )
       
       const mutualLikesMap = new Map<string, boolean>()
       
-      if (likesResponse.ok) {
-        const likesData = await likesResponse.json()
-        if (likesData.likes && Array.isArray(likesData.likes)) {
-          const myLikes = new Set(likesData.likes.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
-          const likesMe = new Set(likesData.likes.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
-          
-          myLikes.forEach(userId => {
-            if (likesMe.has(userId as string)) {
-              mutualLikesMap.set(userId as string, true)
-            }
-          })
+      // 尝试获取 likes（可能为空）
+      try {
+        const likesResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/likes?select=from_user_id,to_user_id`,
+          { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+        )
+        if (likesResponse.ok) {
+          const likesData = await likesResponse.json()
+          if (Array.isArray(likesData)) {
+            const myLikes = new Set(likesData.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
+            const likesMe = new Set(likesData.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
+            
+            myLikes.forEach(userId => {
+              if (likesMe.has(userId)) {
+                mutualLikesMap.set(userId, true)
+              }
+            })
+          }
         }
+      } catch (e) {
+        // likes 表可能不存在或为空
+        console.log('Likes data not available')
       }
       
       if (usersResponse.ok) {
-        const data = await usersResponse.json()
-        if (data.success && data.users && data.users.length > 0) {
+        const users = await usersResponse.json()
+        if (Array.isArray(users) && users.length > 0) {
           const likedJson = localStorage.getItem(`xindong_likes_${currentUser.id}`) || '[]'
           const likedUsers: string[] = JSON.parse(likedJson)
 
-          const displayUsers: DisplayUser[] = data.users
+          const displayUsers: DisplayUser[] = users
             .filter((u: ApiUser) => u.id !== currentUser.id)
             .map((u: ApiUser) => ({
               id: u.id,
@@ -445,12 +505,16 @@ function LoggedInHome() {
               bio: u.bio || '',
               interests: u.interests || [],
               avatar: u.avatar || null,
-              photos: u.photos || [],
-              matchScore: Math.floor(Math.random() * 30) + 70,
+              photos: Array.isArray(u.photos) ? u.photos : [],
+              // 基于用户画像数据计算匹配度
+              matchScore: calculateMatchScore(currentUser, u),
               isLiked: likedUsers.includes(u.id),
               isMutualLike: mutualLikesMap.has(u.id),
-              isSystemMatch: true,
+              // 只有完成问卷的用户才显示为系统匹配
+              isSystemMatch: u.questionnaire_completed === true,
             }))
+            // 按匹配度排序
+            .sort((a: DisplayUser, b: DisplayUser) => b.matchScore - a.matchScore)
 
           setAllUsers(displayUsers)
           return
@@ -489,13 +553,16 @@ function LoggedInHome() {
   const handleViewDetail = async (user: DisplayUser) => {
     setSelectedUser(user)
     
-    // 延迟加载完整信息
+    // 延迟加载完整信息 - 直接从 Supabase 获取
     try {
-      const response = await fetch(`/api/users/${user.id}`)
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}&select=id,nickname,age,gender,city,occupation,education,height,bio,interests,avatar,photos`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+      )
       if (response.ok) {
         const data = await response.json()
-        if (data.success && data.user) {
-          const fullUser = data.user
+        if (Array.isArray(data) && data[0]) {
+          const fullUser = data[0]
           const photos = Array.isArray(fullUser.photos) ? fullUser.photos : []
           
           setSelectedUser({
@@ -530,23 +597,26 @@ function LoggedInHome() {
     setDailyLikesUsed(currentCount + 1)
   }, [currentUser, checkDailyLikes])
 
-  // 获取互相喜欢状态
+  // 获取互相喜欢状态 - 直接从 Supabase 获取
   const fetchMutualLikes = useCallback(async (): Promise<Map<string, boolean>> => {
     const mutualLikesMap = new Map<string, boolean>()
     
     if (!currentUser) return mutualLikesMap
     
     try {
-      const response = await fetch('/api/users/likes?action=all')
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/likes?select=from_user_id,to_user_id`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+      )
       if (response.ok) {
         const data = await response.json()
-        if (data.likes && Array.isArray(data.likes)) {
-          const myLikes = new Set(data.likes.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
-          const likesMe = new Set(data.likes.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
+        if (Array.isArray(data)) {
+          const myLikes = new Set(data.filter((l: any) => l.from_user_id === currentUser.id).map((l: any) => l.to_user_id))
+          const likesMe = new Set(data.filter((l: any) => l.to_user_id === currentUser.id).map((l: any) => l.from_user_id))
           
           myLikes.forEach(userId => {
-            if (likesMe.has(userId as string)) {
-              mutualLikesMap.set(userId as string, true)
+            if (likesMe.has(userId)) {
+              mutualLikesMap.set(userId, true)
             }
           })
         }
@@ -582,18 +652,37 @@ function LoggedInHome() {
 
     localStorage.setItem(likedKey, JSON.stringify(likedUsers))
 
+    // 尝试同步到 Supabase（likes 表可能不存在）
     try {
-      await fetch('/api/users/likes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromUserId: currentUser.id,
-          toUserId: userId,
-          action: isLiked ? 'unlike' : 'like'
+      if (!isLiked) {
+        // 添加喜欢
+        await fetch(`${SUPABASE_URL}/rest/v1/likes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            from_user_id: currentUser.id,
+            to_user_id: userId
+          })
         })
-      })
+      } else {
+        // 取消喜欢
+        await fetch(`${SUPABASE_URL}/rest/v1/likes?from_user_id=eq.${currentUser.id}&to_user_id=eq.${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          }
+        })
+      }
     } catch (e) {
-      console.error('Failed to sync like to cloud:', e)
+      console.log('Like sync to cloud skipped (table may not exist)')
     }
 
     // 重新获取互相喜欢状态

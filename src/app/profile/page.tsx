@@ -24,6 +24,14 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState<string | null>(null)
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
   
+  // 统计数据状态
+  const [stats, setStats] = useState({
+    matchCount: 0,      // 匹配次数
+    likesCount: 0,     // 喜欢数
+    mutualLikesCount: 0 // 互相喜欢数
+  })
+  const [questionnaireProgress, setQuestionnaireProgress] = useState(0) // 问卷完成度
+  
   // 未读消息
   const { unreadInfo } = useUnreadMessages(currentUser?.id || null)
   
@@ -95,6 +103,79 @@ export default function ProfilePage() {
     }
   }, [isLoading, currentUser, getUserData])
 
+  // 从数据库获取统计数据
+  useEffect(() => {
+    if (!currentUser || !mounted) return
+
+    const fetchStats = async () => {
+      try {
+        // 1. 获取 likes 表中当前用户喜欢的所有人
+        const likesResponse = await fetch(
+          `${SUPABASE}/rest/v1/likes?from_user_id=eq.${currentUser.id}&select=to_user_id`,
+          {
+            headers: {
+              'apikey': KEY,
+              'Authorization': `Bearer ${KEY}`
+            }
+          }
+        )
+        
+        let myLikes: string[] = []
+        if (likesResponse.ok) {
+          const likesData = await likesResponse.json()
+          myLikes = likesData.map((l: any) => l.to_user_id)
+        }
+
+        // 2. 获取喜欢当前用户的所有人
+        const likedByResponse = await fetch(
+          `${SUPABASE}/rest/v1/likes?to_user_id=eq.${currentUser.id}&select=from_user_id`,
+          {
+            headers: {
+              'apikey': KEY,
+              'Authorization': `Bearer ${KEY}`
+            }
+          }
+        )
+
+        let likedBy: string[] = []
+        if (likedByResponse.ok) {
+          const likedByData = await likedByResponse.json()
+          likedBy = likedByData.map((l: any) => l.from_user_id)
+        }
+
+        // 3. 计算互相喜欢数（交集）
+        const mutualLikes = myLikes.filter(id => likedBy.includes(id))
+
+        setStats({
+          likesCount: myLikes.length,
+          mutualLikesCount: mutualLikes.length,
+          matchCount: mutualLikes.length // 匹配数 = 互相喜欢数
+        })
+
+        // 4. 获取问卷完成度（从 localStorage 读取）
+        try {
+          const answers = localStorage.getItem('questionnaireAnswers')
+          if (answers) {
+            const parsed = JSON.parse(answers)
+            const answeredCount = Object.keys(parsed).length
+            const progress = Math.round((answeredCount / 66) * 100)
+            setQuestionnaireProgress(progress)
+          }
+        } catch (e) {
+          console.error('Failed to parse questionnaire answers:', e)
+        }
+      } catch (e) {
+        console.error('Failed to fetch stats:', e)
+      }
+    }
+
+    fetchStats()
+  }, [currentUser, mounted])
+
+  // Supabase 配置
+  const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+  const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+  
   // 保存头像到用户专属存储并同步到云端
   const handleAvatarChange = async (url: string | null) => {
     setAvatar(url)
@@ -110,22 +191,24 @@ export default function ProfilePage() {
       const updatedUser = { ...currentUser, avatar: url }
       localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
       
-      // 同步到云端
+      // 直接同步到 Supabase
       try {
-        const response = await fetch('/api/users/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            updates: { avatar: url }
-          })
+        const response = await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': KEY,
+            'Authorization': `Bearer ${KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ avatar: url })
         })
         
         if (!response.ok) {
-          console.error('Failed to sync avatar to cloud')
+          console.error('Failed to sync avatar to Supabase:', await response.text())
         }
       } catch (e) {
-        console.error('Failed to sync avatar to cloud:', e)
+        console.error('Failed to sync avatar to Supabase:', e)
       }
     }
   }
@@ -137,19 +220,21 @@ export default function ProfilePage() {
       // 保存到 localStorage
       localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(newPhotos))
       
-      // 同步到云端（过滤掉 null 值）
+      // 直接同步到 Supabase（过滤掉 null 值）
       const validPhotos = newPhotos.filter(p => p !== null) as string[]
       try {
-        await fetch('/api/users/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            updates: { photos: validPhotos }
-          })
+        await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': KEY,
+            'Authorization': `Bearer ${KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ photos: validPhotos })
         })
       } catch (e) {
-        console.error('Failed to sync photos to cloud:', e)
+        console.error('Failed to sync photos to Supabase:', e)
       }
     }
   }
@@ -228,19 +313,19 @@ export default function ProfilePage() {
               <div className="flex gap-10 mt-5">
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={12} duration={1.5} />
+                    <AnimatedCounter end={stats.matchCount} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">匹配次数</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={8} duration={1.5} />
+                    <AnimatedCounter end={stats.likesCount} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">喜欢</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold">
-                    <AnimatedCounter end={3} duration={1.5} />
+                    <AnimatedCounter end={stats.mutualLikesCount} duration={1.5} />
                   </div>
                   <div className="text-xs text-white/80 mt-1">互相喜欢</div>
                 </div>
@@ -381,13 +466,13 @@ export default function ProfilePage() {
                   问卷完成度
                 </span>
                 <GradientText className="text-xl font-bold">
-                  0/66
+                  {questionnaireProgress}%
                 </GradientText>
               </div>
               <div className="w-full bg-gray-100/50 rounded-full h-3 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 h-3 rounded-full transition-all duration-1000"
-                  style={{ width: '0%' }}
+                  style={{ width: `${questionnaireProgress}%` }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-3">完成更多问题，获得更精准的匹配 ✨</p>

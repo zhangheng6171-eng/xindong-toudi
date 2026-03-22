@@ -13,6 +13,17 @@ import {
   GradientText
 } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
+import { 
+  calculateMatch, 
+  calculateMatches, 
+  getLocalUserAnswers, 
+  fetchUserAnswers,
+  type UserAnswers 
+} from '@/lib/match-calculator'
+
+// Supabase 配置
+const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
 // 匹配数据类型
 interface Match {
@@ -182,35 +193,91 @@ export default function MatchPage() {
     router.push(`/match/detail?userId=${matchId}`)
   }, [router])
 
-  // 加载匹配数据 - 使用 useCallback 避免重复创建
+  // 加载匹配数据 - 使用真正的AI匹配算法
   useEffect(() => {
     let cancelled = false
     
     const loadMatches = async () => {
       try {
-        const response = await fetch('/api/users/list')
+        // 获取当前用户的问卷答案
+        let currentUserAnswers: UserAnswers | null = null
+        
+        // 首先尝试从 localStorage 获取
+        currentUserAnswers = getLocalUserAnswers()
+        
+        // 如果当前用户已登录，尝试从 Supabase 获取最新答案
+        if (!currentUserAnswers && currentUser?.id) {
+          currentUserAnswers = await fetchUserAnswers(currentUser.id)
+        }
+        
+        // 从 Supabase 获取所有已完成问卷的用户
+        const response = await fetch(
+          `${SUPABASE}/rest/v1/users?select=id,nickname,age,city,occupation,education,interests,avatar,questionnaire_answers,questionnaire_completed&questionnaire_completed=eq.true&order=createdAt.desc&limit=50`,
+          { headers: { 'apikey': KEY, 'Authorization': `Bearer ${KEY}` } }
+        )
+        
         if (cancelled) return
+        
         if (response.ok) {
           const data = await response.json()
-          if (data.users && data.users.length > 0) {
-            const formattedMatches = data.users
-              .filter((u: any) => u.id !== currentUser?.id)
-              .slice(0, 3)
-              .map((u: any, index: number) => ({
-                id: u.id,
-                nickname: u.nickname,
-                age: u.age || 25,
-                city: u.city || '未知',
-                occupation: u.occupation || '待完善',
-                education: u.education || '待完善',
-                compatibility: 85 - index * 5,
-                matchReasons: ['资料相似度较高', '兴趣相投'],
-                sharedValues: ['真诚', '成长'],
-                sharedInterests: u.interests?.slice(0, 2) || ['待了解'],
-                avatar: u.avatar,
+          const allUsers = Array.isArray(data) ? data : data.users || []
+          
+          // 过滤掉当前用户
+          const otherUsers = allUsers.filter((u: any) => u.id !== currentUser?.id)
+          
+          if (otherUsers.length > 0 && currentUserAnswers) {
+            // 使用真正的匹配算法计算匹配度
+            const matchResults = await calculateMatches(currentUserAnswers, otherUsers)
+            
+            // 将匹配结果与用户信息结合
+            const formattedMatches = matchResults.slice(0, 5).map((result, index) => {
+              const user = otherUsers.find((u: any) => u.id === result.userId)
+              if (!user) return null
+              
+              return {
+                id: user.id,
+                nickname: user.nickname || '匿名用户',
+                age: user.age || 25,
+                city: user.city || '未知',
+                occupation: user.occupation || '待完善',
+                education: user.education || '待完善',
+                compatibility: result.compatibility,
+                matchReasons: result.matchReasons.length > 0 
+                  ? result.matchReasons 
+                  : ['资料完整，值得了解'],
+                sharedValues: result.sharedValues,
+                sharedInterests: result.sharedInterests.length > 0 
+                  ? result.sharedInterests 
+                  : ['待了解'],
+                avatar: user.avatar,
                 liked: false,
-              }))
+              }
+            }).filter(Boolean) as Match[]
+            
+            // 按匹配度排序
+            formattedMatches.sort((a, b) => b.compatibility - a.compatibility)
+            
             setMatches(formattedMatches)
+          } else if (otherUsers.length > 0) {
+            // 如果当前用户没有问卷答案，使用基础匹配
+            const basicMatches = otherUsers.slice(0, 5).map((u: any) => ({
+              id: u.id,
+              nickname: u.nickname || '匿名用户',
+              age: u.age || 25,
+              city: u.city || '未知',
+              occupation: u.occupation || '待完善',
+              education: u.education || '待完善',
+              compatibility: 65 + Math.floor(Math.random() * 20), // 65-85 基础分
+              matchReasons: u.questionnaire_completed 
+                ? ['已完成问卷调查'] 
+                : ['资料完整，值得了解'],
+              sharedValues: ['真诚', '成长'],
+              sharedInterests: u.interests?.slice(0, 2) || ['待了解'],
+              avatar: u.avatar,
+              liked: false,
+            }))
+            
+            setMatches(basicMatches)
           }
         }
       } catch (e) {

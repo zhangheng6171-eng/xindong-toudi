@@ -1,31 +1,29 @@
 /**
- * 更新用户在线状态 API - Supabase
+ * 更新用户在线状态 API - 安全版本
+ * 从环境变量读取配置
  */
 
-const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../../lib/config.js'
 
 export async function onRequestPost(context) {
-  const { request } = context
+  const { request, env } = context
+  const config = getSupabaseConfig(env)
   
   try {
     const body = await request.json()
     const { userId, isOnline } = body
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing userId' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse('Missing userId', 400)
     }
     
     // 更新用户在线状态
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+    const response = await fetch(`${config.url}/rest/v1/users?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': config.anonKey,
+        'Authorization': `Bearer ${config.anonKey}`,
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
@@ -35,13 +33,13 @@ export async function onRequestPost(context) {
     })
     
     if (!response.ok) {
-      // 如果更新失败，可能是因为字段不存在，尝试只更新last_active
-      const fallbackResponse = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+      // 如果更新失败，尝试只更新last_active
+      const fallbackResponse = await fetch(`${config.url}/rest/v1/users?id=eq.${userId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`,
           'Prefer': 'return=minimal'
         },
         body: JSON.stringify({
@@ -52,74 +50,53 @@ export async function onRequestPost(context) {
       if (!fallbackResponse.ok) {
         const error = await fallbackResponse.text()
         console.error('Supabase update error:', error)
-        return new Response(JSON.stringify({ error }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        })
+        return errorResponse(error, 500)
       }
     }
     
-    return new Response(JSON.stringify({ 
-      success: true,
+    return successResponse({
       timestamp: new Date().toISOString()
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
     })
     
   } catch (error) {
     console.error('Update online status error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    return errorResponse(error.message, 500)
   }
 }
 
 export async function onRequestGet(context) {
-  const { request } = context
+  const { request, env } = context
+  const config = getSupabaseConfig(env)
   
   try {
     const url = new URL(request.url)
     const userId = url.searchParams.get('userId')
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing userId' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse('Missing userId', 400)
     }
     
     // 获取用户信息
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}&select=id,last_active,is_online,nickname,avatar,photos`,
+      `${config.url}/rest/v1/users?id=eq.${userId}&select=id,last_active,is_online,nickname,avatar,photos`,
       {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`
         }
       }
     )
     
     if (!response.ok) {
       const error = await response.text()
-      return new Response(JSON.stringify({ error }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse(error, 500)
     }
     
     const data = await response.json()
     const user = Array.isArray(data) && data.length > 0 ? data[0] : null
     
     if (!user) {
-      return new Response(JSON.stringify({ error: 'User not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      return errorResponse('User not found', 404)
     }
     
     // 计算在线状态
@@ -145,8 +122,7 @@ export async function onRequestGet(context) {
       }
     }
     
-    return new Response(JSON.stringify({ 
-      success: true,
+    return successResponse({
       user: {
         id: user.id,
         nickname: user.nickname,
@@ -155,30 +131,17 @@ export async function onRequestGet(context) {
         lastActiveText,
         lastActive: user.last_active
       }
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
     })
     
   } catch (error) {
     console.error('Get online status error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    return errorResponse(error.message, 500)
   }
 }
 
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
+    headers: corsHeaders()
   })
 }

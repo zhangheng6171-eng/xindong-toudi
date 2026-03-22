@@ -1,57 +1,47 @@
 /**
- * 获取所有用户列表 API - 使用 Supabase
- * 包含用户详细资料（头像、照片墙等）
- * 修复：profiles 表不存在时，只使用 users 表数据
+ * 获取所有用户列表 API - 安全版本
+ * 从环境变量读取配置
  */
 
-const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../../lib/config.js'
 
 export async function onRequestGet(context) {
-  const { request } = context
+  const { request, env } = context
+  const config = getSupabaseConfig(env)
   
   try {
     const url = new URL(request.url)
     const excludeUserId = url.searchParams.get('exclude')
     
-    // 查询所有用户（包含所有字段）
-    let query = `${SUPABASE_URL}/rest/v1/users?select=*`
+    // 查询所有用户（排除敏感字段 - 不返回密码）
+    let query = `${config.url}/rest/v1/users?select=id,email,nickname,avatar,gender,age,city,created_at`
     if (excludeUserId) {
       query += `&id=not.eq.${excludeUserId}`
     }
     
     const response = await fetch(query, {
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'apikey': config.anonKey,
+        'Authorization': `Bearer ${config.anonKey}`
       }
     })
     
     const users = await response.json()
     
     if (!Array.isArray(users)) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        users: [] 
-      }), {
-        status: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
-      })
+      return successResponse({ users: [] })
     }
     
     // 尝试获取 profiles 数据（如果表存在）
     let profileMap = {}
     try {
       const userIds = users.map(u => u.id)
-      const profilesQuery = `${SUPABASE_URL}/rest/v1/profiles?select=*&user_id=in.(${userIds.join(',')})`
+      const profilesQuery = `${config.url}/rest/v1/profiles?select=*&user_id=in.(${userIds.join(',')})`
       
       const profilesResponse = await fetch(profilesQuery, {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`
         }
       })
       
@@ -67,12 +57,12 @@ export async function onRequestGet(context) {
       console.log('Profiles table not found, using users table only')
     }
     
-    // 格式化用户数据
+    // 格式化用户数据（不返回敏感信息）
     const formattedUsers = users.map(u => {
       const profile = profileMap[u.id] || {}
       return {
         id: u.id,
-        email: u.email,
+        email: u.email, // 可以根据需要决定是否返回
         nickname: u.nickname || u.email?.split('@')[0] || '用户',
         avatar: u.avatar || null,
         gender: u.gender || 'male',
@@ -83,47 +73,25 @@ export async function onRequestGet(context) {
         height: profile.height || 0,
         bio: profile.bio || '',
         interests: profile.interests || [],
-        // 优先从 profiles 表获取 photos，如果不存在则使用空数组
         photos: profile.photos || [],
         createdAt: u.created_at
       }
     })
     
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return successResponse({
       users: formattedUsers,
       count: formattedUsers.length
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
     })
     
   } catch (error) {
     console.error('Get users error:', error)
-    return new Response(JSON.stringify({ 
-      success: true, 
-      users: [],
-      error: error.message 
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    })
+    return successResponse({ users: [], error: error.message })
   }
 }
 
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
+    headers: corsHeaders()
   })
 }

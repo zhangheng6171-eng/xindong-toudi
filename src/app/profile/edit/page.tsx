@@ -89,6 +89,10 @@ export default function EditProfilePage() {
     }
   }, [isLoading, currentUser, getUserData])
 
+  // Supabase 配置
+  const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+  const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+  
   const handleSave = async () => {
     if (!currentUser) return
     
@@ -106,7 +110,7 @@ export default function EditProfilePage() {
     // 保存照片
     localStorage.setItem(`xindong_photos_${currentUser.id}`, JSON.stringify(photos))
     
-    // 同步到云端
+    // 直接同步到 Supabase
     try {
       const validPhotos = photos.filter(p => p !== null) as string[]
       
@@ -121,25 +125,27 @@ export default function EditProfilePage() {
       }
       localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
       
-      const response = await fetch('/api/users/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': KEY,
+          'Authorization': `Bearer ${KEY}`,
+          'Prefer': 'return=minimal'
+        },
         body: JSON.stringify({
-          userId: currentUser.id,
-          updates: {
-            nickname: profile.nickname,
-            age: profile.age,
-            gender: profile.gender,
-            city: profile.city,
-            occupation: profile.occupation,
-            education: profile.education,
-            height: profile.height,
-            bio: profile.bio,
-            interests: profile.interests,
-            lookingFor: profile.lookingFor,
-            avatar: avatar,
-            photos: validPhotos
-          }
+          nickname: profile.nickname,
+          age: profile.age,
+          gender: profile.gender,
+          city: profile.city,
+          occupation: profile.occupation,
+          education: profile.education,
+          height: profile.height,
+          bio: profile.bio,
+          interests: profile.interests,
+          looking_for: profile.lookingFor,
+          avatar: avatar,
+          photos: validPhotos
         })
       })
       
@@ -147,12 +153,12 @@ export default function EditProfilePage() {
         // 保存成功提示
         alert('✅ 资料保存成功！')
       } else {
-        const errorData = await response.json()
-        console.error('Save error:', errorData)
+        const errorText = await response.text()
+        console.error('Save error:', errorText)
         alert('保存成功（本地），云端同步可能需要稍后重试')
       }
     } catch (e) {
-      console.error('Failed to sync to cloud:', e)
+      console.error('Failed to sync to Supabase:', e)
       alert('保存成功（本地），云端同步失败')
     }
     
