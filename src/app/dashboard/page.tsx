@@ -15,6 +15,10 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { useNotifications, AppNotification } from '@/hooks/useNotifications'
 import { BottomNav } from '@/components/bottom-nav'
 
+// Supabase 配置
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+
 // 互相喜欢用户类型
 interface MutualLikeUser {
   id: string
@@ -530,14 +534,29 @@ export default function DashboardPage() {
         if (savedAvatar) setAvatar(savedAvatar)
       }
 
-      // 检查问卷完成状态
-      try {
-        const answers = localStorage.getItem('questionnaireAnswers')
-        if (answers) {
-          const parsed = JSON.parse(answers)
-          setQuestionnaireCompleted(Object.keys(parsed).length >= 66)
+      // 检查问卷完成状态 - 从数据库读取
+      const fetchQuestionnaireStatus = async () => {
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUser.id}&select=questionnaire_completed_at`,
+            {
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+              }
+            }
+          )
+          if (response.ok) {
+            const data = await response.json()
+            if (Array.isArray(data) && data.length > 0) {
+              setQuestionnaireCompleted(!!data[0].questionnaire_completed_at)
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch questionnaire status:', e)
         }
-      } catch (e) {}
+      }
+      fetchQuestionnaireStatus()
 
       // 检查照片数量
       try {
@@ -678,7 +697,7 @@ export default function DashboardPage() {
                     <Heart className="w-6 h-6 text-rose-500" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={12} duration={1.5} /></p>
+                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={mutualLikeUsers.length} duration={1.5} /></p>
                     <p className="text-sm text-gray-500">匹配次数</p>
                   </div>
                 </div>
@@ -720,7 +739,7 @@ export default function DashboardPage() {
                     <TrendingUp className="w-6 h-6 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={85} suffix="%" duration={1.5} /></p>
+                    <p className="text-2xl font-bold text-gray-800"><AnimatedCounter end={questionnaireCompleted ? 85 : 0} suffix="%" duration={1.5} /></p>
                     <p className="text-sm text-gray-500">平均匹配度</p>
                   </div>
                 </div>

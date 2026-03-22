@@ -90,8 +90,8 @@ export default function EditProfilePage() {
   }, [isLoading, currentUser, getUserData])
 
   // Supabase 配置 - 使用环境变量
-  const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-  const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
   
   const handleSave = async () => {
     if (!currentUser) return
@@ -125,12 +125,12 @@ export default function EditProfilePage() {
       }
       localStorage.setItem('xindong_current_user', JSON.stringify(updatedUser))
       
-      const response = await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${currentUser.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': KEY,
-          'Authorization': `Bearer ${KEY}`,
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
           'Prefer': 'return=minimal'
         },
         body: JSON.stringify({
@@ -155,11 +155,11 @@ export default function EditProfilePage() {
       } else {
         const errorText = await response.text()
         console.error('Save error:', errorText)
-        alert('保存成功（本地），云端同步可能需要稍后重试')
+        alert('⚠️ 保存成功，但云端同步失败，请检查网络')
       }
     } catch (e) {
       console.error('Failed to sync to Supabase:', e)
-      alert('保存成功（本地），云端同步失败')
+      alert('⚠️ 保存成功，但云端同步失败')
     }
     
     console.log('Saving profile:', { profile, avatar, photos })
