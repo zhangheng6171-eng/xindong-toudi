@@ -8,15 +8,20 @@
  * - JWT_SECRET: JWT 签名密钥 (必须设置一个强密钥，生产环境使用长随机字符串)
  */
 
+// Supabase 密钥（生产环境应该用环境变量）
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzkxNjg3NSwiZXhwIjoyMDg5NDkyODc1fQ.z8LPpoJoa9_DEJvBmNvSF0Q1I4FA3FNnFRU0PgKcF2A'
+
 /**
  * 获取 Supabase 配置
  * 优先使用环境变量，fallback 到默认值（开发环境）
  */
 export function getSupabaseConfig(env) {
   return {
-    url: env?.SUPABASE_URL || 'https://ntaqnyegiiwtzdyqjiwy.supabase.co',
-    anonKey: env?.SUPABASE_ANON_KEY || '',
-    serviceRoleKey: env?.SUPABASE_SERVICE_ROLE_KEY || ''
+    url: env?.SUPABASE_URL || SUPABASE_URL,
+    anonKey: env?.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY,
+    serviceRoleKey: env?.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY
   }
 }
 
