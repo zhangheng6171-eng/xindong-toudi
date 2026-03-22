@@ -487,6 +487,7 @@ function LoggedInHome() {
       
       if (usersResponse.ok) {
         const users = await usersResponse.json()
+        console.log('Fetched users:', users.length)
         if (Array.isArray(users) && users.length > 0) {
           const likedJson = localStorage.getItem(`xindong_likes_${currentUser.id}`) || '[]'
           const likedUsers: string[] = JSON.parse(likedJson)
