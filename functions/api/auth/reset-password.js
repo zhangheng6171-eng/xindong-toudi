@@ -80,15 +80,15 @@ export async function onRequestPost(context) {
     // 加密新密码
     const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
     
-    // 更新密码并清除验证码
+    // 更新密码并清除验证码（使用service role key确保权限足够）
     const updateResponse = await fetch(
       `${config.url}/rest/v1/users?id=eq.${user.id}`,
       {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': config.anonKey,
-          'Authorization': `Bearer ${config.anonKey}`,
+          'apikey': config.serviceRoleKey || config.anonKey,
+          'Authorization': `Bearer ${config.serviceRoleKey || config.anonKey}`,
           'Prefer': 'return=representation'
         },
         body: JSON.stringify({

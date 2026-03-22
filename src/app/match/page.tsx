@@ -312,7 +312,7 @@ export default function MatchPage() {
                   answers: u.questionnaire_answers
                 }))
               
-              if (candidates.length > 0) {
+              if (candidates.length > 0 && currentUser) {
                 const v2Results = batchMatchV2(
                   currentUserAnswers,
                   currentUser.id,

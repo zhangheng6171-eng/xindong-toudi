@@ -7,12 +7,15 @@
 **修改文件:**
 - `functions/api/auth/user.js`
 - `functions/api/auth/reset-password.js`
+- `functions/lib/password.js` (新增)
 
 **实现的安全措施:**
 - ✅ bcrypt加密强度从10轮提升到12轮（SALT_ROUNDS=12）
 - ✅ 注册时使用bcrypt.hash()加密密码存储
 - ✅ 登录时使用bcrypt.compare()验证加密密码
 - ✅ 添加Timing攻击防护（密码验证失败时增加延迟）
+- ✅ 密码自动升级机制：检测明文密码并自动升级到bcrypt（向后兼容）
+- ✅ 密码强度验证函数（validatePasswordStrength）
 
 ### 2. JWT Token系统
 
@@ -64,7 +67,22 @@
 - ✅ 密码强度检查（至少8位，包含大小写字母和数字）
 - ✅ 使用serviceRoleKey确保数据库操作权限
 
-### 5. 其他安全增强
+### 5. 前端密码工具模块
+
+**新增文件:**
+- `src/lib/password.ts` - 前端密码加密验证工具
+
+**实现功能:**
+- ✅ 密码强度检查（checkPasswordStrength）- 评分0-4，支持弱/一般/强/非常强
+- ✅ 密码格式验证（validatePassword）- 长度、空白字符检查
+- ✅ 随机密码生成（generateRandomPassword）- 支持自定义长度
+- ✅ 密码强度UI辅助函数（getStrengthColor、getStrengthLabel）
+- ✅ 注册页面集成密码强度实时显示
+
+**修改文件:**
+- `src/app/register/page.tsx` - 集成密码强度指示器
+
+### 6. 其他安全增强
 
 **新增文件:**
 - `.env.example` - 环境变量配置示例
@@ -115,7 +133,25 @@
 ## 已安装的依赖
 
 ```bash
-npm install jsonwebtoken
+npm install jsonwebtoken bcryptjs
+```
+
+---
+
+## 测试
+
+**新增测试文件:**
+- `__tests__/password.test.ts` - 密码工具模块测试
+
+**测试覆盖:**
+- 密码强度检查（弱/中等/强）
+- 密码格式验证
+- 密码强度UI辅助函数
+- 随机密码生成
+
+**运行测试:**
+```bash
+npm test -- __tests__/password.test.ts
 ```
 
 ---
@@ -124,16 +160,20 @@ npm install jsonwebtoken
 
 | 文件路径 | 操作 | 说明 |
 |---------|------|------|
-| `functions/api/auth/user.js` | 修改 | JWT Token系统 + bcrypt升级 |
+| `functions/api/auth/user.js` | 修改 | JWT Token系统 + bcrypt升级 + 向后兼容明文密码 |
 | `functions/api/auth/forgot-password.js` | 修改 | 速率限制 + 安全增强 |
-| `functions/api/auth/reset-password.js` | 修改 | 密码强度检查 |
+| `functions/api/auth/reset-password.js` | 修改 | 密码强度检查 + bcrypt加密 |
 | `functions/api/auth/refresh-token.js` | 新增 | Token刷新API |
 | `functions/api/lib/config.js` | 修改 | JWT配置增强 |
 | `functions/api/lib/auth.js` | 新增 | 认证中间件 |
+| `functions/lib/password.js` | 新增 | 后端密码加密工具 |
 | `src/lib/config.ts` | 修改 | 前端安全配置 |
 | `src/hooks/useAuth.ts` | 修改 | Token管理 |
 | `src/lib/auth-client.ts` | 新增 | 认证API辅助 |
+| `src/lib/password.ts` | 新增 | 前端密码工具模块 |
 | `src/app/login/page.tsx` | 修改 | POST登录 + Token存储 |
-| `src/app/register/page.tsx` | 修改 | Token存储 |
+| `src/app/register/page.tsx` | 修改 | Token存储 + 密码强度指示器 |
+| `src/app/forgot-password/page.tsx` | 修改 | 密码重置页面 |
 | `.env.example` | 新增 | 环境变量示例 |
+| `__tests__/password.test.ts` | 新增 | 密码工具测试 |
 | `SECURITY_REPORT.md` | 新增 | 本报告 |

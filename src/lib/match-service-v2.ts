@@ -4,7 +4,7 @@
  * 整合所有优化模块的一站式匹配服务
  */
 
-import { calculateAdvancedMatch, MatchingResult, MatchConfigV2 } from './matching-algorithm-v2'
+import { calculateMatchV2 as calculateAdvancedMatch, MatchingResultV2 as MatchingResult, MatchConfigV2 } from './matching-algorithm-v2'
 import { extractAdvancedFeatures, ExtractedFeatures } from './feature-engineering-v2'
 import { generatePersonalityProfile, PersonalityProfile } from './scoring-system'
 

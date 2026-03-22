@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Heart, Eye, Mail, Lock, User, Calendar, ArrowRight, Check, Loader2, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { AnimatedBackground, GlassCard, GradientButton, GradientText, StepIndicator } from '@/components/animated-background'
+import { checkPasswordStrength, getStrengthColor, getStrengthLabel } from '@/lib/password'
 
 // 问卷选择弹窗组件 - 使用 memo
 const QuestionnaireChoiceModal = memo(function QuestionnaireChoiceModal({ 
@@ -140,6 +141,12 @@ const Step1 = memo(function Step1({
   formData: FormData
   onChange: (field: keyof FormData, value: string) => void 
 }) {
+  // 计算密码强度
+  const passwordStrength = useMemo(() => {
+    if (!formData.password || formData.password.length < 6) return null
+    return checkPasswordStrength(formData.password)
+  }, [formData.password])
+  
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">创建账号</h2>
@@ -186,6 +193,38 @@ const Step1 = memo(function Step1({
               className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
             />
           </div>
+          
+          {/* 密码强度指示器 */}
+          {passwordStrength && (
+            <div className="mt-2">
+              <div className="flex gap-1 mb-1">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-1 flex-1 rounded-full transition-colors"
+                    style={{
+                      backgroundColor: i <= passwordStrength.score 
+                        ? getStrengthColor(passwordStrength.level) 
+                        : '#e5e7eb'
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between items-center">
+                <span 
+                  className="text-xs font-medium"
+                  style={{ color: getStrengthColor(passwordStrength.level) }}
+                >
+                  {getStrengthLabel(passwordStrength.level)}
+                </span>
+                {passwordStrength.feedback.length > 0 && passwordStrength.score < 2 && (
+                  <span className="text-xs text-gray-500">
+                    {passwordStrength.feedback[0]}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -77,8 +77,9 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  // 验证验证码
-  const handleVerifyCode = async () => {
+  // 验证验证码（前端验证，进入下一步）
+  // 真正的验证码验证会在重置密码时由后端完成
+  const handleVerifyCode = () => {
     if (!formData.code.trim()) {
       setError('请输入验证码')
       return
@@ -89,45 +90,36 @@ export default function ForgotPasswordPage() {
       return
     }
 
+    // 前端格式验证通过，进入设置新密码步骤
+    // 验证码的实际验证会在提交新密码时由后端完成
     setError(null)
-    setIsLoading(true)
+    setStep('reset')
+  }
 
-    try {
-      // 验证验证码（与重置密码一起）
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: formData.email.trim(),
-          code: formData.code.trim(),
-          newPassword: 'dummy_password_for_verify' // 先验证，不实际修改
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok && data.success) {
-        setStep('reset')
-      } else {
-        setError(data.error || '验证码错误，请重试')
-      }
-    } catch (e) {
-      console.error('Verify code error:', e)
-      setError('网络错误，请检查网络连接')
-    } finally {
-      setIsLoading(false)
+  // 密码强度验证
+  const validatePassword = (password: string): string | null => {
+    if (!password) {
+      return '请输入新密码'
     }
+    if (password.length < 8) {
+      return '密码长度至少8位'
+    }
+    // 检查大小写字母和数字
+    const hasUpperCase = /[A-Z]/.test(password)
+    const hasLowerCase = /[a-z]/.test(password)
+    const hasNumber = /[0-9]/.test(password)
+    if (!(hasUpperCase && hasLowerCase && hasNumber)) {
+      return '密码必须包含大小写字母和数字'
+    }
+    return null
   }
 
   // 重置密码
   const handleResetPassword = async () => {
-    if (!formData.newPassword) {
-      setError('请输入新密码')
-      return
-    }
-
-    if (formData.newPassword.length < 6) {
-      setError('密码长度至少6位')
+    // 验证密码强度
+    const passwordError = validatePassword(formData.newPassword)
+    if (passwordError) {
+      setError(passwordError)
       return
     }
 
@@ -448,7 +440,7 @@ export default function ForgotPasswordPage() {
                           type={showPassword ? 'text' : 'password'}
                           value={formData.newPassword}
                           onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                          placeholder="至少6位字符"
+                          placeholder="至少8位，含大小写字母和数字"
                           className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
                         />
                         <button
@@ -458,6 +450,27 @@ export default function ForgotPasswordPage() {
                         >
                           {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
+                      </div>
+                      {/* 密码强度提示 */}
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center ${formData.newPassword.length >= 8 ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                            {formData.newPassword.length >= 8 ? <Check className="w-3 h-3" /> : ''}
+                          </span>
+                          <span className={formData.newPassword.length >= 8 ? 'text-green-600' : 'text-gray-500'}>至少8个字符</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center ${/[A-Z]/.test(formData.newPassword) && /[a-z]/.test(formData.newPassword) ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                            {/[A-Z]/.test(formData.newPassword) && /[a-z]/.test(formData.newPassword) ? <Check className="w-3 h-3" /> : ''}
+                          </span>
+                          <span className={/[A-Z]/.test(formData.newPassword) && /[a-z]/.test(formData.newPassword) ? 'text-green-600' : 'text-gray-500'}>包含大小写字母</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center ${/[0-9]/.test(formData.newPassword) ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                            {/[0-9]/.test(formData.newPassword) ? <Check className="w-3 h-3" /> : ''}
+                          </span>
+                          <span className={/[0-9]/.test(formData.newPassword) ? 'text-green-600' : 'text-gray-500'}>包含数字</span>
+                        </div>
                       </div>
                     </div>
 

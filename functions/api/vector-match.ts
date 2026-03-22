@@ -104,7 +104,7 @@ async function handleBatchMatch(body: {
   currentUserAnswers: any
   candidateIds?: string[]
 }): Promise<Response> {
-  const { currentUserId, currentUserAnswers, candidateIds } = body
+  let { currentUserId, currentUserAnswers, candidateIds } = body
 
   if (!currentUserAnswers) {
     const userData = await fetchUserAnswers(currentUserId)
@@ -168,7 +168,7 @@ async function handleVectorize(body: {
   userId: string
   answers: any
 }): Promise<Response> {
-  const { userId, answers } = body
+  let { userId, answers } = body
 
   if (!answers) {
     const userData = await fetchUserAnswers(userId)

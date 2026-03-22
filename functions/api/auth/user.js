@@ -115,6 +115,27 @@ export async function onRequestPost(context) {
   }
 }
 
+// 密码强度验证
+function validatePasswordStrength(password) {
+  const errors = []
+  
+  if (password.length < 6) {
+    errors.push('密码长度至少6位')
+  }
+  
+  if (password.length > 100) {
+    errors.push('密码长度不能超过100位')
+  }
+  
+  // 检查常见弱密码
+  const commonPasswords = ['password', '123456', '12345678', 'qwerty', 'abc123', 'admin']
+  if (commonPasswords.some(p => password.toLowerCase() === p)) {
+    errors.push('请使用更复杂的密码')
+  }
+  
+  return errors
+}
+
 // 处理用户注册
 async function handleRegister({ email, password, nickname, gender, age, city, config, env }) {
   // 验证必填字段
@@ -122,9 +143,10 @@ async function handleRegister({ email, password, nickname, gender, age, city, co
     return errorResponse('缺少必填字段: email, password, nickname', 400)
   }
   
-  // 密码强度检查
-  if (password.length < 6) {
-    return errorResponse('密码长度至少6位', 400)
+  // 密码强度验证
+  const passwordErrors = validatePasswordStrength(password)
+  if (passwordErrors.length > 0) {
+    return errorResponse(passwordErrors[0], 400)
   }
   
   // 检查邮箱是否已注册
@@ -199,6 +221,40 @@ async function handleRegister({ email, password, nickname, gender, age, city, co
   })
 }
 
+// 检测密码是否已加密（bcrypt哈希以$2开头，长度60位）
+function isPasswordHashed(password) {
+  return password && password.startsWith('$2') && password.length === 60
+}
+
+// 升级明文密码到bcrypt加密（向后兼容）
+async function upgradePasswordHash(userId, plainPassword, config) {
+  try {
+    const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS)
+    
+    const updateResponse = await fetch(
+      `${config.url}/rest/v1/users?id=eq.${userId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': config.anonKey,
+          'Authorization': `Bearer ${config.anonKey}`,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ password: hashedPassword })
+      }
+    )
+    
+    if (updateResponse.ok) {
+      console.log(`[Password Upgrade] User ${userId} password upgraded to bcrypt`)
+    } else {
+      console.error('[Password Upgrade] Failed to upgrade password:', await updateResponse.text())
+    }
+  } catch (error) {
+    console.error('[Password Upgrade] Error:', error.message)
+  }
+}
+
 // 处理用户登录
 async function handleLogin({ email, password, config, env }) {
   // 验证必填字段
@@ -224,9 +280,24 @@ async function handleLogin({ email, password, config, env }) {
   }
   
   const user = users[0]
+  let passwordMatch = false
   
-  // 使用 bcrypt 验证密码
-  const passwordMatch = await bcrypt.compare(password, user.password)
+  // 检查密码是否已加密
+  if (isPasswordHashed(user.password)) {
+    // 使用 bcrypt 验证加密密码
+    passwordMatch = await bcrypt.compare(password, user.password)
+  } else {
+    // 向后兼容：明文密码直接比较
+    // 注意：这是一个安全风险，应该提示用户更新密码
+    console.warn(`[Security] User ${user.id} is using plain text password!`)
+    
+    if (user.password === password) {
+      passwordMatch = true
+      
+      // 自动升级密码到bcrypt（后台进行）
+      upgradePasswordHash(user.id, password, config)
+    }
+  }
   
   if (!passwordMatch) {
     // 密码错误，增加短暂延迟防止Timing攻击
