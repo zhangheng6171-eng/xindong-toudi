@@ -17,6 +17,10 @@ import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { useNotifications } from '@/hooks/useNotifications'
 import { BottomNav } from '@/components/bottom-nav'
 
+// Supabase 配置 - 硬编码
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+
 export default function ProfilePage() {
   const { currentUser, isLoading, getUserData, setUserData, logout } = useAuth()
   const [mounted, setMounted] = useState(false)
@@ -111,11 +115,11 @@ export default function ProfilePage() {
       try {
         // 1. 获取 likes 表中当前用户喜欢的所有人
         const likesResponse = await fetch(
-          `${SUPABASE}/rest/v1/likes?from_user_id=eq.${currentUser.id}&select=to_user_id`,
+          `${SUPABASE_URL}/rest/v1/likes?from_user_id=eq.${currentUser.id}&select=to_user_id`,
           {
             headers: {
-              'apikey': KEY,
-              'Authorization': `Bearer ${KEY}`
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
             }
           }
         )
@@ -128,11 +132,11 @@ export default function ProfilePage() {
 
         // 2. 获取喜欢当前用户的所有人
         const likedByResponse = await fetch(
-          `${SUPABASE}/rest/v1/likes?to_user_id=eq.${currentUser.id}&select=from_user_id`,
+          `${SUPABASE_URL}/rest/v1/likes?to_user_id=eq.${currentUser.id}&select=from_user_id`,
           {
             headers: {
-              'apikey': KEY,
-              'Authorization': `Bearer ${KEY}`
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
             }
           }
         )
@@ -152,14 +156,14 @@ export default function ProfilePage() {
           matchCount: mutualLikes.length // 匹配数 = 互相喜欢数
         })
 
-        // 4. 获取问卷完成度（从 users 表读取）
+        // 4. 获取问卷完成度（从 users 表读取 questionnaire_completed_at）
         try {
           const userResponse = await fetch(
-            `${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}&select=questionnaire_answers,questionnaire_completed_at`,
+            `${SUPABASE_URL}/rest/v1/users?id=eq.${currentUser.id}&select=questionnaire_completed_at`,
             {
               headers: {
-                'apikey': KEY,
-                'Authorization': `Bearer ${KEY}`
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
               }
             }
           )
@@ -171,31 +175,30 @@ export default function ProfilePage() {
               if (user.questionnaire_completed_at) {
                 // 如果有完成时间，说明已完成全部问卷
                 setQuestionnaireProgress(100)
-              } else if (user.questionnaire_answers) {
-                // 计算实际完成的题目数量
-                const answeredCount = Object.keys(user.questionnaire_answers).length
-                const progress = Math.round((answeredCount / 66) * 100)
-                setQuestionnaireProgress(progress)
               } else {
-                // 没有问卷记录，完成度为0
+                // 没有完成时间，完成度为0
                 setQuestionnaireProgress(0)
               }
+            } else {
+              setQuestionnaireProgress(0)
             }
+          } else {
+            setQuestionnaireProgress(0)
           }
         } catch (e) {
           console.error('Failed to fetch questionnaire progress:', e)
+          setQuestionnaireProgress(0)
         }
       } catch (e) {
         console.error('Failed to fetch stats:', e)
+        // 设置默认值
+        setStats({ matchCount: 0, likesCount: 0, mutualLikesCount: 0 })
+        setQuestionnaireProgress(0)
       }
     }
 
     fetchStats()
   }, [currentUser, mounted])
-
-  // Supabase 配置 - 使用环境变量
-  const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-  const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   
   // 保存头像到用户专属存储并同步到云端
   const handleAvatarChange = async (url: string | null) => {
@@ -214,12 +217,12 @@ export default function ProfilePage() {
       
       // 直接同步到 Supabase
       try {
-        const response = await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${currentUser.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': KEY,
-            'Authorization': `Bearer ${KEY}`,
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
             'Prefer': 'return=minimal'
           },
           body: JSON.stringify({ avatar: url })
@@ -244,12 +247,12 @@ export default function ProfilePage() {
       // 直接同步到 Supabase（过滤掉 null 值）
       const validPhotos = newPhotos.filter(p => p !== null) as string[]
       try {
-        await fetch(`${SUPABASE}/rest/v1/users?id=eq.${currentUser.id}`, {
+        await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${currentUser.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': KEY,
-            'Authorization': `Bearer ${KEY}`,
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
             'Prefer': 'return=minimal'
           },
           body: JSON.stringify({ photos: validPhotos })
