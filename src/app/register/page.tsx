@@ -498,6 +498,7 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'register',
           email: formData.email.trim(),
           password: formData.password,
           nickname: formData.nickname.trim(),
