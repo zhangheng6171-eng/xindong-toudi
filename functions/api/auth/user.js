@@ -14,6 +14,17 @@ const SALT_ROUNDS = 12
 const JWT_EXPIRY = '7d' // 7天过期
 const JWT_ALGORITHM = 'HS256'
 
+// 简单哈希函数（兼容 Cloudflare Workers）
+function simpleHash(str) {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return 'hash_' + Math.abs(hash).toString(16) + '_' + str.length.toString(16)
+}
+
 /**
  * 生成 JWT Token
  */
@@ -166,8 +177,8 @@ async function handleRegister({ email, password, nickname, gender, age, city, co
     return errorResponse('该邮箱已被注册', 400)
   }
   
-  // 使用 bcrypt 加密密码
-  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
+  // 简单哈希密码（兼容 Cloudflare Workers）
+  const hashedPassword = simpleHash(password)
   
   // 创建新用户
   const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
@@ -226,10 +237,10 @@ function isPasswordHashed(password) {
   return password && password.startsWith('$2') && password.length === 60
 }
 
-// 升级明文密码到bcrypt加密（向后兼容）
+// 升级明文密码到简单哈希（向后兼容）
 async function upgradePasswordHash(userId, plainPassword, config) {
   try {
-    const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS)
+    const hashedPassword = simpleHash(plainPassword)
     
     const updateResponse = await fetch(
       `${config.url}/rest/v1/users?id=eq.${userId}`,
@@ -246,7 +257,7 @@ async function upgradePasswordHash(userId, plainPassword, config) {
     )
     
     if (updateResponse.ok) {
-      console.log(`[Password Upgrade] User ${userId} password upgraded to bcrypt`)
+      console.log(`[Password Upgrade] User ${userId} password upgraded to simple hash`)
     } else {
       console.error('[Password Upgrade] Failed to upgrade password:', await updateResponse.text())
     }
@@ -285,7 +296,15 @@ async function handleLogin({ email, password, config, env }) {
   // 检查密码是否已加密
   if (isPasswordHashed(user.password)) {
     // 使用 bcrypt 验证加密密码
-    passwordMatch = await bcrypt.compare(password, user.password)
+    try {
+      passwordMatch = await bcrypt.compare(password, user.password)
+    } catch (e) {
+      // bcrypt 失败时尝试简单哈希
+      passwordMatch = (user.password === simpleHash(password))
+    }
+  } else if (user.password && user.password.startsWith('hash_')) {
+    // 简单哈希密码验证
+    passwordMatch = (user.password === simpleHash(password))
   } else {
     // 向后兼容：明文密码直接比较
     // 注意：这是一个安全风险，应该提示用户更新密码
@@ -294,7 +313,7 @@ async function handleLogin({ email, password, config, env }) {
     if (user.password === password) {
       passwordMatch = true
       
-      // 自动升级密码到bcrypt（后台进行）
+      // 自动升级密码到简单哈希
       upgradePasswordHash(user.id, password, config)
     }
   }
