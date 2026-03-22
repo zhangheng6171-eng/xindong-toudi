@@ -67,13 +67,15 @@ export class MatchServiceV2 {
 
   constructor(config?: Partial<MatchConfigV2>) {
     this.config = {
-      hardFilter: {
-        enableDealbreakerFilter: config?.hardFilter?.enableDealbreakerFilter ?? true,
-        dealbreakerMatchThreshold: config?.hardFilter?.dealbreakerMatchThreshold ?? 0.8
+      weights: config?.weights ?? {
+        personality: 0.25,
+        values: 0.30,
+        interests: 0.20,
+        lifestyle: 0.25
       },
-      dynamicWeights: {
-        enable: config?.dynamicWeights?.enable ?? true,
-        personalizationStrength: config?.dynamicWeights?.personalizationStrength ?? 0.3
+      hardFilter: {
+        enable: config?.hardFilter?.enable ?? true,
+        minCompatibility: config?.hardFilter?.minCompatibility ?? 40
       },
       complementarity: {
         enable: config?.complementarity?.enable ?? true,

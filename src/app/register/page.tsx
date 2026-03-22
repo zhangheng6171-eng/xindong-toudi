@@ -474,6 +474,11 @@ export default function RegisterPage() {
         // 保存到 localStorage
         localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
         
+        // 保存JWT Token（用于API认证）
+        if (data.token) {
+          localStorage.setItem('xindong_auth_token', data.token)
+        }
+        
         // 初始化该用户的个人资料
         const userProfile = {
           nickname: data.user.nickname,

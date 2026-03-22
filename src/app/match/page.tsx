@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, memo } from 'react'
-import { Heart, MessageCircle, Eye, Sparkles } from 'lucide-react'
+import { Heart, MessageCircle, Eye, Sparkles, Brain, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui'
@@ -20,10 +20,15 @@ import {
   fetchUserAnswers,
   type UserAnswers 
 } from '@/lib/match-calculator'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
+
+// 向量匹配导入
+import { calculateMatchV2, batchMatchV2, type MatchScoreV2 } from '@/lib/matching-algorithm-v2'
+import { vectorizeUserFromQuestionnaire } from '@/lib/user-vectorization'
 
 // Supabase 配置
-const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+const SUPABASE = SUPABASE_URL
+const KEY = SUPABASE_ANON_KEY
 
 // 匹配数据类型
 interface Match {
@@ -39,20 +44,35 @@ interface Match {
   sharedInterests: string[]
   avatar: string | null
   liked: boolean
+  
+  // V2向量匹配额外信息
+  vectorScore?: {
+    personalityMatch: number
+    valuesMatch: number
+    interestsMatch: number
+    lifestyleMatch: number
+    complementarityBonus: number
+    longTermStability: number
+  }
 }
 
-// 单个匹配卡片组件 - 使用 memo 优化
+// 增强的匹配卡片组件
 const MatchCard = memo(function MatchCard({ 
   match, 
   onLike, 
   onViewDetail,
-  onAIReport 
+  onAIReport,
+  useVectorMatch 
 }: { 
   match: Match
   onLike: (id: string) => void
   onViewDetail: (id: string) => void
   onAIReport: (id: string, nickname: string) => void
+  useVectorMatch: boolean
 }) {
+  // 显示匹配分数详情
+  const showVectorDetails = useVectorMatch && match.vectorScore
+  
   return (
     <GlassCard className="overflow-hidden">
       {/* Avatar Area */}
@@ -75,13 +95,25 @@ const MatchCard = memo(function MatchCard({
           )}
         </div>
         
-        {/* Compatibility Badge */}
+        {/* Compatibility Badge - 增强显示 */}
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
-          <span className="text-2xl">{getCompatibilityEmoji(match.compatibility)}</span>
-          <div>
-            <div className="text-xs text-gray-500">匹配度</div>
-            <div className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">{match.compatibility}%</div>
-          </div>
+          {useVectorMatch ? (
+            <>
+              <Brain className="w-4 h-4 text-purple-500" />
+              <div>
+                <div className="text-xs text-gray-500">AI匹配度</div>
+                <div className="text-xl font-bold bg-gradient-to-r from-purple-500 to-rose-500 bg-clip-text text-transparent">{match.compatibility}%</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-2xl">{getCompatibilityEmoji(match.compatibility)}</span>
+              <div>
+                <div className="text-xs text-gray-500">匹配度</div>
+                <div className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">{match.compatibility}%</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Like Status */}
@@ -113,6 +145,46 @@ const MatchCard = memo(function MatchCard({
             {getCompatibilityLabel(match.compatibility)}
           </span>
         </div>
+
+        {/* 向量匹配详情展示 */}
+        {showVectorDetails && (
+          <div className="bg-gradient-to-br from-purple-50/80 to-rose-50/50 rounded-2xl p-4 mb-4 backdrop-blur-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-medium text-purple-700">多维度分析</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
+                <span className="text-gray-500">性格匹配</span>
+                <span className="font-medium text-purple-600">{match.vectorScore!.personalityMatch}%</span>
+              </div>
+              <div className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
+                <span className="text-gray-500">价值观</span>
+                <span className="font-medium text-purple-600">{match.vectorScore!.valuesMatch}%</span>
+              </div>
+              <div className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
+                <span className="text-gray-500">兴趣爱好</span>
+                <span className="font-medium text-purple-600">{match.vectorScore!.interestsMatch}%</span>
+              </div>
+              <div className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
+                <span className="text-gray-500">生活方式</span>
+                <span className="font-medium text-purple-600">{match.vectorScore!.lifestyleMatch}%</span>
+              </div>
+            </div>
+            {match.vectorScore!.complementarityBonus > 0 && (
+              <div className="mt-2 text-xs text-rose-600 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                互补性加分 +{match.vectorScore!.complementarityBonus}%
+              </div>
+            )}
+            {match.vectorScore!.longTermStability > 0 && (
+              <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                <Heart className="w-3 h-3" />
+                长期稳定度 {match.vectorScore!.longTermStability}%
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Match Reasons */}
         <div className="bg-gradient-to-br from-gray-50/80 to-rose-50/50 rounded-2xl p-4 mb-4 backdrop-blur-sm">
@@ -182,6 +254,7 @@ export default function MatchPage() {
   const { currentUser } = useAuth()
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
+  const [useVectorMatch, setUseVectorMatch] = useState(false) // 是否使用向量匹配
 
   const handleLike = useCallback((matchId: string) => {
     setMatches(prev => prev.map(m => 
@@ -193,7 +266,7 @@ export default function MatchPage() {
     router.push(`/match/detail?userId=${matchId}`)
   }, [router])
 
-  // 加载匹配数据 - 使用真正的AI匹配算法
+  // 加载匹配数据 - 使用真正的AI匹配算法（支持向量匹配）
   useEffect(() => {
     let cancelled = false
     
@@ -226,38 +299,106 @@ export default function MatchPage() {
           const otherUsers = allUsers.filter((u: any) => u.id !== currentUser?.id)
           
           if (otherUsers.length > 0 && currentUserAnswers) {
-            // 使用真正的匹配算法计算匹配度
-            const matchResults = await calculateMatches(currentUserAnswers, otherUsers)
+            // 尝试使用向量匹配 V2
+            let useVector = false
+            let vectorMatches: any[] = []
             
-            // 将匹配结果与用户信息结合
-            const formattedMatches = matchResults.slice(0, 5).map((result, index) => {
-              const user = otherUsers.find((u: any) => u.id === result.userId)
-              if (!user) return null
+            try {
+              // 使用向量匹配算法
+              const candidates = otherUsers
+                .filter((u: any) => u.questionnaire_answers)
+                .map((u: any) => ({
+                  userId: u.id,
+                  answers: u.questionnaire_answers
+                }))
               
-              return {
-                id: user.id,
-                nickname: user.nickname || '匿名用户',
-                age: user.age || 25,
-                city: user.city || '未知',
-                occupation: user.occupation || '待完善',
-                education: user.education || '待完善',
-                compatibility: result.compatibility,
-                matchReasons: result.matchReasons.length > 0 
-                  ? result.matchReasons 
-                  : ['资料完整，值得了解'],
-                sharedValues: result.sharedValues,
-                sharedInterests: result.sharedInterests.length > 0 
-                  ? result.sharedInterests 
-                  : ['待了解'],
-                avatar: user.avatar,
-                liked: false,
+              if (candidates.length > 0) {
+                const v2Results = batchMatchV2(
+                  currentUserAnswers,
+                  currentUser.id,
+                  candidates
+                )
+                
+                if (v2Results && v2Results.length > 0) {
+                  vectorMatches = v2Results
+                  useVector = true
+                  setUseVectorMatch(true)
+                }
               }
-            }).filter(Boolean) as Match[]
+            } catch (vectorError) {
+              console.warn('Vector matching failed, falling back to legacy:', vectorError)
+            }
             
-            // 按匹配度排序
-            formattedMatches.sort((a, b) => b.compatibility - a.compatibility)
-            
-            setMatches(formattedMatches)
+            if (useVector && vectorMatches.length > 0) {
+              // 使用向量匹配结果
+              const formattedMatches = vectorMatches.slice(0, 10).map((result: MatchScoreV2) => {
+                const user = otherUsers.find((u: any) => u.id === result.matchedUserId)
+                if (!user) return null
+                
+                return {
+                  id: user.id,
+                  nickname: user.nickname || '匿名用户',
+                  age: user.age || 25,
+                  city: user.city || '未知',
+                  occupation: user.occupation || '待完善',
+                  education: user.education || '待完善',
+                  compatibility: result.totalScore,
+                  matchReasons: result.matchReasons.length > 0 
+                    ? result.matchReasons 
+                    : ['资料完整，值得了解'],
+                  sharedValues: result.sharedTraits.length > 0 
+                    ? result.sharedTraits 
+                    : ['真诚', '成长'],
+                  sharedInterests: [],
+                  avatar: user.avatar,
+                  liked: false,
+                  vectorScore: {
+                    personalityMatch: result.personalityMatch,
+                    valuesMatch: result.valuesMatch,
+                    interestsMatch: result.interestsMatch,
+                    lifestyleMatch: result.lifestyleMatch,
+                    complementarityBonus: result.complementarityBonus,
+                    longTermStability: result.longTermStability
+                  }
+                }
+              }).filter(Boolean) as Match[]
+              
+              formattedMatches.sort((a, b) => b.compatibility - a.compatibility)
+              setMatches(formattedMatches)
+            } else {
+              // 回退到旧的匹配算法
+              const matchResults = await calculateMatches(currentUserAnswers, otherUsers)
+              
+              // 将匹配结果与用户信息结合
+              const formattedMatches = matchResults.slice(0, 5).map((result, index) => {
+                const user = otherUsers.find((u: any) => u.id === result.userId)
+                if (!user) return null
+                
+                return {
+                  id: user.id,
+                  nickname: user.nickname || '匿名用户',
+                  age: user.age || 25,
+                  city: user.city || '未知',
+                  occupation: user.occupation || '待完善',
+                  education: user.education || '待完善',
+                  compatibility: result.compatibility,
+                  matchReasons: result.matchReasons.length > 0 
+                    ? result.matchReasons 
+                    : ['资料完整，值得了解'],
+                  sharedValues: result.sharedValues,
+                  sharedInterests: result.sharedInterests.length > 0 
+                    ? result.sharedInterests 
+                    : ['待了解'],
+                  avatar: user.avatar,
+                  liked: false,
+                }
+              }).filter(Boolean) as Match[]
+              
+              // 按匹配度排序
+              formattedMatches.sort((a, b) => b.compatibility - a.compatibility)
+              
+              setMatches(formattedMatches)
+            }
           } else if (otherUsers.length > 0) {
             // 如果当前用户没有问卷答案，使用基础匹配
             const basicMatches = otherUsers.slice(0, 5).map((u: any) => ({
@@ -314,8 +455,17 @@ export default function MatchPage() {
         <div className="bg-gradient-to-r from-rose-500/90 via-pink-500/90 to-purple-500/90 backdrop-blur-xl text-white py-8 px-4">
           <div className="max-w-2xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 mb-4">
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">AI 智能匹配</span>
+              {useVectorMatch ? (
+                <>
+                  <Brain className="w-4 h-4" />
+                  <span className="text-sm font-medium">AI 向量匹配</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-sm font-medium">AI 智能匹配</span>
+                </>
+              )}
             </div>
             <h1 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
               本周匹配
@@ -323,7 +473,9 @@ export default function MatchPage() {
             </h1>
             <p className="text-white/90">
               {matches.length > 0 
-                ? `为你精选了 ${matches.length} 位匹配对象` 
+                ? useVectorMatch 
+                  ? `为你精准匹配了 ${matches.length} 位对象（110维向量分析）` 
+                  : `为你精选了 ${matches.length} 位匹配对象` 
                 : '暂无匹配对象'}
             </p>
           </div>
@@ -339,6 +491,7 @@ export default function MatchPage() {
                 onLike={handleLike}
                 onViewDetail={handleViewDetail}
                 onAIReport={(id, nickname) => router.push(`/match/report?userId=${id}&nickname=${encodeURIComponent(nickname)}`)}
+                useVectorMatch={useVectorMatch}
               />
             ))}
           </div>

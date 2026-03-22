@@ -1,12 +1,55 @@
 /**
  * 用户注册/登录 API - 安全版本
- * 使用 bcrypt 加密密码
+ * 使用 bcrypt 加密密码 + JWT Token 认证
  */
 
-import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../lib/config.js'
+import { getSupabaseConfig, getJwtSecret, corsHeaders, errorResponse, successResponse } from '../lib/config.js'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
-const SALT_ROUNDS = 10
+// 密码加密强度 - 12轮（生产环境推荐）
+const SALT_ROUNDS = 12
+
+// JWT 配置
+const JWT_EXPIRY = '7d' // 7天过期
+const JWT_ALGORITHM = 'HS256'
+
+/**
+ * 生成 JWT Token
+ */
+function generateToken(userId, email, env) {
+  const secret = getJwtSecret(env)
+  const payload = {
+    userId,
+    email,
+    iat: Math.floor(Date.now() / 1000)
+  }
+  return jwt.sign(payload, secret, { expiresIn: JWT_EXPIRY, algorithm: JWT_ALGORITHM })
+}
+
+/**
+ * 验证 JWT Token
+ */
+function verifyToken(token, env) {
+  try {
+    const secret = getJwtSecret(env)
+    return jwt.verify(token, secret, { algorithms: [JWT_ALGORITHM] })
+  } catch (error) {
+    console.error('JWT验证失败:', error.message)
+    return null
+  }
+}
+
+/**
+ * 从请求中提取Token (支持 Authorization header)
+ */
+function extractToken(request) {
+  const authHeader = request.headers.get('Authorization')
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7)
+  }
+  return null
+}
 
 // 获取用户列表 (需要管理员权限)
 export async function onRequestGet(context) {
@@ -136,8 +179,8 @@ async function handleRegister({ email, password, nickname, gender, age, city, co
   const data = await insertResponse.json()
   const user = Array.isArray(data) ? data[0] : data
   
-  // 生成简单的 session token (实际生产应使用 JWT)
-  const sessionToken = generateSessionToken(user.id, env)
+  // 生成 JWT Token
+  const token = generateToken(user.id, user.email, env)
   
   // 返回用户信息（不包含密码）
   return successResponse({
@@ -151,7 +194,8 @@ async function handleRegister({ email, password, nickname, gender, age, city, co
       city: user.city,
       createdAt: user.created_at
     },
-    token: sessionToken
+    token,
+    expiresIn: JWT_EXPIRY
   })
 }
 
@@ -185,11 +229,13 @@ async function handleLogin({ email, password, config, env }) {
   const passwordMatch = await bcrypt.compare(password, user.password)
   
   if (!passwordMatch) {
+    // 密码错误，增加短暂延迟防止Timing攻击
+    await new Promise(resolve => setTimeout(resolve, 100))
     return errorResponse('密码错误，请重试', 401)
   }
   
-  // 生成 session token
-  const sessionToken = generateSessionToken(user.id, env)
+  // 生成 JWT Token
+  const token = generateToken(user.id, user.email, env)
   
   // 返回用户信息（不包含密码）
   return successResponse({
@@ -203,32 +249,9 @@ async function handleLogin({ email, password, config, env }) {
       city: user.city,
       createdAt: user.created_at
     },
-    token: sessionToken
+    token,
+    expiresIn: JWT_EXPIRY
   })
-}
-
-// 生成简单的 session token (生产环境建议使用 JWT)
-function generateSessionToken(userId, env) {
-  // 简单实现：Base64 编码的用户ID + 时间戳
-  // 生产环境应使用真正的 JWT
-  const payload = {
-    userId,
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7天过期
-  }
-  return Buffer.from(JSON.stringify(payload)).toString('base64')
-}
-
-// 验证 session token
-export function verifySessionToken(token, env) {
-  try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString())
-    if (payload.exp < Date.now()) {
-      return null // Token 已过期
-    }
-    return payload.userId
-  } catch {
-    return null // Token 无效
-  }
 }
 
 // CORS 预检请求

@@ -5,7 +5,14 @@
 import { getSupabaseConfig, corsHeaders, errorResponse, successResponse } from '../lib/config.js'
 import bcrypt from 'bcryptjs'
 
-const SALT_ROUNDS = 10
+// 密码加密强度 - 12轮（与注册一致）
+const SALT_ROUNDS = 12
+
+// 验证码长度
+const VERIFICATION_CODE_LENGTH = 6
+
+// 验证码有效期（分钟）
+const CODE_EXPIRY_MINUTES = 10
 
 // 处理重置密码请求
 export async function onRequestPost(context) {
@@ -21,9 +28,22 @@ export async function onRequestPost(context) {
       return errorResponse('请填写完整信息', 400)
     }
     
+    // 验证码格式验证
+    if (!/^\d{6}$/.test(code)) {
+      return errorResponse('验证码格式错误', 400)
+    }
+    
     // 密码强度检查
-    if (newPassword.length < 6) {
-      return errorResponse('密码长度至少6位', 400)
+    if (newPassword.length < 8) {
+      return errorResponse('密码长度至少8位', 400)
+    }
+    
+    // 密码复杂度检查
+    const hasUpperCase = /[A-Z]/.test(newPassword)
+    const hasLowerCase = /[a-z]/.test(newPassword)
+    const hasNumber = /[0-9]/.test(newPassword)
+    if (!(hasUpperCase && hasLowerCase && hasNumber)) {
+      return errorResponse('密码必须包含大小写字母和数字', 400)
     }
     
     const normalizedEmail = email.trim().toLowerCase()

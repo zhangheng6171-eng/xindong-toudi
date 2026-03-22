@@ -5,7 +5,7 @@
  * - SUPABASE_URL: Supabase 项目 URL
  * - SUPABASE_ANON_KEY: Supabase Anonymous Key (用于公开操作)
  * - SUPABASE_SERVICE_ROLE_KEY: Supabase Service Role Key (用于服务端特权操作)
- * - JWT_SECRET: JWT 签名密钥 (用于生成用户 token)
+ * - JWT_SECRET: JWT 签名密钥 (必须设置一个强密钥，生产环境使用长随机字符串)
  */
 
 /**
@@ -22,19 +22,39 @@ export function getSupabaseConfig(env) {
 
 /**
  * 获取 JWT 密钥
+ * 生产环境必须设置强密钥
  */
 export function getJwtSecret(env) {
-  return env?.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+  const secret = env?.JWT_SECRET
+  
+  // 如果没有设置JWT_SECRET，记录警告
+  if (!secret) {
+    console.warn('警告: JWT_SECRET 未设置！使用默认密钥仅用于开发。生产环境必须设置强密钥。')
+    // 开发环境的默认密钥（不应该在生产使用）
+    return 'xindong-toudi-dev-secret-change-in-production'
+  }
+  
+  // 密钥长度检查
+  if (secret.length < 32) {
+    console.warn('警告: JWT_SECRET 长度不足32字符，建议使用更长的随机字符串')
+  }
+  
+  return secret
 }
 
 /**
  * 创建 CORS 响应头
+ * 生产环境应该限制允许的域名
  */
 export function corsHeaders() {
+  // 可以从环境变量获取允许的域名
+  const allowedOrigin = process.env?.ALLOWED_ORIGIN || '*'
+  
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400'
   }
 }
 

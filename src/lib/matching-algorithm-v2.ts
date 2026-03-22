@@ -1,95 +1,85 @@
 /**
  * 心动投递 - 高级匹配算法 V2
  * 
- * 分层匹配策略 + 动态权重 + 互补性分析 + 长期关系预测
+ * 实现：
+ * - 余弦相似度计算
+ * - 分层匹配策略
+ * - 动态权重调整
+ * - 互补性分析
+ * - 长期关系预测
  */
 
-import { ExtractedFeatures } from './feature-engineering-v2'
-import { PersonalityProfile } from './scoring-system'
+import { 
+  UserVector, 
+  serializeVector, 
+  deserializeVector,
+  vectorizeUserFromQuestionnaire,
+  type QuestionnaireVectorInput
+} from './user-vectorization'
+import type { UserAnswers } from './match-calculator'
+import type { PersonalityProfile } from './scoring-system'
 
 // ============================================
 // 类型定义
 // ============================================
 
 export interface MatchConfigV2 {
-  // 硬过滤配置
-  hardFilter: {
-    enableDealbreakerFilter: boolean
-    dealbreakerMatchThreshold: number // 底线匹配阈值
+  // 权重配置
+  weights: {
+    personality: number    // 性格权重
+    values: number        // 价值观权重
+    interests: number     // 兴趣爱好权重
+    lifestyle: number     // 生活方式权重
   }
   
-  // 动态权重配置
-  dynamicWeights: {
+  // 硬过滤配置
+  hardFilter: {
     enable: boolean
-    personalizationStrength: number // 个性化程度 0-1
+    minCompatibility: number
   }
   
   // 互补性配置
   complementarity: {
     enable: boolean
-    weight: number // 互补性加分权重
-    maxBonus: number // 最大加分
+    weight: number
+    maxBonus: number
   }
   
-  // 长期关系预测
+  // 长期预测配置
   longTermPrediction: {
     enable: boolean
-    riskWeight: number // 风险因子权重
-    strengthWeight: number // 优势因子权重
+    riskWeight: number
+    strengthWeight: number
   }
 }
 
-export interface MatchingResult {
-  // 基础匹配信息
+export interface MatchScoreV2 {
+  // 用户ID
   userId: string
   matchedUserId: string
   
-  // 分层匹配分数
-  scores: {
-    hardFilter: 'passed' | 'failed'
-    coreMatch: number // 价值观+性格
-    compatibilityMatch: number // 生活方式+兴趣
-    complementarityBonus: number // 互补性加分
-    longTermPotential: number // 长期潜力
-    totalScore: number // 综合分数
-  }
+  // 各维度匹配分 (0-100)
+  personalityMatch: number
+  valuesMatch: number
+  interestsMatch: number
+  lifestyleMatch: number
   
-  // 详细分析
-  analysis: {
-    // 核心维度匹配
-    coreDimensions: {
-      values: DimensionMatchDetail
-      personality: DimensionMatchDetail
-    }
-    
-    // 兼容性维度
-    compatibilityDimensions: {
-      lifestyle: DimensionMatchDetail
-      interests: DimensionMatchDetail
-      family: DimensionMatchDetail
-    }
-    
-    // 互补性分析
-    complementarity: {
-      traits: ComplementaryTrait[]
-      totalBonus: number
-    }
-    
-    // 长期关系预测
-    longTermPrediction: {
-      riskFactors: RiskFactor[]
-      strengthFactors: StrengthFactor[]
-      stabilityScore: number
-      predictedSatisfaction: number
-    }
-  }
+  // 互补性加分
+  complementarityBonus: number
+  
+  // 综合分数
+  totalScore: number
   
   // 匹配解释
-  explanation: {
-    strengths: string[] // 为什么匹配
-    challenges: string[] // 潜在挑战
-    advice: string[] // 建议
-  }
+  matchReasons: string[]
+  sharedTraits: string[]
+  complementaryTraits: string[]
+  
+  // 长期预测
+  longTermStability: number
+  satisfactionPrediction: number
+  riskFactors: string[]
+  strengthFactors: string[]
   
   // 元数据
   metadata: {
@@ -99,42 +89,25 @@ export interface MatchingResult {
   }
 }
 
-export interface DimensionMatchDetail {
-  score: number
-  similarity: number
-  complementarity?: number
-  traits: {
-    name: string
-    userValue: number
-    matchedUserValue: number
-    match: 'similar' | 'complementary' | 'neutral' | 'conflict'
-    importance: 'high' | 'medium' | 'low'
-  }[]
-  interpretation: string
-}
-
-export interface ComplementaryTrait {
-  trait: string
-  user1Value: number
-  user2Value: number
-  complementarityType: 'balance' | 'growth' | 'support'
-  bonus: number
-  reason: string
-}
-
-export interface RiskFactor {
-  factor: string
-  severity: 'low' | 'medium' | 'high'
-  probability: number
-  description: string
-  mitigation: string
-}
-
-export interface StrengthFactor {
-  factor: string
-  impact: 'moderate' | 'strong' | 'very_strong'
-  probability: number
-  description: string
+export interface MatchingResultV2 {
+  userId: string
+  matchedUserId: string
+  scores: MatchScoreV2
+  analysis: {
+    coreDimensions: {
+      values: { score: number; similarity: number; interpretation: string }
+      personality: { score: number; similarity: number; interpretation: string }
+    }
+    compatibilityDimensions: {
+      lifestyle: { score: number; similarity: number; interpretation: string }
+      interests: { score: number; similarity: number; interpretation: string }
+    }
+  }
+  explanation: {
+    strengths: string[]
+    challenges: string[]
+    advice: string[]
+  }
 }
 
 // ============================================
@@ -142,13 +115,15 @@ export interface StrengthFactor {
 // ============================================
 
 const DEFAULT_CONFIG_V2: MatchConfigV2 = {
-  hardFilter: {
-    enableDealbreakerFilter: true,
-    dealbreakerMatchThreshold: 0.8
+  weights: {
+    personality: 0.25,
+    values: 0.30,
+    interests: 0.20,
+    lifestyle: 0.25
   },
-  dynamicWeights: {
+  hardFilter: {
     enable: true,
-    personalizationStrength: 0.3
+    minCompatibility: 40
   },
   complementarity: {
     enable: true,
@@ -163,7 +138,93 @@ const DEFAULT_CONFIG_V2: MatchConfigV2 = {
 }
 
 // ============================================
-// 核心匹配器类
+// 核心算法实现
+// ============================================
+
+/**
+ * 计算两个向量的余弦相似度
+ * 返回值范围: -1 到 1，转换为 0-100
+ */
+export function cosineSimilarity(vec1: number[], vec2: number[]): number {
+  if (vec1.length !== vec2.length) {
+    throw new Error(`Vector dimensions must match: ${vec1.length} vs ${vec2.length}`)
+  }
+  
+  if (vec1.length === 0) {
+    return 50 // 默认值
+  }
+  
+  let dotProduct = 0
+  let norm1 = 0
+  let norm2 = 0
+  
+  for (let i = 0; i < vec1.length; i++) {
+    dotProduct += vec1[i] * vec2[i]
+    norm1 += vec1[i] * vec1[i]
+    norm2 += vec2[i] * vec2[i]
+  }
+  
+  const sqrtNorm1 = Math.sqrt(norm1)
+  const sqrtNorm2 = Math.sqrt(norm2)
+  
+  if (sqrtNorm1 === 0 || sqrtNorm2 === 0) {
+    return 50 // 默认值
+  }
+  
+  // 余弦相似度范围 -1 到 1，转换为 0-100
+  const similarity = dotProduct / (sqrtNorm1 * sqrtNorm2)
+  return Math.round((similarity + 1) / 2 * 100)
+}
+
+/**
+ * 计算欧氏距离
+ */
+export function euclideanDistance(vec1: number[], vec2: number[]): number {
+  if (vec1.length !== vec2.length) {
+    throw new Error('Vector dimensions must match')
+  }
+  
+  let sumSquares = 0
+  for (let i = 0; i < vec1.length; i++) {
+    const diff = vec1[i] - vec2[i]
+    sumSquares += diff * diff
+  }
+  
+  return Math.sqrt(sumSquares)
+}
+
+/**
+ * 将距离转换为相似度
+ */
+export function distanceToSimilarity(distance: number, maxDistance: number = 10): number {
+  return Math.max(0, Math.round((1 - distance / maxDistance) * 100))
+}
+
+/**
+ * 计算加权相似度
+ */
+export function weightedSimilarity(
+  similarities: Record<string, number>,
+  weights: Record<string, number>
+): number {
+  let totalWeight = 0
+  let weightedSum = 0
+  
+  Object.entries(similarities).forEach(([key, similarity]) => {
+    const weight = weights[key] ?? 0
+    weightedSum += similarity * weight
+    totalWeight += weight
+  })
+  
+  if (totalWeight === 0) {
+    return 50
+  }
+  
+  return Math.round(weightedSum / totalWeight)
+}
+
+// ============================================
+// 高级匹配器类
 // ============================================
 
 export class AdvancedMatcherV2 {
@@ -174,1122 +235,454 @@ export class AdvancedMatcherV2 {
   }
 
   /**
-   * 计算完整匹配结果
+   * 使用预计算的向量进行匹配
    */
-  calculateMatch(
-    user1Profile: {
-      personality: PersonalityProfile
-      features: ExtractedFeatures
-      answers: any
-    },
-    user2Profile: {
-      personality: PersonalityProfile
-      features: ExtractedFeatures
-      answers: any
-    }
-  ): MatchingResult {
-    // 第一层：硬过滤
-    const hardFilterResult = this.applyHardFilter(user1Profile, user2Profile)
-    
-    if (hardFilterResult === 'failed') {
-      return this.createFailedMatchResult(user1Profile, user2Profile)
-    }
-
-    // 第二层：核心维度匹配
-    const coreMatch = this.calculateCoreMatch(user1Profile, user2Profile)
-
-    // 第三层：兼容性匹配
-    const compatibilityMatch = this.calculateCompatibilityMatch(user1Profile, user2Profile)
-
-    // 第四层：互补性分析
-    const complementarity = this.analyzeComplementarity(user1Profile, user2Profile)
-
-    // 长期关系预测
-    const longTermPrediction = this.predictLongTermPotential(user1Profile, user2Profile)
-
-    // 计算总分
-    const totalScore = this.calculateTotalScore({
-      coreMatch: coreMatch.totalScore,
-      compatibilityMatch: compatibilityMatch.totalScore,
-      complementarityBonus: complementarity.totalBonus,
-      longTermPotential: longTermPrediction.stabilityScore
-    })
-
-    // 生成解释
-    const explanation = this.generateExplanation(
-      coreMatch,
-      compatibilityMatch,
-      complementarity,
-      longTermPrediction
+  calculateMatchWithVectors(
+    user1Vector: UserVector,
+    user2Vector: UserVector
+  ): MatchScoreV2 {
+    // 1. 计算各维度余弦相似度
+    const personalitySimilarity = cosineSimilarity(
+      user1Vector.personalityVector,
+      user2Vector.personalityVector
     )
-
+    
+    const valuesSimilarity = cosineSimilarity(
+      user1Vector.valuesVector,
+      user2Vector.valuesVector
+    )
+    
+    const interestsSimilarity = cosineSimilarity(
+      user1Vector.interestsVector,
+      user2Vector.interestsVector
+    )
+    
+    const lifestyleSimilarity = cosineSimilarity(
+      user1Vector.lifestyleVector,
+      user2Vector.lifestyleVector
+    )
+    
+    // 2. 计算加权总分
+    const baseScore = weightedSimilarity(
+      {
+        personality: personalitySimilarity,
+        values: valuesSimilarity,
+        interests: interestsSimilarity,
+        lifestyle: lifestyleSimilarity
+      },
+      this.config.weights
+    )
+    
+    // 3. 计算互补性加分
+    let complementarityBonus = 0
+    if (this.config.complementarity.enable) {
+      complementarityBonus = this.calculateComplementarityBonus(
+        user1Vector,
+        user2Vector
+      )
+    }
+    
+    // 4. 计算总分
+    const totalScore = Math.min(
+      100,
+      Math.round(baseScore + complementarityBonus * this.config.complementarity.weight)
+    )
+    
+    // 5. 硬过滤检查
+    if (this.config.hardFilter.enable && totalScore < this.config.hardFilter.minCompatibility) {
+      return this.createFailedScore(user1Vector.userId, user2Vector.userId)
+    }
+    
+    // 6. 生成匹配解释
+    const matchReasons = this.generateMatchReasons({
+      personality: personalitySimilarity,
+      values: valuesSimilarity,
+      interests: interestsSimilarity,
+      lifestyle: lifestyleSimilarity
+    })
+    
+    const sharedTraits = this.findSharedTraits(user1Vector, user2Vector)
+    const complementaryTraits = this.findComplementaryTraits(user1Vector, user2Vector)
+    
+    // 7. 长期预测
+    const longTerm = this.predictLongTerm(
+      user1Vector,
+      user2Vector,
+      personalitySimilarity,
+      valuesSimilarity
+    )
+    
     return {
-      userId: 'user1',
-      matchedUserId: 'user2',
-      scores: {
-        hardFilter: hardFilterResult,
-        coreMatch: coreMatch.totalScore,
-        compatibilityMatch: compatibilityMatch.totalScore,
-        complementarityBonus: complementarity.totalBonus,
-        longTermPotential: longTermPrediction.stabilityScore,
-        totalScore
-      },
-      analysis: {
-        coreDimensions: {
-          values: coreMatch.values,
-          personality: coreMatch.personality
-        },
-        compatibilityDimensions: {
-          lifestyle: compatibilityMatch.lifestyle,
-          interests: compatibilityMatch.interests,
-          family: compatibilityMatch.family
-        },
-        complementarity,
-        longTermPrediction
-      },
-      explanation,
+      userId: user1Vector.userId,
+      matchedUserId: user2Vector.userId,
+      personalityMatch: personalitySimilarity,
+      valuesMatch: valuesSimilarity,
+      interestsMatch: interestsSimilarity,
+      lifestyleMatch: lifestyleSimilarity,
+      complementarityBonus,
+      totalScore,
+      matchReasons,
+      sharedTraits,
+      complementaryTraits,
+      longTermStability: longTerm.stability,
+      satisfactionPrediction: longTerm.satisfaction,
+      riskFactors: longTerm.risks,
+      strengthFactors: longTerm.strengths,
       metadata: {
         calculatedAt: new Date(),
         version: '2.0',
         reliability: Math.min(
-          user1Profile.features.reliability,
-          user2Profile.features.reliability
+          user1Vector.reliabilityScore,
+          user2Vector.reliabilityScore
         )
       }
     }
   }
 
-  // ============================================
-  // 第一层：硬过滤
-  // ============================================
-
-  private applyHardFilter(
-    user1: any,
-    user2: any
-  ): 'passed' | 'failed' {
-    if (!this.config.hardFilter.enableDealbreakerFilter) {
-      return 'passed'
-    }
-
-    // 检查底线冲突
-    const dealbreakers1 = this.extractDealbreakers(user1.answers)
-    const dealbreakers2 = this.extractDealbreakers(user2.answers)
-
-    // 检查是否触发对方底线
-    const triggers1 = this.checkDealbreakerTriggers(dealbreakers1, user2.answers)
-    const triggers2 = this.checkDealbreakerTriggers(dealbreakers2, user1.answers)
-
-    // 如果有任何底线冲突，过滤掉
-    if (triggers1.length > 0 || triggers2.length > 0) {
-      return 'failed'
-    }
-
-    return 'passed'
-  }
-
-  private extractDealbreakers(answers: any): string[] {
-    const dealbreakers: string[] = []
-
-    // 从底线问题中提取
-    const dealbreakerQ = answers.find((a: any) => 
-      a.dimension === 'dealbreaker' || 
-      a.measuresTrait?.includes('dealbreaker')
-    )
-
-    if (dealbreakerQ?.answer?.values) {
-      dealbreakers.push(...dealbreakerQ.answer.values)
-    }
-
-    return dealbreakers
-  }
-
-  private checkDealbreakerTriggers(dealbreakers: string[], targetAnswers: any): string[] {
-    const triggers: string[] = []
-
-    // 检查目标是否触发底线
-    // 例如：底线是"不接受抽烟"，检查目标是否抽烟
-    
-    dealbreakers.forEach(db => {
-      switch (db) {
-        case 'A': // 不接受抽烟
-          // 检查是否有抽烟标志
-          const smokeQ = targetAnswers.find((a: any) => 
-            a.questionText?.includes('抽烟')
-          )
-          if (smokeQ?.answer?.smokes) {
-            triggers.push('吸烟')
-          }
-          break
-        // ... 其他底线检查
-      }
+  /**
+   * 使用问卷答案进行匹配（自动向量化）
+   */
+  calculateMatchWithAnswers(
+    user1Answers: UserAnswers,
+    user2Answers: UserAnswers,
+    user1Id: string,
+    user2Id: string,
+    user1Personality?: PersonalityProfile,
+    user2Personality?: PersonalityProfile
+  ): MatchScoreV2 {
+    // 自动向量化
+    const user1Vector = vectorizeUserFromQuestionnaire(user1Id, {
+      answers: user1Answers,
+      personality: user1Personality
     })
-
-    return triggers
+    
+    const user2Vector = vectorizeUserFromQuestionnaire(user2Id, {
+      answers: user2Answers,
+      personality: user2Personality
+    })
+    
+    return this.calculateMatchWithVectors(user1Vector, user2Vector)
   }
 
-  // ============================================
-  // 第二层：核心维度匹配
-  // ============================================
+  /**
+   * 计算互补性加分
+   */
+  private calculateComplementarityBonus(
+    user1: UserVector,
+    user2: UserVector
+  ): number {
+    let bonus = 0
+    
+    // 外向-内向互补 (索引2是外向性)
+    const ext1 = user1.personalityVector[2] ?? 0.5
+    const ext2 = user2.personalityVector[2] ?? 0.5
+    const extDiff = Math.abs(ext1 - ext2)
+    
+    // 适度外向-内向差异是互补的
+    if (extDiff > 0.3 && extDiff < 0.7) {
+      const avgExt = (ext1 + ext2) / 2
+      // 中等外向的人和外向/内向的人组合更好
+      if (avgExt >= 0.3 && avgExt <= 0.7) {
+        bonus += 8
+      }
+    }
+    
+    // 神经质互补 (索引4是神经质，越低越稳定)
+    const neu1 = user1.personalityVector[4] ?? 0.5
+    const neu2 = user2.personalityVector[4] ?? 0.5
+    
+    // 一方情绪稳定可以平衡另一方
+    if ((neu1 < 0.4 && neu2 > 0.5) || (neu2 < 0.4 && neu1 > 0.5)) {
+      bonus += 5
+    }
+    
+    // 开放性互补 (一方开放，一方稳健)
+    const opn1 = user1.personalityVector[0] ?? 0.5
+    const opn2 = user2.personalityVector[0] ?? 0.5
+    if (Math.abs(opn1 - opn2) > 0.4) {
+      bonus += 3
+    }
+    
+    return Math.min(this.config.complementarity.maxBonus, bonus)
+  }
 
-  private calculateCoreMatch(
-    user1: any,
-    user2: any
-  ): {
-    totalScore: number
-    values: DimensionMatchDetail
-    personality: DimensionMatchDetail
-  } {
-    // 价值观匹配（最重要）
-    const valuesMatch = this.matchValuesDimension(user1, user2)
-
+  /**
+   * 生成匹配理由
+   */
+  private generateMatchReasons(similarities: {
+    personality: number
+    values: number
+    interests: number
+    lifestyle: number
+  }): string[] {
+    const reasons: string[] = []
+    
+    // 价值观匹配
+    if (similarities.values >= 80) {
+      reasons.push('💑 价值观高度契合')
+    } else if (similarities.values >= 65) {
+      reasons.push('💕 价值观相近')
+    }
+    
     // 性格匹配
-    const personalityMatch = this.matchPersonalityDimension(user1, user2)
-
-    // 计算加权总分
-    const weights = this.getDynamicWeights(user1, user2)
-    const totalScore = (
-      valuesMatch.score * weights.values +
-      personalityMatch.score * weights.personality
-    )
-
-    return {
-      totalScore,
-      values: valuesMatch,
-      personality: personalityMatch
+    if (similarities.personality >= 80) {
+      reasons.push('🎭 性格非常合拍')
+    } else if (similarities.personality >= 65) {
+      reasons.push('🌟 性格互补')
     }
+    
+    // 兴趣匹配
+    if (similarities.interests >= 70) {
+      reasons.push('🎨 有很多共同兴趣')
+    } else if (similarities.interests >= 50) {
+      reasons.push('🔍 兴趣有交集')
+    }
+    
+    // 生活方式
+    if (similarities.lifestyle >= 75) {
+      reasons.push('🏠 生活节奏相似')
+    } else if (similarities.lifestyle >= 55) {
+      reasons.push('🚶 生活方式较合拍')
+    }
+    
+    // 综合评价
+    const avgScore = (
+      similarities.personality +
+      similarities.values +
+      similarities.interests +
+      similarities.lifestyle
+    ) / 4
+    
+    if (avgScore >= 75 && reasons.length < 3) {
+      reasons.push('✨ 整体匹配度很高')
+    } else if (avgScore >= 60 && reasons.length === 0) {
+      reasons.push('💭 值得进一步了解')
+    }
+    
+    return reasons.slice(0, 4)
   }
 
   /**
-   * 价值观维度匹配
+   * 找出共同特质
    */
-  private matchValuesDimension(user1: any, user2: any): DimensionMatchDetail {
-    const traits: DimensionMatchDetail['traits'] = []
+  private findSharedTraits(user1: UserVector, user2: UserVector): string[] {
+    const traits: string[] = []
     
-    // 核心价值观匹配
-    const coreValues1 = user1.features.explicit['values_mean'] || 50
-    const coreValues2 = user2.features.explicit['values_mean'] || 50
-    
-    traits.push({
-      name: '核心价值观',
-      userValue: coreValues1,
-      matchedUserValue: coreValues2,
-      match: this.judgeValueMatch(coreValues1, coreValues2),
-      importance: 'high'
-    })
-
-    // 金钱观匹配
-    const moneyView1 = user1.features.explicit['values_money'] || 50
-    const moneyView2 = user2.features.explicit['values_money'] || 50
-    
-    traits.push({
-      name: '金钱观',
-      userValue: moneyView1,
-      matchedUserValue: moneyView2,
-      match: this.judgeValueMatch(moneyView1, moneyView2),
-      importance: 'high'
-    })
-
-    // 家庭观匹配
-    const familyView1 = user1.features.explicit['values_family'] || 50
-    const familyView2 = user2.features.explicit['values_family'] || 50
-    
-    traits.push({
-      name: '家庭观',
-      userValue: familyView1,
-      matchedUserValue: familyView2,
-      match: this.judgeValueMatch(familyView1, familyView2),
-      importance: 'high'
-    })
-
-    // 计算相似度
-    const similarity = this.calculateSimilarity(
-      [coreValues1, moneyView1, familyView1],
-      [coreValues2, moneyView2, familyView2]
-    )
-
-    // 生成解释
-    const interpretation = this.generateValuesInterpretation(traits, similarity)
-
-    return {
-      score: similarity,
-      similarity,
-      traits,
-      interpretation
+    // 性格特质
+    const personalityNames = ['开放', '尽责', '外向', '友善', '稳定']
+    for (let i = 0; i < 5; i++) {
+      const v1 = user1.personalityVector[i] ?? 0.5
+      const v2 = user2.personalityVector[i] ?? 0.5
+      
+      // 神经质是反向的
+      const val1 = i === 4 ? 1 - v1 : v1
+      const val2 = i === 4 ? 1 - v2 : v2
+      
+      if (val1 > 0.6 && val2 > 0.6) {
+        traits.push(personalityNames[i])
+      }
     }
+    
+    // 价值观特质
+    const valuesNames = ['成就', '安全', '自由', '传统', '仁慈']
+    for (let i = 0; i < 5; i++) {
+      const v1 = user1.valuesVector[i] ?? 0.5
+      const v2 = user2.valuesVector[i] ?? 0.5
+      
+      if (v1 > 0.6 && v2 > 0.6) {
+        traits.push(valuesNames[i])
+      }
+    }
+    
+    return traits.slice(0, 5)
   }
 
   /**
-   * 性格维度匹配
+   * 找出互补特质
    */
-  private matchPersonalityDimension(user1: any, user2: any): DimensionMatchDetail {
-    const traits: DimensionMatchDetail['traits'] = []
-
-    // 大五人格匹配
-    const p1 = user1.personality
-    const p2 = user2.personality
-
-    // 开放性 - 相似更好
-    traits.push({
-      name: '开放性',
-      userValue: p1.openness.normalizedScore,
-      matchedUserValue: p2.openness.normalizedScore,
-      match: this.judgePersonalityMatch('openness', 
-        p1.openness.normalizedScore, 
-        p2.openness.normalizedScore
-      ),
-      importance: 'medium'
-    })
-
-    // 尽责性 - 相似更好
-    traits.push({
-      name: '尽责性',
-      userValue: p1.conscientiousness.normalizedScore,
-      matchedUserValue: p2.conscientiousness.normalizedScore,
-      match: this.judgePersonalityMatch('conscientiousness',
-        p1.conscientiousness.normalizedScore,
-        p2.conscientiousness.normalizedScore
-      ),
-      importance: 'high'
-    })
-
-    // 外向性 - 可以互补
-    traits.push({
-      name: '外向性',
-      userValue: p1.extraversion.normalizedScore,
-      matchedUserValue: p2.extraversion.normalizedScore,
-      match: this.judgePersonalityMatch('extraversion',
-        p1.extraversion.normalizedScore,
-        p2.extraversion.normalizedScore
-      ),
-      importance: 'medium'
-    })
-
-    // 宜人性 - 都高更好
-    traits.push({
-      name: '宜人性',
-      userValue: p1.agreeableness.normalizedScore,
-      matchedUserValue: p2.agreeableness.normalizedScore,
-      match: this.judgePersonalityMatch('agreeableness',
-        p1.agreeableness.normalizedScore,
-        p2.agreeableness.normalizedScore
-      ),
-      importance: 'high'
-    })
-
-    // 神经质 - 都低更好
-    traits.push({
-      name: '情绪稳定性',
-      userValue: 100 - p1.neuroticism.normalizedScore, // 反向
-      matchedUserValue: 100 - p2.neuroticism.normalizedScore,
-      match: this.judgePersonalityMatch('neuroticism',
-        p1.neuroticism.normalizedScore,
-        p2.neuroticism.normalizedScore
-      ),
-      importance: 'high'
-    })
-
-    // 依恋风格匹配
-    traits.push({
-      name: '依恋风格',
-      userValue: this.attachmentToScore(p1.attachmentStyle),
-      matchedUserValue: this.attachmentToScore(p2.attachmentStyle),
-      match: this.judgeAttachmentMatch(p1.attachmentStyle, p2.attachmentStyle),
-      importance: 'high'
-    })
-
-    // 计算总分
-    const score = this.calculatePersonalityScore(traits)
-
-    const interpretation = this.generatePersonalityInterpretation(traits, p1, p2)
-
-    return {
-      score,
-      similarity: score,
-      traits,
-      interpretation
-    }
-  }
-
-  // ============================================
-  // 第三层：兼容性匹配
-  // ============================================
-
-  private calculateCompatibilityMatch(
-    user1: any,
-    user2: any
-  ): {
-    totalScore: number
-    lifestyle: DimensionMatchDetail
-    interests: DimensionMatchDetail
-    family: DimensionMatchDetail
-  } {
-    const lifestyle = this.matchLifestyleDimension(user1, user2)
-    const interests = this.matchInterestsDimension(user1, user2)
-    const family = this.matchFamilyDimension(user1, user2)
-
-    const weights = this.getDynamicWeights(user1, user2)
-    const totalScore = (
-      lifestyle.score * weights.lifestyle +
-      interests.score * weights.interests +
-      family.score * weights.family
-    )
-
-    return { totalScore, lifestyle, interests, family }
-  }
-
-  private matchLifestyleDimension(user1: any, user2: any): DimensionMatchDetail {
-    const traits: DimensionMatchDetail['traits'] = []
-
-    // 作息时间
-    const sleep1 = user1.features.explicit['lifestyle_sleep'] || 50
-    const sleep2 = user2.features.explicit['lifestyle_sleep'] || 50
+  private findComplementaryTraits(user1: UserVector, user2: UserVector): string[] {
+    const traits: string[] = []
     
-    traits.push({
-      name: '作息习惯',
-      userValue: sleep1,
-      matchedUserValue: sleep2,
-      match: this.judgeLifestyleMatch('sleep', sleep1, sleep2),
-      importance: 'medium'
-    })
-
-    // 社交能量
-    const social1 = user1.features.behavioral?.socialEnergy || 50
-    const social2 = user2.features.behavioral?.socialEnergy || 50
-    
-    traits.push({
-      name: '社交能量',
-      userValue: social1,
-      matchedUserValue: social2,
-      match: this.judgeLifestyleMatch('social', social1, social2),
-      importance: 'low'
-    })
-
-    // 消费观
-    const spend1 = user1.features.explicit['lifestyle_spending'] || 50
-    const spend2 = user2.features.explicit['lifestyle_spending'] || 50
-    
-    traits.push({
-      name: '消费观',
-      userValue: spend1,
-      matchedUserValue: spend2,
-      match: this.judgeLifestyleMatch('spending', spend1, spend2),
-      importance: 'high'
-    })
-
-    const similarity = this.calculateSimilarity(
-      traits.map(t => t.userValue),
-      traits.map(t => t.matchedUserValue)
-    )
-
-    return {
-      score: similarity,
-      similarity,
-      traits,
-      interpretation: this.generateLifestyleInterpretation(traits)
-    }
-  }
-
-  private matchInterestsDimension(user1: any, user2: any): DimensionMatchDetail {
-    // 兴趣匹配使用 Jaccard 相似度
-    const interests1 = user1.features.implicit?.['interests'] || []
-    const interests2 = user2.features.implicit?.['interests'] || []
-
-    const set1 = new Set(interests1)
-    const set2 = new Set(interests2)
-    
-    const intersection = new Set(Array.from(set1).filter(x => set2.has(x)))
-    const union = new Set([...Array.from(set1), ...Array.from(set2)])
-    
-    const similarity = union.size > 0 ? intersection.size / union.size : 0.5
-
-    return {
-      score: similarity * 100,
-      similarity: similarity * 100,
-      traits: [],
-      interpretation: similarity > 0.6 
-        ? '有很多共同兴趣，相处不会无聊' 
-        : '兴趣有差异，可以互相探索新领域'
-    }
-  }
-
-  private matchFamilyDimension(user1: any, user2: any): DimensionMatchDetail {
-    const traits: DimensionMatchDetail['traits'] = []
-
-    // 婚姻期待
-    const marriage1 = user1.features.explicit['family_marriage'] || 50
-    const marriage2 = user2.features.explicit['family_marriage'] || 50
-    
-    traits.push({
-      name: '婚姻期待',
-      userValue: marriage1,
-      matchedUserValue: marriage2,
-      match: this.judgeValueMatch(marriage1, marriage2),
-      importance: 'high'
-    })
-
-    // 孩子观念
-    const kids1 = user1.features.explicit['family_kids'] || 50
-    const kids2 = user2.features.explicit['family_kids'] || 50
-    
-    traits.push({
-      name: '孩子观念',
-      userValue: kids1,
-      matchedUserValue: kids2,
-      match: this.judgeValueMatch(kids1, kids2),
-      importance: 'high'
-    })
-
-    const similarity = this.calculateSimilarity(
-      [marriage1, kids1],
-      [marriage2, kids2]
-    )
-
-    return {
-      score: similarity,
-      similarity,
-      traits,
-      interpretation: this.generateFamilyInterpretation(traits)
-    }
-  }
-
-  // ============================================
-  // 第四层：互补性分析
-  // ============================================
-
-  private analyzeComplementarity(
-    user1: any,
-    user2: any
-  ): {
-    traits: ComplementaryTrait[]
-    totalBonus: number
-  } {
-    if (!this.config.complementarity.enable) {
-      return { traits: [], totalBonus: 0 }
-    }
-
-    const traits: ComplementaryTrait[] = []
-
     // 外向-内向互补
-    const ext1 = user1.personality.extraversion.normalizedScore
-    const ext2 = user2.personality.extraversion.normalizedScore
-    
-    if (Math.abs(ext1 - ext2) > 30) {
-      const highExt = ext1 > ext2 ? 'user1' : 'user2'
-      const lowExt = highExt === 'user1' ? 'user2' : 'user1'
-      
-      traits.push({
-        trait: '外向-内向',
-        user1Value: ext1,
-        user2Value: ext2,
-        complementarityType: 'balance',
-        bonus: 10,
-        reason: `${highExt === 'user1' ? '你' : 'TA'}可以带动${lowExt === 'user1' ? '你' : 'TA'}社交，而${lowExt === 'user1' ? '你' : 'TA'}能让${highExt === 'user1' ? '你' : 'TA'}学会安静享受生活`
-      })
+    const ext1 = user1.personalityVector[2] ?? 0.5
+    const ext2 = user2.personalityVector[2] ?? 0.5
+    if (ext1 > 0.6 && ext2 < 0.4) {
+      traits.push('外向带动内向')
+    } else if (ext1 < 0.4 && ext2 > 0.6) {
+      traits.push('内向带动外向')
     }
-
+    
     // 理性-感性互补
-    const agr1 = user1.personality.agreeableness.normalizedScore
-    const agr2 = user2.personality.agreeableness.normalizedScore
-    
-    if (Math.abs(agr1 - agr2) > 25) {
-      traits.push({
-        trait: '理性-感性',
-        user1Value: agr1,
-        user2Value: agr2,
-        complementarityType: 'growth',
-        bonus: 8,
-        reason: '理性与感性的结合，可以互相学习'
-      })
+    const agr1 = user1.personalityVector[3] ?? 0.5
+    const agr2 = user2.personalityVector[3] ?? 0.5
+    if (Math.abs(agr1 - agr2) > 0.3) {
+      traits.push('理性与感性互补')
     }
-
-    // 焦虑型-安全型互补
-    const att1 = user1.personality.attachmentStyle
-    const att2 = user2.personality.attachmentStyle
     
-    if (
-      (att1 === 'anxious' && att2 === 'secure') ||
-      (att1 === 'secure' && att2 === 'anxious')
-    ) {
-      traits.push({
-        trait: '依恋风格',
-        user1Value: this.attachmentToScore(att1),
-        user2Value: this.attachmentToScore(att2),
-        complementarityType: 'support',
-        bonus: 12,
-        reason: '安全型可以给焦虑型提供稳定的安全感'
-      })
-    }
-
-    // 计算总加分
-    const totalBonus = Math.min(
-      this.config.complementarity.maxBonus,
-      traits.reduce((sum, t) => sum + t.bonus, 0)
-    )
-
-    return { traits, totalBonus }
+    return traits
   }
 
-  // ============================================
-  // 长期关系预测
-  // ============================================
-
-  private predictLongTermPotential(
-    user1: any,
-    user2: any
+  /**
+   * 长期关系预测
+   */
+  private predictLongTerm(
+    user1: UserVector,
+    user2: UserVector,
+    personalitySim: number,
+    valuesSim: number
   ): {
-    riskFactors: RiskFactor[]
-    strengthFactors: StrengthFactor[]
-    stabilityScore: number
-    predictedSatisfaction: number
-  } {
-    const riskFactors: RiskFactor[] = []
-    const strengthFactors: StrengthFactor[] = []
-
-    const p1 = user1.personality
-    const p2 = user2.personality
-
-    // 风险因子分析
-    
-    // 1. 双高神经质 = 高冲突风险
-    if (p1.neuroticism.normalizedScore > 60 && p2.neuroticism.normalizedScore > 60) {
-      riskFactors.push({
-        factor: '双高神经质',
-        severity: 'high',
-        probability: 0.7,
-        description: '双方都容易情绪波动，可能产生冲突循环',
-        mitigation: '建议学习情绪管理技巧，建立冷静期机制'
-      })
-    }
-
-    // 2. 低宜人性组合
-    if (p1.agreeableness.normalizedScore < 40 && p2.agreeableness.normalizedScore < 40) {
-      riskFactors.push({
-        factor: '低宜人性组合',
-        severity: 'medium',
-        probability: 0.6,
-        description: '双方都可能比较固执，协商成本较高',
-        mitigation: '学习妥协技巧，建立明确的沟通规则'
-      })
-    }
-
-    // 3. 依恋类型冲突
-    if (
-      (p1.attachmentStyle === 'anxious' && p2.attachmentStyle === 'avoidant') ||
-      (p1.attachmentStyle === 'avoidant' && p2.attachmentStyle === 'anxious')
-    ) {
-      riskFactors.push({
-        factor: '焦虑-回避型依恋',
-        severity: 'high',
-        probability: 0.65,
-        description: '一方追求亲密，另一方需要空间，可能形成追逐-逃避模式',
-        mitigation: '理解彼此的依恋需求，建立安全感'
-      })
-    }
-
-    // 优势因子分析
-    
-    // 1. 双高宜人性
-    if (p1.agreeableness.normalizedScore > 60 && p2.agreeableness.normalizedScore > 60) {
-      strengthFactors.push({
-        factor: '双高宜人性',
-        impact: 'very_strong',
-        probability: 0.8,
-        description: '双方都善于理解和包容，关系和谐度高'
-      })
-    }
-
-    // 2. 价值观高度一致
-    const valuesSimilarity = this.calculateValuesSimilarity(user1, user2)
-    if (valuesSimilarity > 80) {
-      strengthFactors.push({
-        factor: '价值观高度一致',
-        impact: 'very_strong',
-        probability: 0.85,
-        description: '核心价值观念一致，关系稳定性强'
-      })
-    }
-
-    // 3. 安全型依恋组合
-    if (p1.attachmentStyle === 'secure' && p2.attachmentStyle === 'secure') {
-      strengthFactors.push({
-        factor: '双安全型依恋',
-        impact: 'very_strong',
-        probability: 0.9,
-        description: '双方都有健康的依恋模式，关系稳定'
-      })
-    }
-
-    // 4. 情绪稳定组合
-    if (p1.neuroticism.normalizedScore < 40 && p2.neuroticism.normalizedScore < 40) {
-      strengthFactors.push({
-        factor: '双高情绪稳定',
-        impact: 'strong',
-        probability: 0.75,
-        description: '双方都情绪稳定，冲突概率低'
-      })
-    }
-
-    // 计算稳定性分数
-    const stabilityScore = this.calculateStabilityScore(
-      riskFactors,
-      strengthFactors,
-      p1,
-      p2
-    )
-
-    // 预测满意度
-    const predictedSatisfaction = this.predictSatisfaction(
-      riskFactors,
-      strengthFactors
-    )
-
-    return {
-      riskFactors,
-      strengthFactors,
-      stabilityScore,
-      predictedSatisfaction
-    }
-  }
-
-  private calculateStabilityScore(
-    risks: RiskFactor[],
-    strengths: StrengthFactor[],
-    p1: any,
-    p2: any
-  ): number {
-    let baseScore = 70 // 基础分
-
-    // 风险扣分
-    risks.forEach(r => {
-      const deduction = r.probability * (r.severity === 'high' ? 15 : r.severity === 'medium' ? 10 : 5)
-      baseScore -= deduction
-    })
-
-    // 优势加分
-    strengths.forEach(s => {
-      const addition = s.probability * (s.impact === 'very_strong' ? 15 : s.impact === 'strong' ? 10 : 5)
-      baseScore += addition
-    })
-
-    return Math.max(0, Math.min(100, baseScore))
-  }
-
-  private predictSatisfaction(
-    risks: RiskFactor[],
-    strengths: StrengthFactor[]
-  ): number {
-    // 类似稳定性计算，但权重不同
-    let baseScore = 65
-
-    risks.forEach(r => {
-      const deduction = r.probability * (r.severity === 'high' ? 12 : r.severity === 'medium' ? 8 : 4)
-      baseScore -= deduction
-    })
-
-    strengths.forEach(s => {
-      const addition = s.probability * (s.impact === 'very_strong' ? 12 : s.impact === 'strong' ? 8 : 4)
-      baseScore += addition
-    })
-
-    return Math.max(0, Math.min(100, baseScore))
-  }
-
-  // ============================================
-  // 总分计算
-  // ============================================
-
-  private calculateTotalScore(scores: {
-    coreMatch: number
-    compatibilityMatch: number
-    complementarityBonus: number
-    longTermPotential: number
-  }): number {
-    const weights = {
-      core: 0.40, // 核心维度最重要
-      compatibility: 0.25,
-      complementarity: 0.15,
-      longTerm: 0.20
-    }
-
-    return (
-      scores.coreMatch * weights.core +
-      scores.compatibilityMatch * weights.compatibility +
-      scores.complementarityBonus +
-      scores.longTermPotential * weights.longTerm
-    )
-  }
-
-  // ============================================
-  // 解释生成
-  // ============================================
-
-  private generateExplanation(
-    core: any,
-    compatibility: any,
-    complementarity: any,
-    longTerm: any
-  ): {
+    stability: number
+    satisfaction: number
+    risks: string[]
     strengths: string[]
-    challenges: string[]
-    advice: string[]
   } {
+    let stability = 70
+    let satisfaction = 65
+    const risks: string[] = []
     const strengths: string[] = []
-    const challenges: string[] = []
-    const advice: string[] = []
-
-    // 从核心维度提取优势
-    if (core.values.score > 75) {
-      strengths.push('价值观高度契合，这是关系稳定的重要基础')
-    }
-    if (core.personality.traits.some((t: any) => t.match === 'similar' && t.importance === 'high')) {
-      strengths.push('核心性格特质相似，相处会比较轻松')
-    }
-
-    // 从互补性提取优势
-    complementarity.traits.forEach((t: ComplementaryTrait) => {
-      strengths.push(t.reason)
-    })
-
-    // 从长期预测提取优势
-    longTerm.strengthFactors.forEach((s: StrengthFactor) => {
-      strengths.push(s.description)
-    })
-
-    // 提取挑战
-    longTerm.riskFactors.forEach((r: RiskFactor) => {
-      challenges.push(r.description)
-      advice.push(r.mitigation)
-    })
-
-    // 添加通用建议
-    if (challenges.length === 0) {
-      advice.push('这是一对潜力很大的组合，建议多沟通，珍惜彼此')
-    }
-
-    return { strengths, challenges, advice }
-  }
-
-  // ============================================
-  // 辅助函数
-  // ============================================
-
-  private getDynamicWeights(user1: any, user2: any): Record<string, number> {
-    // 基础权重
-    const baseWeights = {
-      values: 0.30,
-      personality: 0.20,
-      lifestyle: 0.15,
-      interests: 0.10,
-      family: 0.15
-    }
-
-    if (!this.config.dynamicWeights.enable) {
-      return baseWeights
-    }
-
-    // 根据用户特征动态调整
-    const adjusted = { ...baseWeights }
-
-    // 如果用户家庭观念重，提高家庭维度权重
-    if (user1.features.explicit['family_mean'] > 60) {
-      adjusted.family *= 1.2
-    }
-
-    // 如果用户价值观强度高，提高价值观权重
-    if (user1.features.implicit['values_consistency'] > 70) {
-      adjusted.values *= 1.2
-    }
-
-    // 归一化
-    const total = Object.values(adjusted).reduce((sum, w) => sum + w, 0)
-    Object.keys(adjusted).forEach(k => {
-      (adjusted as any)[k] /= total
-    })
-
-    return adjusted
-  }
-
-  private calculateSimilarity(vec1: number[], vec2: number[]): number {
-    if (vec1.length !== vec2.length) return 50
     
-    const diff = vec1.reduce((sum, v, i) => sum + Math.abs(v - vec2[i]), 0)
-    const maxDiff = vec1.length * 100
-    
-    return Math.max(0, 100 - (diff / maxDiff) * 100)
-  }
-
-  private judgeValueMatch(v1: number, v2: number): 'similar' | 'complementary' | 'neutral' | 'conflict' {
-    const diff = Math.abs(v1 - v2)
-    if (diff < 15) return 'similar'
-    if (diff > 40) return 'conflict'
-    return 'neutral'
-  }
-
-  private judgePersonalityMatch(
-    trait: string,
-    v1: number,
-    v2: number
-  ): 'similar' | 'complementary' | 'neutral' | 'conflict' {
-    const diff = Math.abs(v1 - v2)
-
-    // 不同特质有不同的最佳匹配方式
-    switch (trait) {
-      case 'openness':
-      case 'conscientiousness':
-        // 相似更好
-        if (diff < 20) return 'similar'
-        if (diff > 50) return 'conflict'
-        return 'neutral'
-      
-      case 'extraversion':
-        // 可以互补
-        if (diff < 20) return 'similar'
-        if (diff > 40 && diff < 60) return 'complementary'
-        return 'neutral'
-      
-      case 'agreeableness':
-        // 都高最好
-        if (v1 > 60 && v2 > 60) return 'similar'
-        if (v1 < 40 && v2 < 40) return 'conflict'
-        return 'neutral'
-      
-      case 'neuroticism':
-        // 都低最好
-        if (v1 < 40 && v2 < 40) return 'similar'
-        if (v1 > 60 && v2 > 60) return 'conflict'
-        return 'neutral'
-      
-      default:
-        if (diff < 20) return 'similar'
-        return 'neutral'
-    }
-  }
-
-  private judgeLifestyleMatch(
-    type: string,
-    v1: number,
-    v2: number
-  ): 'similar' | 'complementary' | 'neutral' | 'conflict' {
-    const diff = Math.abs(v1 - v2)
-    
-    // 生活方式大多需要相似
-    if (diff < 20) return 'similar'
-    if (diff > 50) return 'conflict'
-    return 'neutral'
-  }
-
-  private judgeAttachmentMatch(
-    att1: string,
-    att2: string
-  ): 'similar' | 'complementary' | 'neutral' | 'conflict' {
-    // 依恋类型匹配矩阵
-    const matrix: Record<string, Record<string, 'similar' | 'complementary' | 'neutral' | 'conflict'>> = {
-      secure: {
-        secure: 'similar',
-        anxious: 'complementary',
-        avoidant: 'complementary',
-        fearful_avoidant: 'neutral'
-      },
-      anxious: {
-        secure: 'complementary',
-        anxious: 'conflict',
-        avoidant: 'conflict',
-        fearful_avoidant: 'conflict'
-      },
-      avoidant: {
-        secure: 'complementary',
-        anxious: 'conflict',
-        avoidant: 'neutral',
-        fearful_avoidant: 'conflict'
-      },
-      fearful_avoidant: {
-        secure: 'neutral',
-        anxious: 'conflict',
-        avoidant: 'conflict',
-        fearful_avoidant: 'conflict'
-      }
-    }
-
-    return matrix[att1]?.[att2] || 'neutral'
-  }
-
-  private attachmentToScore(style: string): number {
-    const scores: Record<string, number> = {
-      secure: 90,
-      anxious: 50,
-      avoidant: 40,
-      fearful_avoidant: 30
-    }
-    return scores[style] || 50
-  }
-
-  private calculateExtraversionComplementarity(ext1: number, ext2: number): number {
-    const diff = Math.abs(ext1 - ext2)
-    if (diff > 40 && diff < 60) {
-      return 10 // 适度互补加分
-    }
-    return 0
-  }
-
-  private calculatePersonalityScore(traits: DimensionMatchDetail['traits']): number {
-    const weights: Record<string, number> = {
-      high: 1.5,
-      medium: 1.0,
-      low: 0.5
-    }
-
-    let totalScore = 0
-    let totalWeight = 0
-
-    traits.forEach(trait => {
-      const weight = weights[trait.importance] || 1
-      let traitScore = 50
-
-      switch (trait.match) {
-        case 'similar':
-          traitScore = 85
-          break
-        case 'complementary':
-          traitScore = 75
-          break
-        case 'neutral':
-          traitScore = 60
-          break
-        case 'conflict':
-          traitScore = 30
-          break
-      }
-
-      totalScore += traitScore * weight
-      totalWeight += weight
-    })
-
-    return totalWeight > 0 ? totalScore / totalWeight : 50
-  }
-
-  private calculateValuesSimilarity(user1: any, user2: any): number {
-    // 计算价值观整体相似度
-    const valuesKeys = ['values_mean', 'values_money', 'values_family', 'values_career']
-    
-    const vec1 = valuesKeys.map(k => user1.features.explicit[k] || 50)
-    const vec2 = valuesKeys.map(k => user2.features.explicit[k] || 50)
-    
-    return this.calculateSimilarity(vec1, vec2)
-  }
-
-  // ... 更多解释生成函数
-  private generateValuesInterpretation(
-    traits: DimensionMatchDetail['traits'],
-    similarity: number
-  ): string {
-    if (similarity > 80) {
-      return '价值观高度一致，对人生重要事物的看法很接近'
-    } else if (similarity > 60) {
-      return '价值观基本一致，有一些差异但可以互相理解'
-    } else {
-      return '价值观存在较大差异，需要深入沟通确认是否可以接受'
-    }
-  }
-
-  private generatePersonalityInterpretation(
-    traits: DimensionMatchDetail['traits'],
-    p1: any,
-    p2: any
-  ): string {
-    const parts: string[] = []
-
-    // 检查互补性
-    const extraversionDiff = Math.abs(p1.extraversion.normalizedScore - p2.extraversion.normalizedScore)
-    if (extraversionDiff > 30) {
-      parts.push('外向-内向的互补可能带来化学反应')
-    }
-
-    // 检查风险
-    if (p1.neuroticism.normalizedScore > 60 && p2.neuroticism.normalizedScore > 60) {
-      parts.push('双方都容易情绪波动，需要学习情绪管理')
-    }
-
-    // 检查优势
-    if (p1.agreeableness.normalizedScore > 60 && p2.agreeableness.normalizedScore > 60) {
-      parts.push('双方都善解人意，关系和谐度预期较高')
-    }
-
-    return parts.join('。') || '性格匹配度良好'
-  }
-
-  private generateLifestyleInterpretation(traits: DimensionMatchDetail['traits']): string {
-    const conflicts = traits.filter(t => t.match === 'conflict')
-    
-    if (conflicts.length > 0) {
-      return `生活方式有些差异：${conflicts.map(c => c.name).join('、')}，需要磨合`
+    // 价值观相似度对稳定性的影响
+    if (valuesSim >= 80) {
+      stability += 15
+      strengths.push('价值观一致，关系基础稳固')
+    } else if (valuesSim < 50) {
+      stability -= 10
+      risks.push('价值观差异可能导致冲突')
     }
     
-    return '生活方式比较合拍，日常相处会很舒服'
-  }
-
-  private generateFamilyInterpretation(traits: DimensionMatchDetail['traits']): string {
-    const conflicts = traits.filter(t => t.match === 'conflict')
-    
-    if (conflicts.length > 0) {
-      return '家庭观念有较大差异，建议深入沟通'
+    // 性格相似度影响
+    if (personalitySim >= 75) {
+      stability += 10
+      satisfaction += 10
+      strengths.push('性格合拍，相处融洽')
     }
     
-    return '家庭观念比较一致，对未来期待相似'
-  }
-
-  private createFailedMatchResult(user1: any, user2: any): MatchingResult {
+    // 神经质影响
+    const neu1 = user1.personalityVector[4] ?? 0.5
+    const neu2 = user2.personalityVector[4] ?? 0.5
+    if (neu1 > 0.7 || neu2 > 0.7) {
+      stability -= 8
+      risks.push('一方情绪波动可能影响关系')
+    } else if (neu1 < 0.4 && neu2 < 0.4) {
+      stability += 8
+      strengths.push('双方情绪稳定')
+    }
+    
+    // 向量质量影响
+    const avgQuality = (user1.completenessScore + user2.completenessScore) / 2
+    if (avgQuality >= 80) {
+      satisfaction += 5
+    } else if (avgQuality < 50) {
+      satisfaction -= 5
+    }
+    
     return {
-      userId: 'user1',
-      matchedUserId: 'user2',
-      scores: {
-        hardFilter: 'failed',
-        coreMatch: 0,
-        compatibilityMatch: 0,
-        complementarityBonus: 0,
-        longTermPotential: 0,
-        totalScore: 0
-      },
-      analysis: {
-        coreDimensions: {
-          values: { score: 0, similarity: 0, traits: [], interpretation: '' },
-          personality: { score: 0, similarity: 0, traits: [], interpretation: '' }
-        },
-        compatibilityDimensions: {
-          lifestyle: { score: 0, similarity: 0, traits: [], interpretation: '' },
-          interests: { score: 0, similarity: 0, traits: [], interpretation: '' },
-          family: { score: 0, similarity: 0, traits: [], interpretation: '' }
-        },
-        complementarity: { traits: [], totalBonus: 0 },
-        longTermPrediction: {
-          riskFactors: [],
-          strengthFactors: [],
-          stabilityScore: 0,
-          predictedSatisfaction: 0
-        }
-      },
-      explanation: {
-        strengths: [],
-        challenges: ['存在底线冲突'],
-        advice: ['此匹配可能不适合']
-      },
+      stability: Math.max(0, Math.min(100, stability)),
+      satisfaction: Math.max(0, Math.min(100, satisfaction)),
+      risks: risks.slice(0, 3),
+      strengths: strengths.slice(0, 3)
+    }
+  }
+
+  /**
+   * 创建失败分数
+   */
+  private createFailedScore(user1Id: string, user2Id: string): MatchScoreV2 {
+    return {
+      userId: user1Id,
+      matchedUserId: user2Id,
+      personalityMatch: 0,
+      valuesMatch: 0,
+      interestsMatch: 0,
+      lifestyleMatch: 0,
+      complementarityBonus: 0,
+      totalScore: 0,
+      matchReasons: ['匹配度未达标'],
+      sharedTraits: [],
+      complementaryTraits: [],
+      longTermStability: 0,
+      satisfactionPrediction: 0,
+      riskFactors: ['综合匹配度过低'],
+      strengthFactors: [],
       metadata: {
         calculatedAt: new Date(),
         version: '2.0',
-        reliability: Math.min(user1.features.reliability, user2.features.reliability)
+        reliability: 0
       }
     }
   }
 }
 
 // ============================================
+// 便捷函数
+// ============================================
+
+/**
+ * 快速计算两个用户的匹配度
+ */
+export function calculateMatchV2(
+  user1Answers: UserAnswers,
+  user2Answers: UserAnswers,
+  user1Id: string,
+  user2Id: string
+): MatchScoreV2 {
+  const matcher = new AdvancedMatcherV2()
+  return matcher.calculateMatchWithAnswers(
+    user1Answers,
+    user2Answers,
+    user1Id,
+    user2Id
+  )
+}
+
+/**
+ * 批量匹配
+ */
+export function batchMatchV2(
+  currentUserAnswers: UserAnswers,
+  currentUserId: string,
+  candidates: Array<{ userId: string; answers: UserAnswers }>,
+  config?: Partial<MatchConfigV2>
+): MatchScoreV2[] {
+  const matcher = new AdvancedMatcherV2(config)
+  
+  const results = candidates
+    .map(candidate => 
+      matcher.calculateMatchWithAnswers(
+        currentUserAnswers,
+        candidate.answers,
+        currentUserId,
+        candidate.userId
+      )
+    )
+    .filter(r => r.totalScore > 0)
+    .sort((a, b) => b.totalScore - a.totalScore)
+  
+  return results
+}
+
+/**
+ * 使用预存向量批量匹配
+ */
+export function batchMatchWithVectors(
+  currentUserVector: UserVector,
+  candidateVectors: UserVector[],
+  config?: Partial<MatchConfigV2>
+): MatchScoreV2[] {
+  const matcher = new AdvancedMatcherV2(config)
+  
+  return candidateVectors
+    .map(candidate => 
+      matcher.calculateMatchWithVectors(currentUserVector, candidate)
+    )
+    .filter(r => r.totalScore > 0)
+    .sort((a, b) => b.totalScore - a.totalScore)
+}
+
+// ============================================
 // 导出
 // ============================================
 
-export function calculateAdvancedMatch(
-  user1Profile: any,
-  user2Profile: any,
-  config?: Partial<MatchConfigV2>
-): MatchingResult {
-  const matcher = new AdvancedMatcherV2(config)
-  return matcher.calculateMatch(user1Profile, user2Profile)
+export {
+  DEFAULT_CONFIG_V2
 }

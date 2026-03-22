@@ -172,9 +172,9 @@ export default function ProfilePage() {
     fetchStats()
   }, [currentUser, mounted])
 
-  // Supabase 配置
-  const SUPABASE = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
-  const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+  // Supabase 配置 - 使用环境变量
+  const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+  const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   
   // 保存头像到用户专属存储并同步到云端
   const handleAvatarChange = async (url: string | null) => {

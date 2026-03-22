@@ -42,11 +42,16 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // 调用登录 API
-      const url = `/api/auth/user?email=${encodeURIComponent(formData.email.trim())}&password=${encodeURIComponent(formData.password)}`
-      console.log('[Login] Calling API:', url)
-      
-      const response = await fetch(url)
+      // 调用登录 API (使用POST方法)
+      const response = await fetch('/api/auth/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          email: formData.email.trim(),
+          password: formData.password
+        })
+      })
       console.log('[Login] Response status:', response.status)
       
       const data = await response.json()
@@ -56,6 +61,11 @@ export default function LoginPage() {
         // 登录成功，保存当前用户到 localStorage
         console.log('[Login] Success, saving user to localStorage')
         localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
+        
+        // 保存JWT Token（用于API认证）
+        if (data.token) {
+          localStorage.setItem('xindong_auth_token', data.token)
+        }
         
         // 初始化用户 profile 数据 - 总是使用数据库的最新数据
         const userId = data.user.id
