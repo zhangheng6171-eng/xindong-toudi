@@ -9,8 +9,8 @@ import { QuestionnaireProgress, QuestionnaireComplete } from '@/components/quest
 import { useAuth } from '@/hooks/useAuth'
 
 // Supabase 配置 - 从环境变量获取
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
 
 // 问卷问题数据 - 66道题基于婚恋心理学专业设计
 const questions = [
