@@ -67,9 +67,11 @@ export default function ChatListPage() {
         }
       )
 
+      console.log('[ChatList] Messages response status:', messagesResponse.status)
+      
       if (messagesResponse.ok) {
         const messages = await messagesResponse.json()
-        console.log('[ChatList] Raw messages:', messages?.length || 0)
+        console.log('[ChatList] Raw messages:', messages?.length || 0, messages)
 
         if (Array.isArray(messages) && messages.length > 0) {
           // 按对话分组，找到所有与当前用户有消息往来的人
@@ -137,9 +139,11 @@ export default function ChatListPage() {
       }
       
       console.log('[ChatList] No messages found or API failed')
+      setError('暂无消息')
       setConversations([])
     } catch (err) {
       console.error('[ChatList] 获取会话失败:', err)
+      setError('获取消息失败: ' + (err instanceof Error ? err.message : String(err)))
       setConversations([])
     } finally {
       setIsLoading(false)
