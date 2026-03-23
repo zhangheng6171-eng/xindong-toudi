@@ -721,7 +721,7 @@ function LoggedInHome() {
     window.location.href = `/chat/conversation/?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`
   }
 
-  // 骨架屏
+  // 骨架屏 - 增强动画效果
   if (isLoading) {
     return (
       <AnimatedBackground variant="romance" showFloatingHearts={true}>
@@ -737,7 +737,36 @@ function LoggedInHome() {
             </div>
           </div>
           <div className="max-w-2xl mx-auto px-4 py-6">
+            {/* 快捷入口骨架 */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="p-4 bg-white/50 rounded-2xl animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                    <div className="h-3 w-16 bg-gray-100 rounded"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 bg-white/50 rounded-2xl animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                    <div className="h-3 w-16 bg-gray-100 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <div className="space-y-4">
+              {/* 推荐标题骨架 */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-16 bg-gray-100 rounded animate-pulse"></div>
+              </div>
+              
+              <UserCardSkeleton />
               <UserCardSkeleton />
               <UserCardSkeleton />
               <UserCardSkeleton />

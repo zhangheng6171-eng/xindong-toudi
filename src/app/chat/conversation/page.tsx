@@ -513,9 +513,11 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
                 )}
               </div>
             </div>
-            {/* 语音通话按钮 */}
+            {/* 语音通话按钮 - 统一样式 */}
             {myId && (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: 'rgba(244, 63, 94, 0.1)' }}
+                whileTap={{ scale: 0.95 }}
                 onClick={async () => {
                   try {
                     const response = await fetch('/api/call/initiate', {
@@ -537,27 +539,57 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
                     alert('网络错误，请稍后重试')
                   }
                 }}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-2.5 bg-gray-100 hover:bg-rose-100 rounded-full transition-colors"
                 title="语音通话"
               >
-                <Phone className="w-5 h-5 text-gray-600" />
-              </button>
+                <Phone className="w-5 h-5 text-rose-500" />
+              </motion.button>
             )}
-            {/* 视频通话按钮 */}
+            {/* 视频通话按钮 - 统一样式 */}
             {myId && (
-              <VideoCallButton
-                peerId={peerId}
-                peerName={peer?.name || peerName}
-                currentUserId={myId}
-                onCallInitiated={(roomId) => {
-                  setVideoCallRoomId(roomId)
-                  setVideoCallIsCaller(true)
-                  setVideoCallModalVisible(true)
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: 'rgba(244, 63, 94, 0.1)' }}
+                whileTap={{ scale: 0.95 }}
+                onClick={async () => {
+                  if (isLoading || isCalling) return
+                  setIsLoading(true)
+                  setIsCalling(true)
+                  try {
+                    const response = await fetch('/api/call/video/initiate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        callerId: myId,
+                        calleeId: peerId,
+                        callType: 'video'
+                      })
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      setVideoCallRoomId(data.roomId)
+                      setVideoCallIsCaller(true)
+                      setVideoCallModalVisible(true)
+                    } else {
+                      alert(data.error || '发起视频通话失败')
+                    }
+                  } catch (error) {
+                    console.error('Video call error:', error)
+                    alert('网络错误，请稍后重试')
+                  } finally {
+                    setIsLoading(false)
+                    setIsCalling(false)
+                  }
                 }}
-                onError={(error) => {
-                  alert(error)
-                }}
-              />
+                disabled={isLoading || isCalling}
+                className="p-2.5 bg-gray-100 hover:bg-rose-100 rounded-full transition-colors disabled:opacity-50"
+                title="视频通话"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Video className="w-5 h-5 text-rose-500" />
+                )}
+              </motion.button>
             )}
           </div>
         </div>

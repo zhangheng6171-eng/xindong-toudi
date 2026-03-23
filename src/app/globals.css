@@ -603,12 +603,47 @@ body {
 }
 
 /* ============================================
-   响应式工具类
+   响应式优化
    ============================================ */
 
 /* 移动端隐藏 */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .hide-mobile {
+    display: none !important;
+  }
+  
+  /* 移动端字体优化 */
+  html {
+    font-size: 14px;
+  }
+  
+  /* 移动端按钮增大触摸区域 */
+  button, 
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* 移动端输入框优化 */
+  input, 
+  textarea, 
+  select {
+    font-size: 16px; /* 防止iOS缩放 */
+  }
+  
+  /* 移动端卡片圆角减小 */
+  .rounded-2xl {
+    border-radius: 1rem;
+  }
+  
+  .rounded-3xl {
+    border-radius: 1.25rem;
+  }
+}
+
+/* 平板端 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .hide-tablet {
     display: none !important;
   }
 }
@@ -620,7 +655,14 @@ body {
   }
 }
 
-/* 安全区域适配 */
+/* 超小屏幕 */
+@media (max-width: 380px) {
+  .hide-xs {
+    display: none !important;
+  }
+}
+
+/* 安全区域适配 - iOS刘海屏 */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
@@ -629,12 +671,67 @@ body {
   padding-top: env(safe-area-inset-top, 0);
 }
 
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* 触摸友好 */
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* 移动端优化：防止点击延迟 */
+@media (hover: none) {
+  button, 
+  a, 
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    tap-highlight-color: transparent;
+  }
+}
+
+/* 移动端优化：弹性滚动 */
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* 移动端优化：输入框自动大写关闭 */
+input, 
+textarea {
+  text-transform: none;
+}
+
+/* 响应式间距 */
+.p-responsive {
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.m-responsive {
+  margin: clamp(0.5rem, 2vw, 1rem);
+}
+
+/* 响应式文字 */
+.text-responsive {
+  font-size: clamp(0.875rem, 2vw, 1rem);
+}
+
+.title-responsive {
+  font-size: clamp(1.25rem, 4vw, 1.875rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 /* ============================================
    无障碍支持
    ============================================ */
 
 /* 焦点可见 */
-.focus-visible:focus-visible {
+:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
@@ -662,5 +759,15 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 强制显示焦点（高对比度模式） */
+@media (forced-colors: active) {
+  button:focus-visible,
+  a:focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 2px;
   }
 }

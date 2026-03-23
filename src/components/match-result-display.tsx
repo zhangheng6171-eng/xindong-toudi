@@ -1,6 +1,7 @@
 // @ts-nocheck
 'use client'
 
+import { motion } from 'framer-motion'
 import { MatchingResultV2 as MatchingResult } from '@/lib/matching-algorithm-v2'
 
 interface MatchResultDisplayProps {
@@ -18,136 +19,159 @@ export default function MatchResultDisplay({ result, matchedUser }: MatchResultD
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* 总分卡片 */}
-      <div className="bg-gradient-to-r from-rose-500 to-pink-500 rounded-3xl p-6 text-white shadow-xl">
-        <div className="flex items-center justify-between">
+      {/* 总分卡片 - 带动画 */}
+      <motion.div 
+        className="bg-gradient-to-r from-rose-500 to-pink-500 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* 动态背景 */}
+        <motion.div 
+          className="absolute inset-0 opacity-20"
+          animate={{ 
+            backgroundPosition: ['0% 0%', '100% 100%']
+          }}
+          transition={{ duration: 5, repeat: Infinity, repeatType: "reverse" }}
+          style={{
+            background: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(255,255,255,0.4) 0%, transparent 50%)',
+            backgroundSize: '200% 200%'
+          }}
+        />
+        
+        <div className="relative z-10 flex items-center justify-between">
           <div>
             <div className="text-lg opacity-90">综合匹配度</div>
-            <div className="text-6xl font-bold mt-2">
-              {Math.round(scores.totalScore)}
+            <motion.div 
+              className="text-6xl font-bold mt-2"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {Math.round(scores.totalScore)}
+              </motion.span>
               <span className="text-2xl">分</span>
-            </div>
+            </motion.div>
           </div>
           {matchedUser && (
-            <div className="text-right">
+            <motion.div 
+              className="text-right"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+            >
               <div className="text-xl font-bold">{matchedUser.nickname}</div>
               <div className="text-sm opacity-80">{matchedUser.age}岁 · {matchedUser.city}</div>
-            </div>
+            </motion.div>
           )}
         </div>
         
         {/* 分数条 */}
-        <div className="mt-4 bg-white/20 rounded-full h-3">
-          <div 
-            className="h-full bg-white rounded-full transition-all"
-            style={{ width: `${scores.totalScore}%` }}
+        <motion.div 
+          className="mt-4 bg-white/20 rounded-full h-3 overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          <motion.div 
+            className="h-full bg-white rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${scores.totalScore}%` }}
+            transition={{ duration: 1, delay: 0.6, ease: "easeOut" }}
           />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* 分层匹配分数 */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
+      <motion.div 
+        className="bg-white rounded-2xl shadow-lg p-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
         <h3 className="text-lg font-bold text-gray-800 mb-4">📊 匹配分析</h3>
         
         <div className="space-y-4">
-          {/* 核心匹配 */}
-          <div className="flex items-center">
-            <div className="w-32 text-gray-600">价值观匹配</div>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
-                  className="h-full bg-rose-400 rounded-full"
-                  style={{ width: `${analysis.coreDimensions.values.score}%` }}
-                />
+          {/* 分数项组件 */}
+          {[
+            { label: '价值观匹配', score: analysis.coreDimensions.values.score, color: 'bg-rose-400' },
+            { label: '性格匹配', score: analysis.coreDimensions.personality.score, color: 'bg-pink-400' },
+            { label: '生活方式', score: analysis.compatibilityDimensions.lifestyle.score, color: 'bg-purple-400' },
+            { label: '兴趣爱好', score: analysis.compatibilityDimensions.interests.score, color: 'bg-indigo-400' },
+            { label: '家庭观念', score: analysis.compatibilityDimensions.family.score, color: 'bg-orange-400' },
+          ].map((item, index) => (
+            <motion.div 
+              key={item.label}
+              className="flex items-center"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 + index * 0.1 }}
+            >
+              <div className="w-32 text-gray-600">{item.label}</div>
+              <div className="flex-1 mx-4">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <motion.div 
+                    className={`h-full ${item.color} rounded-full`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${item.score}%` }}
+                    transition={{ duration: 0.8, delay: 0.5 + index * 0.1, ease: "easeOut" }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="w-12 text-right font-medium">{Math.round(analysis.coreDimensions.values.score)}</div>
-          </div>
-          
-          <div className="flex items-center">
-            <div className="w-32 text-gray-600">性格匹配</div>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
-                  className="h-full bg-pink-400 rounded-full"
-                  style={{ width: `${analysis.coreDimensions.personality.score}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-12 text-right font-medium">{Math.round(analysis.coreDimensions.personality.score)}</div>
-          </div>
-
-          {/* 兼容性匹配 */}
-          <div className="flex items-center">
-            <div className="w-32 text-gray-600">生活方式</div>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
-                  className="h-full bg-purple-400 rounded-full"
-                  style={{ width: `${analysis.compatibilityDimensions.lifestyle.score}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-12 text-right font-medium">{Math.round(analysis.compatibilityDimensions.lifestyle.score)}</div>
-          </div>
-          
-          <div className="flex items-center">
-            <div className="w-32 text-gray-600">兴趣爱好</div>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
-                  className="h-full bg-indigo-400 rounded-full"
-                  style={{ width: `${analysis.compatibilityDimensions.interests.score}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-12 text-right font-medium">{Math.round(analysis.compatibilityDimensions.interests.score)}</div>
-          </div>
-
-          <div className="flex items-center">
-            <div className="w-32 text-gray-600">家庭观念</div>
-            <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
-                  className="h-full bg-orange-400 rounded-full"
-                  style={{ width: `${analysis.compatibilityDimensions.family.score}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-12 text-right font-medium">{Math.round(analysis.compatibilityDimensions.family.score)}</div>
-          </div>
+              <div className="w-12 text-right font-medium">{Math.round(item.score)}</div>
+            </motion.div>
+          ))}
 
           {/* 互补性加分 */}
           {analysis.complementarity.totalBonus > 0 && (
-            <div className="flex items-center">
+            <motion.div 
+              className="flex items-center"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.9 }}
+            >
               <div className="w-32 text-gray-600">互补性加分</div>
               <div className="flex-1 mx-4">
-                <div className="h-2 bg-gray-100 rounded-full">
-                  <div 
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <motion.div 
                     className="h-full bg-gradient-to-r from-yellow-400 to-amber-400 rounded-full"
-                    style={{ width: `${analysis.complementarity.totalBonus}%` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${analysis.complementarity.totalBonus}%` }}
+                    transition={{ duration: 0.8, delay: 1, ease: "easeOut" }}
                   />
                 </div>
               </div>
               <div className="w-12 text-right font-medium text-amber-500">+{Math.round(analysis.complementarity.totalBonus)}</div>
-            </div>
+            </motion.div>
           )}
 
           {/* 长期潜力 */}
-          <div className="flex items-center pt-2 border-t">
+          <motion.div 
+            className="flex items-center pt-2 border-t"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 1.1 }}
+          >
             <div className="w-32 text-gray-600">长期关系潜力</div>
             <div className="flex-1 mx-4">
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div 
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <motion.div 
                   className="h-full bg-gradient-to-r from-green-400 to-emerald-400 rounded-full"
-                  style={{ width: `${analysis.longTermPrediction.stabilityScore}%` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${analysis.longTermPrediction.stabilityScore}%` }}
+                  transition={{ duration: 0.8, delay: 1.2, ease: "easeOut" }}
                 />
               </div>
             </div>
             <div className="w-12 text-right font-medium">{Math.round(analysis.longTermPrediction.stabilityScore)}</div>
-          </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 互补性分析 */}
       {analysis.complementarity.traits.length > 0 && (

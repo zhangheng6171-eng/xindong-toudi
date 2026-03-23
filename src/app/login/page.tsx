@@ -521,72 +521,97 @@ export default function LoginPage() {
                   </motion.div>
                 )}
 
-                {/* 登录方式切换 */}
-                <div className="flex bg-gray-100 rounded-2xl p-1">
+                {/* 登录方式切换 - 增强动画 */}
+                <div className="relative flex bg-gradient-to-r from-gray-100 to-gray-50 rounded-2xl p-1.5 border border-gray-200/50">
+                  {/* 滑动指示器 */}
+                  <motion.div
+                    className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-lg shadow-gray-200/50"
+                    initial={false}
+                    animate={{
+                      x: loginMethod === 'email' ? 0 : '100%'
+                    }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
                   <button
                     type="button"
                     onClick={() => { setLoginMethod('email'); setError(null); }}
-                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold relative z-10 transition-colors duration-200 ${
                       loginMethod === 'email' 
-                        ? 'bg-white text-gray-900 shadow-sm' 
+                        ? 'text-rose-500' 
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    邮箱登录
+                    <span className="flex items-center justify-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      邮箱登录
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => { setLoginMethod('sms'); setError(null); }}
-                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold relative z-10 transition-colors duration-200 ${
                       loginMethod === 'sms' 
-                        ? 'bg-white text-gray-900 shadow-sm' 
+                        ? 'text-rose-500' 
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    手机号登录
+                    <span className="flex items-center justify-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      手机号登录
+                    </span>
                   </button>
                 </div>
 
                 {/* 邮箱登录表单 */}
-                {loginMethod === 'email' && (
-                  <>
+                <AnimatePresence mode="wait">
+                  {loginMethod === 'email' && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                    >
                     {/* 邮箱 */}
-                    <div>
+                    <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         邮箱地址
                       </label>
-                      <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center transition-colors group-focus-within:bg-rose-200">
+                          <Mail className="w-5 h-5 text-rose-500" />
+                        </div>
                         <input
                           type="email"
                           value={emailForm.email}
                           onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
                           placeholder="your@email.com"
-                          className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          className="w-full pl-16 pr-4 py-4 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-rose-300 focus:bg-white transition-all hover:border-gray-200"
                           required
                         />
                       </div>
                     </div>
 
                     {/* 密码 */}
-                    <div>
+                    <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         密码
                       </label>
-                      <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-pink-100 rounded-xl flex items-center justify-center transition-colors group-focus-within:bg-pink-200">
+                          <Lock className="w-5 h-5 text-pink-500" />
+                        </div>
                         <input
                           type={showPassword ? 'text' : 'password'}
                           value={emailForm.password}
                           onChange={(e) => setEmailForm({ ...emailForm, password: e.target.value })}
                           placeholder="请输入密码"
-                          className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          className="w-full pl-16 pr-14 py-4 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-pink-300 focus:bg-white transition-all hover:border-gray-200"
                           required
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
                         >
                           {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
@@ -594,15 +619,19 @@ export default function LoginPage() {
                     </div>
 
                     {/* 记住我 & 忘记密码 */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-6">
                       <label className="flex items-center cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={emailForm.rememberMe}
-                          onChange={(e) => setEmailForm({ ...emailForm, rememberMe: e.target.checked })}
-                          className="w-4 h-4 text-rose-500 border-gray-300 rounded focus:ring-rose-300"
-                        />
-                        <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">记住我</span>
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={emailForm.rememberMe}
+                            onChange={(e) => setEmailForm({ ...emailForm, rememberMe: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-6 bg-gray-200 rounded-full peer-checked:bg-rose-500 transition-colors"></div>
+                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform shadow-sm"></div>
+                        </div>
+                        <span className="ml-3 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">记住我</span>
                       </label>
                       <button 
                         type="button"
@@ -612,60 +641,83 @@ export default function LoginPage() {
                         忘记密码？
                       </button>
                     </div>
-                  </>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* 手机号登录表单 */}
-                {loginMethod === 'sms' && (
-                  <>
+                <AnimatePresence mode="wait">
+                  {loginMethod === 'sms' && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                    >
                     {/* 手机号 */}
-                    <div>
+                    <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         手机号
                       </label>
-                      <div className="relative">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center transition-colors group-focus-within:bg-purple-200">
+                          <Phone className="w-5 h-5 text-purple-500" />
+                        </div>
                         <input
                           type="tel"
                           value={phoneForm.phone}
                           onChange={(e) => setPhoneForm({ ...phoneForm, phone: e.target.value })}
                           placeholder="请输入手机号"
-                          className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          className="w-full pl-16 pr-4 py-4 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-purple-300 focus:bg-white transition-all hover:border-gray-200"
                           required
                         />
                       </div>
                     </div>
 
                     {/* 验证码 */}
-                    <div>
+                    <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         验证码
                       </label>
                       <div className="flex gap-3">
-                        <div className="relative flex-1">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <div className="relative flex-1 group">
+                          <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center transition-colors group-focus-within:bg-green-200">
+                            <Lock className="w-5 h-5 text-green-500" />
+                          </div>
                           <input
                             type="text"
                             value={phoneForm.code}
                             onChange={(e) => setPhoneForm({ ...phoneForm, code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                             placeholder="请输入验证码"
-                            className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                            className="w-full pl-16 pr-4 py-4 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-green-300 focus:bg-white transition-all hover:border-gray-200"
                             required
                             maxLength={6}
                           />
                         </div>
-                        <button
+                        <motion.button
                           type="button"
                           onClick={handleSendCode}
                           disabled={countdown > 0 || isLoading}
-                          className="px-6 py-4 bg-gray-100 text-gray-700 rounded-2xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          className="px-5 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-2xl font-medium hover:shadow-lg hover:shadow-rose-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                         >
-                          {countdown > 0 ? `${countdown}秒后重发` : '获取验证码'}
-                        </button>
+                          {countdown > 0 ? (
+                            <span className="flex items-center gap-1">
+                              <span className="w-2 h-2 bg-white/50 rounded-full animate-pulse"></span>
+                              {countdown}秒
+                            </span>
+                          ) : isLoading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            '获取验证码'
+                          )}
+                        </motion.button>
                       </div>
                     </div>
-                  </>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* 提交按钮 */}
                 <motion.button

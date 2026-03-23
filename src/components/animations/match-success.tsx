@@ -3,37 +3,111 @@
  * 使用 Framer Motion 实现流畅动画
  */
 
-import { motion, useAnimation, useMotionValue, useTransform } from 'framer-motion'
-import { ReactNode, useEffect } from 'react'
+import { motion, useAnimation, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
+import { ReactNode, useEffect, useState } from 'react'
 
 /**
- * 匹配成功动画 - 心跳效果 + 粒子
+ * 匹配成功动画 - 增强版
  */
 export function MatchSuccessAnimation({ onComplete }: { onComplete?: () => void }) {
+  const [showHearts, setShowHearts] = useState(false)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHearts(true), 500)
+    return () => clearTimeout(timer)
+  }, [])
+  
   return (
-    <motion.div
-      className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onAnimationComplete={onComplete}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: [0, 1.2, 1] }}
-        transition={{ duration: 0.5, times: [0, 0.8, 1] }}
+        className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-md z-50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onAnimationComplete={onComplete}
       >
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 10, -10, 0]
-          }}
-          transition={{ duration: 0.5, repeat: 3, repeatDelay: 0.5 }}
+        {/* 粒子背景 */}
+        <motion.div 
+          className="absolute inset-0 overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
         >
-          <span className="text-8xl">💕</span>
+          {Array.from({ length: 20 }).map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-3 h-3 rounded-full"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                background: ['#f43f5e', '#ec4899', '#a855f7', '#f97316'][i % 4]
+              }}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ 
+                scale: [0, 1.5, 0],
+                opacity: [0, 1, 0],
+                y: [0, -100 - Math.random() * 200]
+              }}
+              transition={{ 
+                duration: 2 + Math.random(), 
+                delay: Math.random() * 0.5,
+                repeat: Infinity,
+                repeatDelay: Math.random() * 2
+              }}
+            />
+          ))}
+        </motion.div>
+
+        {/* 主内容 */}
+        <motion.div
+          className="relative z-10 text-center"
+          initial={{ scale: 0 }}
+          animate={{ scale: [0, 1.2, 1] }}
+          transition={{ duration: 0.6, times: [0, 0.8, 1] }}
+        >
+          {/* 心跳动画 */}
+          <motion.div
+            animate={{ 
+              scale: [1, 1.2, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{ duration: 0.5, repeat: 3, repeatDelay: 0.3 }}
+          >
+            <span className="text-8xl">💕</span>
+          </motion.div>
+          
+          {/* 文字动画 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-6"
+          >
+            <h2 className="text-3xl font-bold text-white mb-2">
+              匹配成功！
+            </h2>
+            <p className="text-white/80">
+              你们彼此喜欢，可以开始聊天了 💬
+            </p>
+          </motion.div>
+
+          {/* 按钮动画 */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="mt-8"
+          >
+            <motion.button
+              className="px-8 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full font-bold text-lg shadow-lg"
+              whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(244, 63, 94, 0.4)' }}
+              whileTap={{ scale: 0.95 }}
+            >
+              开始聊天
+            </motion.button>
+          </motion.div>
         </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   )
 }
 
