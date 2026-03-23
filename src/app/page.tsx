@@ -389,6 +389,12 @@ const BottomNav = memo(function BottomNav() {
           <Heart className="w-6 h-6 fill-current" />
           <span className="text-xs mt-1 font-medium">首页</span>
         </Link>
+        <Link href="/history" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-xs mt-1">历史</span>
+        </Link>
         <Link href="/match" className="flex flex-col items-center text-gray-400 hover:text-rose-500 transition-colors">
           <Heart className="w-6 h-6" />
           <span className="text-xs mt-1">匹配</span>
@@ -765,6 +771,32 @@ function LoggedInHome() {
         </div>
 
         <div className="max-w-2xl mx-auto px-4 py-6">
+          {/* 快捷入口 */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <Link href="/history" className="flex items-center gap-3 p-4 bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-500 rounded-xl flex items-center justify-center text-white">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className="font-medium text-gray-900 text-sm">匹配历史</div>
+                <div className="text-xs text-gray-500">查看往期匹配</div>
+              </div>
+            </Link>
+            <Link href="/feedback" className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center text-white">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </div>
+              <div>
+                <div className="font-medium text-gray-900 text-sm">约会反馈</div>
+                <div className="text-xs text-gray-500">提交约会评价</div>
+              </div>
+            </Link>
+          </div>
+          
           {allUsers.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">

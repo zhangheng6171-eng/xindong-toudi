@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Sparkles, Heart, MessageCircle, Users, ChevronRight, Loader2 } from 'lucide-react'
+import { Sparkles, Heart, MessageCircle, Users, ChevronRight, Loader2, Star } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { 
   AnimatedBackground, 
@@ -253,12 +253,23 @@ function DetailContent() {
                 )}
                 
                 <GradientButton 
-                  className="w-full" 
+                  className="w-full mb-3" 
                   size="md"
                   onClick={() => router.push(`/chat/conversation/?userId=${match.id}&nickname=${encodeURIComponent(match.nickname)}`)}
                 >
                   <MessageCircle className="inline-block w-5 h-5 mr-2" />
                   开始聊天
+                </GradientButton>
+                
+                {/* 提交反馈按钮 */}
+                <GradientButton 
+                  className="w-full" 
+                  size="md"
+                  variant="outline"
+                  onClick={() => router.push(`/feedback?matchId=${match.id}&userId=${userId}`)}
+                >
+                  <Star className="inline-block w-5 h-5 mr-2" />
+                  提交约会反馈
                 </GradientButton>
               </div>
             </GlassCard>
