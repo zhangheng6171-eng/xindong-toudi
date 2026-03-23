@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, getUserIdFromToken } from '@/lib/jwt'
+import { getUserIdFromToken } from '@/lib/jwt'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { 
+  withSecurityHeaders, 
+  withRateLimit,
+  sanitizeInput,
+  validateMatchId,
+  validateRating,
+  validateTextContent 
+} from '@/lib/security'
 
 // API路由配置
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+/**
+ * 添加安全头和速率限制
+ */
+function applySecurity(request: NextRequest): NextResponse | null {
+  // 安全头
+  const response = withSecurityHeaders(request)
+  
+  // Rate limiting
+  const rateLimitResponse = withRateLimit(request)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+  
+  return null
+}
 
 /**
  * GET /api/feedback
@@ -200,10 +224,19 @@ export async function POST(request: NextRequest) {
       wantToContinue
     } = body
     
-    // 3. 验证必填字段
+    // 3. 验证必填字段 - 使用安全模块的验证器
     if (!matchId) {
       return NextResponse.json(
         { success: false, error: '缺少匹配ID' },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 matchId 格式
+    const matchIdValidation = validateMatchId(matchId)
+    if (!matchIdValidation.valid) {
+      return NextResponse.json(
+        { success: false, error: matchIdValidation.error },
         { status: 400 }
       )
     }
@@ -215,11 +248,65 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (overallRating < 1 || overallRating > 5) {
+    // 验证评分范围
+    const ratingValidation = validateRating(overallRating, 1, 5)
+    if (!ratingValidation.valid) {
       return NextResponse.json(
-        { success: false, error: '总体评分必须在1-5之间' },
+        { success: false, error: ratingValidation.error },
         { status: 400 }
       )
+    }
+    
+    // 验证可选评分
+    if (personalityMatchRating !== undefined && personalityMatchRating !== null) {
+      const personalityValidation = validateRating(personalityMatchRating, 1, 5)
+      if (!personalityValidation.valid) {
+        return NextResponse.json(
+          { success: false, error: personalityValidation.error },
+          { status: 400 }
+        )
+      }
+    }
+    
+    if (valuesMatchRating !== undefined && valuesMatchRating !== null) {
+      const valuesValidation = validateRating(valuesMatchRating, 1, 5)
+      if (!valuesValidation.valid) {
+        return NextResponse.json(
+          { success: false, error: valuesValidation.error },
+          { status: 400 }
+        )
+      }
+    }
+    
+    if (interestsMatchRating !== undefined && interestsMatchRating !== null) {
+      const interestsValidation = validateRating(interestsMatchRating, 1, 5)
+      if (!interestsValidation.valid) {
+        return NextResponse.json(
+          { success: false, error: interestsValidation.error },
+          { status: 400 }
+        )
+      }
+    }
+    
+    // 验证文本内容长度
+    if (whatWentWell !== undefined && whatWentWell !== null && whatWentWell.trim()) {
+      const textValidation = validateTextContent(whatWentWell, 0, 1000)
+      if (!textValidation.valid) {
+        return NextResponse.json(
+          { success: false, error: textValidation.error },
+          { status: 400 }
+        )
+      }
+    }
+    
+    if (whatCouldImprove !== undefined && whatCouldImprove !== null && whatCouldImprove.trim()) {
+      const textValidation = validateTextContent(whatCouldImprove, 0, 1000)
+      if (!textValidation.valid) {
+        return NextResponse.json(
+          { success: false, error: textValidation.error },
+          { status: 400 }
+        )
+      }
     }
     
     if (wantToContinue === undefined || wantToContinue === null) {
@@ -228,6 +315,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    
+    // 4. 消毒用户输入
+    const sanitizedMatchId = sanitizeInput(matchId)
+    const sanitizedWhatWentWell = whatWentWell ? sanitizeInput(whatWentWell, 1000) : null
+    const sanitizedWhatCouldImprove = whatCouldImprove ? sanitizeInput(whatCouldImprove, 1000) : null
     
     // 4. 验证匹配是否存在且属于该用户
     const { data: match, error: matchError } = await supabaseAdmin
@@ -271,16 +363,16 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // 6. 插入反馈记录
+    // 6. 插入反馈记录（使用消毒后的数据）
     const { data: feedback, error: insertError } = await supabaseAdmin
       .from('date_feedback')
       .insert({
-        match_id: matchId,
+        match_id: sanitizedMatchId,
         user_id: userId,
         overall_rating: overallRating,
         would_meet_again: wouldMeetAgain || null,
-        what_went_well: whatWentWell || null,
-        what_could_improve: whatCouldImprove || null,
+        what_went_well: sanitizedWhatWentWell,
+        what_could_improve: sanitizedWhatCouldImprove,
         personality_match_rating: personalityMatchRating || null,
         values_match_rating: valuesMatchRating || null,
         interests_match_rating: interestsMatchRating || null,
@@ -301,7 +393,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabaseAdmin
       .from('weekly_matches')
       .update({ status: 'completed' })
-      .eq('id', matchId)
+      .eq('id', sanitizedMatchId)
     
     if (updateError) {
       console.error('Error updating match status:', updateError)

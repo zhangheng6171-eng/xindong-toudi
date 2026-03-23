@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, getUserIdFromToken } from '@/lib/jwt'
+import { getUserIdFromToken } from '@/lib/jwt'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { withSecurityHeaders, withRateLimit, validateTextContent } from '@/lib/security'
 
 // 强制动态渲染，避免静态导出问题
+
+/**
+ * 添加安全头和速率限制
+ */
+function applySecurity(request: NextRequest): NextResponse | null {
+  // 安全头
+  withSecurityHeaders(request)
+  
+  // Rate limiting
+  const rateLimitResponse = withRateLimit(request)
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+  
+  return null
+}
 
 /**
  * GET /api/match/history
@@ -15,6 +32,12 @@ import { supabaseAdmin } from '@/lib/supabase-server'
  */
 export async function GET(request: NextRequest) {
   try {
+    // 0. 应用安全措施
+    const securityResponse = applySecurity(request)
+    if (securityResponse) {
+      return securityResponse
+    }
+    
     // 1. 验证用户身份
     const authHeader = request.headers.get('authorization')
     const token = authHeader?.replace('Bearer ', '') || ''
@@ -40,9 +63,26 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '10')
     const outcome = searchParams.get('outcome') || null
     
-    if (page < 1 || pageSize < 1 || pageSize > 100) {
+    // 验证分页参数
+    if (isNaN(page) || page < 1 || page > 1000) {
       return NextResponse.json(
-        { success: false, error: '无效的分页参数' },
+        { success: false, error: '无效的页码' },
+        { status: 400 }
+      )
+    }
+    
+    if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
+      return NextResponse.json(
+        { success: false, error: '无效的每页数量' },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 outcome 参数（如果提供）
+    const validOutcomes = ['viewed', 'contacted', 'dated', 'relationship', 'no_contact', null]
+    if (outcome && !validOutcomes.includes(outcome)) {
+      return NextResponse.json(
+        { success: false, error: '无效的筛选条件' },
         { status: 400 }
       )
     }
