@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, getUserIdFromToken } from '@/lib/jwt'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
+// 强制动态渲染，避免静态导出问题
+
 /**
  * GET /api/feedback/[matchId]
  * 获取特定匹配的反馈详情

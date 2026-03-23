@@ -4,7 +4,7 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true,
   },
-  output: 'export',
+  // output: 'export', // 移除以支持 API 路由（Vercel 部署）
   trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromToken } from '@/lib/jwt'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
+// 强制动态渲染，避免静态导出问题
+
 /**
  * GET /api/match/history/stats
  * 获取用户的匹配统计信息
