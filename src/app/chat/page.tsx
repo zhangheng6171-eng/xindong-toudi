@@ -39,6 +39,10 @@ export default function ChatListPage() {
   // 未读消息管理
   const { unreadInfo, markAllAsRead } = useUnreadMessages(currentUser?.id || null)
 
+  // Supabase 配置
+  const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50YXFueWVnaWl3dHpkeXFqaXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTY4NzUsImV4cCI6MjA4OTQ5Mjg3NX0.4FEAb1Yd4xOwXz3LcfZ9iPG0ZZPbFd8dfry903c5lPc'
+
   // 获取会话列表
   const fetchConversations = useCallback(async () => {
     if (!currentUser) {
@@ -52,35 +56,89 @@ export default function ChatListPage() {
     console.log('[ChatList] Fetching conversations for user:', currentUser.id)
 
     try {
-      // 优先尝试从 API 获取（云端）
-      const url = `/api/chat/conversations?userId=${currentUser.id}`
-      console.log('[ChatList] API URL:', url)
-      
-      const response = await fetch(url)
-      console.log('[ChatList] API response status:', response.status)
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log('[ChatList] API response data:', data)
-        
-        if (data.success && Array.isArray(data.conversations)) {
-          console.log('[ChatList] Setting conversations:', data.conversations.length)
-          setConversations(data.conversations)
+      // 直接从 Supabase 获取消息记录
+      const messagesResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/messages?or=(sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id})&select=id,sender_id,receiver_id,content,created_at&order=created_at.desc&limit=100`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      )
+
+      if (messagesResponse.ok) {
+        const messages = await messagesResponse.json()
+        console.log('[ChatList] Raw messages:', messages?.length || 0)
+
+        if (Array.isArray(messages) && messages.length > 0) {
+          // 按对话分组，找到所有与当前用户有消息往来的人
+          const conversationMap = new Map()
+          
+          for (const msg of messages) {
+            const otherUserId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id
+            
+            if (!conversationMap.has(otherUserId)) {
+              conversationMap.set(otherUserId, {
+                id: `conv_${otherUserId}`,
+                matchId: otherUserId,
+                otherUser: {
+                  id: otherUserId,
+                  nickname: '心动对象',
+                  avatar: null,
+                  isOnline: false
+                },
+                lastMessage: msg.content,
+                lastMessageAt: msg.created_at,
+                unreadCount: 0,
+                matchScore: 92,
+                createdAt: msg.created_at
+              })
+            }
+          }
+
+          // 获取所有其他用户的信息
+          const otherUserIds = Array.from(conversationMap.keys())
+          console.log('[ChatList] Other user IDs:', otherUserIds)
+
+          if (otherUserIds.length > 0) {
+            const usersResponse = await fetch(
+              `${SUPABASE_URL}/rest/v1/users?id=in.(${otherUserIds.map(id => `"${id}"`).join(',')})&select=id,nickname,avatar`,
+              {
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+              }
+            )
+
+            if (usersResponse.ok) {
+              const users = await usersResponse.json()
+              if (Array.isArray(users)) {
+                for (const user of users) {
+                  const conv = conversationMap.get(user.id)
+                  if (conv) {
+                    conv.otherUser.nickname = user.nickname || '心动对象'
+                    conv.otherUser.avatar = user.avatar || null
+                  }
+                }
+              }
+            }
+          }
+
+          const conversations = Array.from(conversationMap.values())
+          console.log('[ChatList] Final conversations:', conversations.length)
+          setConversations(conversations)
           setIsLoading(false)
           return
         }
       }
       
-      console.log('[ChatList] API failed, falling back to localStorage')
-      // API 失败，从 localStorage 获取本地数据作为后备
-      const localConversations = getLocalConversations(currentUser.id)
-      console.log('[ChatList] Local conversations:', localConversations.length)
-      setConversations(localConversations)
+      console.log('[ChatList] No messages found or API failed')
+      setConversations([])
     } catch (err) {
       console.error('[ChatList] 获取会话失败:', err)
-      // 网络错误，使用本地数据
-      const localConversations = getLocalConversations(currentUser.id)
-      setConversations(localConversations)
+      setConversations([])
     } finally {
       setIsLoading(false)
     }
