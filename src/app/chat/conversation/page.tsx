@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, Suspense, memo, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Send, Image, Check, CheckCheck, X, Loader2, Wifi, WifiOff, Smile, Clock, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Send, Image, Check, CheckCheck, X, Loader2, Wifi, WifiOff, Smile, Clock, MoreVertical, Phone, Video } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AnimatedBackground } from '@/components/animated-background'
 import { useAuth } from '@/hooks/useAuth'
 import { selectImage, isValidImageType, isValidImageSize, compressImage } from '@/lib/image-utils'
+import { VoiceCallButton, VoiceCallModal, VideoCallButton, VideoCallModal } from '@/components/chat'
 
 // Supabase 配置 - 从环境变量获取
 const SUPABASE_URL = 'https://ntaqnyegiiwtzdyqjiwy.supabase.co'
@@ -201,10 +202,21 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
   const [isOnline, setIsOnline] = useState(true)
   const [peerTyping, setPeerTyping] = useState(false)
   
+  // 语音通话状态
+  const [callModalVisible, setCallModalVisible] = useState(false)
+  const [callMode, setCallMode] = useState<'incoming' | 'outgoing' | 'connected'>('outgoing')
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
+  
+  // 视频通话状态
+  const [videoCallModalVisible, setVideoCallModalVisible] = useState(false)
+  const [videoCallRoomId, setVideoCallRoomId] = useState<string | null>(null)
+  const [videoCallIsCaller, setVideoCallIsCaller] = useState(true)
+  
   const endRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const callPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // 网络状态监听
   useEffect(() => {
@@ -230,6 +242,62 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
       document.title = '心动投递 - 聊天'
     }
   }, [msgs, myId])
+
+  // 轮询检查是否有来电呼叫
+  useEffect(() => {
+    if (!myId || !peerId) return
+    
+    const checkForIncomingCall = async () => {
+      try {
+        // 查询是否有来自该用户的呼叫
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/call_notifications?receiver_id=eq.${myId}&sender_id=eq.${peerId}&status=eq.pending&order=created_at.desc&limit=1`, {
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+        })
+        const data = await res.json()
+        
+        if (Array.isArray(data) && data.length > 0 && !callModalVisible) {
+          const call = data[0]
+          setCurrentRoomId(call.room_id)
+          setCallMode('incoming')
+          setCallModalVisible(true)
+        }
+      } catch (error) {
+        console.error('Check incoming call error:', error)
+      }
+    }
+    
+    callPollingRef.current = setInterval(checkForIncomingCall, 3000)
+    
+    return () => {
+      if (callPollingRef.current) clearInterval(callPollingRef.current)
+    }
+  }, [myId, peerId, callModalVisible])
+
+  // 发起语音通话
+  const handleInitiateCall = async (roomId: string) => {
+    setCurrentRoomId(roomId)
+    setCallMode('outgoing')
+    setCallModalVisible(true)
+  }
+
+  // 处理通话结束
+  const handleCallEnd = () => {
+    setCallModalVisible(false)
+    setCallMode('outgoing')
+    setCurrentRoomId(null)
+  }
+
+  // 处理通话接受
+  const handleCallAccept = () => {
+    setCallMode('connected')
+  }
+
+  // 处理通话拒绝/关闭
+  const handleCallClose = () => {
+    setCallModalVisible(false)
+    setCallMode('outgoing')
+    setCurrentRoomId(null)
+  }
 
   // 初始化加载 - 优化：更智能的消息合并和去重
   useEffect(() => {
@@ -445,6 +513,52 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
                 )}
               </div>
             </div>
+            {/* 语音通话按钮 */}
+            {myId && (
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/call/initiate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        callerId: myId,
+                        calleeId: peerId
+                      })
+                    })
+                    const data = await response.json()
+                    if (data.success) {
+                      handleInitiateCall(data.roomId)
+                    } else {
+                      alert(data.error || '发起呼叫失败')
+                    }
+                  } catch (error) {
+                    console.error('Call error:', error)
+                    alert('网络错误，请稍后重试')
+                  }
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="语音通话"
+              >
+                <Phone className="w-5 h-5 text-gray-600" />
+              </button>
+            )}
+            {/* 视频通话按钮 */}
+            {myId && (
+              <VideoCallButton
+                peerId={peerId}
+                peerName={peer?.name || peerName}
+                currentUserId={myId}
+                onCallInitiated={(roomId) => {
+                  setVideoCallRoomId(roomId)
+                  setVideoCallIsCaller(true)
+                  setVideoCallModalVisible(true)
+                }}
+                onError={(error) => {
+                  alert(error)
+                }}
+              />
+            )}
           </div>
         </div>
 
@@ -514,6 +628,38 @@ function ChatContent({ peerId, peerName }: { peerId: string; peerName: string })
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* 语音通话弹窗 */}
+        {currentRoomId && (
+          <VoiceCallModal
+            visible={callModalVisible}
+            mode={callMode}
+            roomId={currentRoomId}
+            peerName={peer?.name || peerName}
+            peerAvatar={peer?.avatar}
+            currentUserId={myId}
+            onAccept={handleCallAccept}
+            onEnd={handleCallEnd}
+            onClose={handleCallClose}
+          />
+        )}
+
+        {/* 视频通话弹窗 */}
+        {videoCallRoomId && (
+          <VideoCallModal
+            isOpen={videoCallModalVisible}
+            roomId={videoCallRoomId}
+            peerId={peerId}
+            peerName={peer?.name || peerName}
+            currentUserId={myId}
+            isCaller={videoCallIsCaller}
+            onClose={() => setVideoCallModalVisible(false)}
+            onCallEnded={() => {
+              setVideoCallRoomId(null)
+              setVideoCallModalVisible(false)
+            }}
+          />
+        )}
       </div>
     </AnimatedBackground>
   )

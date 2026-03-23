@@ -5,3 +5,7 @@
 
 export { IceBreakers } from './ice-breakers';
 export { default as TopicSuggestions } from './topic-suggestions';
+export { VoiceCallButton } from './VoiceCallButton';
+export { VoiceCallModal } from './VoiceCallModal';
+export { VideoCallButton } from './VideoCallButton';
+export { VideoCallModal } from './VideoCallModal';
