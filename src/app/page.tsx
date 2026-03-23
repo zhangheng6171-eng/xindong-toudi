@@ -38,7 +38,7 @@ function calculateMatchScore(currentUser: any, targetUser: any): number {
   }
   
   // 4. 完成问卷的用户加分
-  if (targetUser.questionnaire_completed) {
+  if (targetUser.questionnaire_completed_at) {
     score += 5
   }
   
@@ -70,9 +70,8 @@ interface ApiUser {
   interests: string[]
   avatar: string | null
   photos: string[]
-  createdAt: string
-  questionnaire_completed?: boolean
-  questionnaire_answers?: Record<string, any>
+  created_at: string
+  questionnaire_completed_at: string | null
 }
 
 // 显示用户类型
@@ -455,7 +454,7 @@ function LoggedInHome() {
     try {
       // 直接从 Supabase 获取用户列表，包含问卷完成状态
       const usersResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?select=id,nickname,age,gender,city,occupation,education,height,bio,interests,avatar,photos,questionnaire_completed,questionnaire_answers&order=createdAt.desc&limit=20`,
+        `${SUPABASE_URL}/rest/v1/users?select=id,nickname,age,gender,city,occupation,education,height,bio,interests,avatar,photos,questionnaire_completed_at&order=created_at.desc&limit=20`,
         { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
       )
       
@@ -512,7 +511,7 @@ function LoggedInHome() {
               isLiked: likedUsers.includes(u.id),
               isMutualLike: mutualLikesMap.has(u.id),
               // 只有完成问卷的用户才显示为系统匹配
-              isSystemMatch: u.questionnaire_completed === true,
+              isSystemMatch: !!u.questionnaire_completed_at,
             }))
             // 按匹配度排序
             .sort((a: DisplayUser, b: DisplayUser) => b.matchScore - a.matchScore)

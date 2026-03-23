@@ -137,7 +137,15 @@ export default function EditProfilePage() {
           nickname: profile.nickname,
           age: profile.age,
           gender: profile.gender,
-          city: profile.city
+          city: profile.city,
+          occupation: profile.occupation,
+          education: profile.education,
+          height: profile.height,
+          bio: profile.bio,
+          interests: profile.interests,
+          looking_for: profile.lookingFor,
+          avatar: avatar,
+          photos: validPhotos
         })
       })
       
