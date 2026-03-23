@@ -516,6 +516,7 @@ function LoggedInHome() {
             // 按匹配度排序
             .sort((a: DisplayUser, b: DisplayUser) => b.matchScore - a.matchScore)
 
+          console.log('[DEBUG] Display users count:', displayUsers.length, 'Mutual likes:', Array.from(mutualLikesMap.keys()))
           setAllUsers(displayUsers)
           return
         }
