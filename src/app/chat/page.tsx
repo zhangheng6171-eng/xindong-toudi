@@ -102,8 +102,10 @@ export default function ChatListPage() {
           console.log('[ChatList] Other user IDs:', otherUserIds)
 
           if (otherUserIds.length > 0) {
+            // 构建正确的 in 查询 URL
+            const idsParam = otherUserIds.map(id => encodeURIComponent(id)).join(',')
             const usersResponse = await fetch(
-              `${SUPABASE_URL}/rest/v1/users?id=in.(${otherUserIds.map(id => `"${id}"`).join(',')})&select=id,nickname,avatar`,
+              `${SUPABASE_URL}/rest/v1/users?id=in.(${idsParam})&select=id,nickname,avatar`,
               {
                 headers: {
                   'apikey': SUPABASE_ANON_KEY,
