@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Heart, Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, Loader2 } from 'lucide-react'
+import { Heart, Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, Loader2, Phone } from 'lucide-react'
 import Link from 'next/link'
 import { GlassCard, GradientText } from '@/components/animated-background'
 
@@ -24,56 +24,105 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
+  const [loginMethod, setLoginMethod] = useState<'email' | 'sms'>('email')
+  const [countdown, setCountdown] = useState(0)
+  
+  // 邮箱登录表单
+  const [emailForm, setEmailForm] = useState({
     email: '',
     password: '',
     rememberMe: false
   })
+  
+  // 手机号登录表单
+  const [phoneForm, setPhoneForm] = useState({
+    phone: '',
+    code: ''
+  })
+  
+  // 验证码倒计时
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [countdown])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     
-    if (!formData.email.trim() || !formData.password) {
-      setError('请输入邮箱和密码')
-      return
+    if (loginMethod === 'email') {
+      // 邮箱登录
+      if (!emailForm.email.trim() || !emailForm.password) {
+        setError('请输入邮箱和密码')
+        return
+      }
+    } else {
+      // 手机号登录 - 这里不阻止提交，让验证码输入
+      if (!phoneForm.phone.trim() || !phoneForm.code) {
+        setError('请输入手机号和验证码')
+        return
+      }
     }
 
     setIsLoading(true)
     
     try {
-      // 调用登录 API (使用POST方法)
-      const response = await fetch('/api/auth/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'login',
-          email: formData.email.trim(),
-          password: formData.password
-        })
-      })
-      console.log('[Login] Response status:', response.status)
+      let data
       
-      const data = await response.json()
+      if (loginMethod === 'email') {
+        // 调用邮箱登录 API
+        const response = await fetch('/api/auth/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'login',
+            email: emailForm.email.trim(),
+            password: emailForm.password
+          })
+        })
+        console.log('[Login] Response status:', response.status)
+        data = await response.json()
+      } else {
+        // 调用手机号验证码登录 API
+        const response = await fetch('/api/auth/sms/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneForm.phone.trim(),
+            code: phoneForm.code
+          })
+        })
+        console.log('[SMS Login] Response status:', response.status)
+        data = await response.json()
+      }
+      
       console.log('[Login] Response data:', data)
       
-      if (response.ok && data.success) {
+      if (response.ok && data.success || (loginMethod === 'sms' && data.success)) {
         // 登录成功，保存当前用户到 localStorage
         console.log('[Login] Success, saving user to localStorage')
-        localStorage.setItem('xindong_current_user', JSON.stringify(data.user))
         
-        // 保存JWT Token（用于API认证）
-        if (data.token) {
-          localStorage.setItem('xindong_auth_token', data.token)
+        const userData = loginMethod === 'email' ? data.user : data.user
+        const token = loginMethod === 'email' ? data.token : data.token
+        
+        if (userData) {
+          localStorage.setItem('xindong_current_user', JSON.stringify(userData))
         }
         
-        // 初始化用户 profile 数据 - 总是使用数据库的最新数据
-        const userId = data.user.id
+        // 保存JWT Token（用于API认证）
+        if (token) {
+          localStorage.setItem('xindong_auth_token', token)
+        }
+        
+        // 初始化用户 profile 数据
+        const userId = userData.id
         const userProfile = {
-          nickname: data.user.nickname || '',
-          age: data.user.age || 25,
-          gender: data.user.gender || 'male',
-          city: data.user.city || '',
+          nickname: userData.nickname || '',
+          age: userData.age || 25,
+          gender: userData.gender || 'male',
+          city: userData.city || '',
           occupation: '',
           education: '',
           height: 175,
@@ -82,17 +131,16 @@ export default function LoginPage() {
           lookingFor: {
             minAge: 18,
             maxAge: 35,
-            cities: data.user.city ? [data.user.city] : [],
+            cities: userData.city ? [userData.city] : [],
             relationship: 'serious'
           }
         }
         
-        // 合并现有 profile（保留 bio, interests, photos 等用户编辑的数据）
+        // 合并现有 profile
         const existingProfileJson = localStorage.getItem(`xindong_profile_${userId}`)
         if (existingProfileJson) {
           try {
             const existingProfile = JSON.parse(existingProfileJson)
-            // 保留用户编辑的字段，但强制更新数据库同步的字段
             userProfile.bio = existingProfile.bio || ''
             userProfile.interests = existingProfile.interests || []
             userProfile.occupation = existingProfile.occupation || ''
@@ -120,6 +168,46 @@ export default function LoginPage() {
     }
   }
 
+  // 发送验证码
+  const handleSendCode = async () => {
+    if (!phoneForm.phone.trim()) {
+      setError('请输入手机号')
+      return
+    }
+    
+    // 验证手机号格式
+    const phoneRegex = /^1[3-9]\d{9}$/
+    if (!phoneRegex.test(phoneForm.phone.trim())) {
+      setError('请输入正确的手机号')
+      return
+    }
+    
+    setError(null)
+    setIsLoading(true)
+    
+    try {
+      const response = await fetch('/api/auth/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneForm.phone.trim() })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setCountdown(60)
+        console.log('[SMS] 验证码已发送:', data.debugCode)
+      } else {
+        setError(data.error || '发送失败，请重试')
+      }
+    } catch (e) {
+      console.error('[SMS] Error:', e)
+      setError('网络错误，请检查网络连接')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleForgotPassword = () => {
     // 忘记密码功能 - 跳转到忘记密码页面
     router.push('/forgot-password')
@@ -130,10 +218,130 @@ export default function LoginPage() {
     alert('Google 登录功能即将上线，敬请期待！\n\n目前可使用手机号登录。')
   }
 
-  const handleWechatLogin = () => {
-    // 微信登录功能 - 提示用户
-    alert('微信登录功能即将上线，敬请期待！\n\n目前可使用手机号登录。')
+  // 微信登录
+  const handleWechatLogin = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // 1. 获取微信授权URL
+      const response = await fetch('/api/auth/wechat/login', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        setError(data.error || '微信登录初始化失败')
+        setIsLoading(false)
+        return
+      }
+
+      // 2. 跳转到微信授权页面
+      // 保存state到sessionStorage用于回调验证
+      sessionStorage.setItem('wechat_state', data.state)
+      
+      // 跳转到微信授权页
+      window.location.href = data.authUrl
+    } catch (e) {
+      console.error('[Wechat Login] Error:', e)
+      setError('网络错误，请重试')
+      setIsLoading(false)
+    }
   }
+
+  // 处理微信登录回调（页面加载时检查URL）
+  useEffect(() => {
+    const handleWechatCallback = async () => {
+      const url = new URL(window.location.href)
+      
+      // 检查是否是微信登录回调
+      if (url.searchParams.get('wechat_login') === 'success') {
+        setIsLoading(true)
+        
+        try {
+          // 从URL获取token和用户信息
+          const hash = url.hash
+          const params = new URLSearchParams(hash.substring(1)) // 去掉#号
+          
+          const token = params.get('wechat_token')
+          const userStr = params.get('user')
+          
+          if (token && userStr) {
+            const user = JSON.parse(decodeURIComponent(userStr))
+            
+            // 保存到localStorage
+            localStorage.setItem('xindong_auth_token', token)
+            localStorage.setItem('xindong_current_user', JSON.stringify(user))
+            
+            // 初始化用户 profile 数据
+            const userProfile = {
+              nickname: user.nickname || '',
+              age: user.age || 25,
+              gender: user.gender || 'male',
+              city: user.city || '',
+              occupation: '',
+              education: '',
+              height: 175,
+              bio: '',
+              interests: [],
+              lookingFor: {
+                minAge: 18,
+                maxAge: 35,
+                cities: user.city ? [user.city] : [],
+                relationship: 'serious'
+              }
+            }
+            
+            localStorage.setItem(`xindong_profile_${user.id}`, JSON.stringify(userProfile))
+            
+            // 清除URL参数
+            window.history.replaceState({}, '', '/dashboard')
+            
+            // 跳转到仪表盘
+            window.location.href = '/dashboard'
+            return
+          }
+        } catch (e) {
+          console.error('[Wechat Callback] Parse error:', e)
+        }
+        
+        setError('微信登录失败，请重试')
+        setIsLoading(false)
+      } else if (url.searchParams.get('error')) {
+        // 处理错误情况
+        const errorType = url.searchParams.get('error')
+        let errorMsg = '微信登录失败'
+        
+        switch (errorType) {
+          case 'wechat_denied':
+            errorMsg = '您取消了微信授权'
+            break
+          case 'wechat_no_code':
+            errorMsg = '授权码获取失败'
+            break
+          case 'wechat_state_expired':
+            errorMsg = '授权已过期，请重试'
+            break
+          case 'wechat_token_failed':
+            errorMsg = '微信授权失败'
+            break
+          case 'wechat_userinfo_failed':
+            errorMsg = '获取用户信息失败'
+            break
+          default:
+            errorMsg = '微信登录失败'
+        }
+        
+        setError(errorMsg)
+        // 清除URL参数
+        window.history.replaceState({}, '', '/login')
+      }
+    }
+
+    handleWechatCallback()
+  }, [])
 
   return (
     <div className="min-h-screen flex">
@@ -313,68 +521,151 @@ export default function LoginPage() {
                   </motion.div>
                 )}
 
-                {/* 邮箱 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    邮箱地址
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="your@email.com"
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 密码 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    密码
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="请输入密码"
-                      className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 记住我 & 忘记密码 */}
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={formData.rememberMe}
-                      onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-                      className="w-4 h-4 text-rose-500 border-gray-300 rounded focus:ring-rose-300"
-                    />
-                    <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">记住我</span>
-                  </label>
-                  <button 
+                {/* 登录方式切换 */}
+                <div className="flex bg-gray-100 rounded-2xl p-1">
+                  <button
                     type="button"
-                    onClick={handleForgotPassword}
-                    className="text-sm text-rose-500 hover:text-rose-600 font-medium transition-colors"
+                    onClick={() => { setLoginMethod('email'); setError(null); }}
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                      loginMethod === 'email' 
+                        ? 'bg-white text-gray-900 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
-                    忘记密码？
+                    邮箱登录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMethod('sms'); setError(null); }}
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                      loginMethod === 'sms' 
+                        ? 'bg-white text-gray-900 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    手机号登录
                   </button>
                 </div>
+
+                {/* 邮箱登录表单 */}
+                {loginMethod === 'email' && (
+                  <>
+                    {/* 邮箱 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        邮箱地址
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type="email"
+                          value={emailForm.email}
+                          onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
+                          placeholder="your@email.com"
+                          className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* 密码 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        密码
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={emailForm.password}
+                          onChange={(e) => setEmailForm({ ...emailForm, password: e.target.value })}
+                          placeholder="请输入密码"
+                          className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 记住我 & 忘记密码 */}
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={emailForm.rememberMe}
+                          onChange={(e) => setEmailForm({ ...emailForm, rememberMe: e.target.checked })}
+                          className="w-4 h-4 text-rose-500 border-gray-300 rounded focus:ring-rose-300"
+                        />
+                        <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">记住我</span>
+                      </label>
+                      <button 
+                        type="button"
+                        onClick={handleForgotPassword}
+                        className="text-sm text-rose-500 hover:text-rose-600 font-medium transition-colors"
+                      >
+                        忘记密码？
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* 手机号登录表单 */}
+                {loginMethod === 'sms' && (
+                  <>
+                    {/* 手机号 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        手机号
+                      </label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type="tel"
+                          value={phoneForm.phone}
+                          onChange={(e) => setPhoneForm({ ...phoneForm, phone: e.target.value })}
+                          placeholder="请输入手机号"
+                          className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* 验证码 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        验证码
+                      </label>
+                      <div className="flex gap-3">
+                        <div className="relative flex-1">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={phoneForm.code}
+                            onChange={(e) => setPhoneForm({ ...phoneForm, code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                            placeholder="请输入验证码"
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-all hover:bg-gray-50"
+                            required
+                            maxLength={6}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendCode}
+                          disabled={countdown > 0 || isLoading}
+                          className="px-6 py-4 bg-gray-100 text-gray-700 rounded-2xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {countdown > 0 ? `${countdown}秒后重发` : '获取验证码'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* 提交按钮 */}
                 <motion.button
