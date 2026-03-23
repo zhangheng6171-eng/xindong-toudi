@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS weekly_matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
   -- 匹配用户
-  user_id_1 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  user_id_2 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id_1 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id_2 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   
   -- 匹配周次
   week_number INTEGER NOT NULL, -- 例如: 12
@@ -61,8 +61,8 @@ CREATE INDEX IF NOT EXISTS idx_weekly_matches_date ON weekly_matches(match_date)
 -- ============================================
 CREATE TABLE IF NOT EXISTS match_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  matched_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  matched_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   week_number VARCHAR(10) NOT NULL, -- 例如: 2026-W12
   
   -- 匹配时的快照数据
@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_match_history_week ON match_history(week_number);
 CREATE TABLE IF NOT EXISTS date_feedback (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES weekly_matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   
   -- 反馈内容
   overall_rating INTEGER NOT NULL CHECK (overall_rating >= 1 AND overall_rating <= 5),
