@@ -1,18 +1,11 @@
 /**
  * 心动投递 - 安全中间件
  * 提供请求安全检查、认证、授权等功能
+ * 简化版本 - 避免使用不兼容 Edge Runtime 的模块
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/jwt'
-import {
-  createRateLimiter,
-  getClientIp,
-  checkLoginAttempt,
-  recordLoginFailure,
-  recordLoginSuccess,
-  defaultSecurityHeaders,
-} from '@/lib/security'
 
 // ============== 类型定义 ==============
 
@@ -36,51 +29,39 @@ export interface ApiResponse<T = unknown> {
 export function withSecurityHeaders(request: NextRequest): NextResponse {
   const response = NextResponse.next()
 
-  // 添加所有安全头
-  Object.entries(defaultSecurityHeaders).forEach(([key, value]) => {
-    if (value) {
-      response.headers.set(key, value)
-    }
-  })
+  // 添加安全头
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
 
   return response
 }
 
-// ============== Rate Limiting 中间件 ==============
+// ============== IP 地址处理 ==============
 
 /**
- * Rate Limiting 中间件
+ * 获取客户端真实 IP
  */
-export function withRateLimit(request: NextRequest): NextResponse | null {
-  const ip = getClientIp(request)
-  const rateLimiter = createRateLimiter(ip)
-
-  const result = rateLimiter.check()
-
-  if (!result.allowed) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: '请求过于频繁，请稍后再试',
-        retryAfter: Math.ceil((result.resetTime - Date.now()) / 1000),
-      },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': Math.ceil((result.resetTime - Date.now()) / 1000).toString(),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': result.resetTime.toString(),
-        },
-      }
-    )
-  }
-
-  // 将 rate limit 信息添加到响应头
-  const response = NextResponse.next()
-  response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
-  response.headers.set('X-RateLimit-Reset', result.resetTime.toString())
-
-  return null // 返回 null 表示继续执行
+function getClientIp(request: NextRequest): string {
+  const headers = request.headers
+  
+  // Cloudflare
+  const cfConnectingIp = headers.get('cf-connecting-ip')
+  if (cfConnectingIp) return cfConnectingIp
+  
+  // Vercel
+  const vercelIp = headers.get('x-vercel-forwarded-for')
+  if (vercelIp) return vercelIp.split(',')[0].trim()
+  
+  // 通用代理头
+  const forwarded = headers.get('x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0].trim()
+  
+  const realIp = headers.get('x-real-ip')
+  if (realIp) return realIp
+  
+  return 'unknown'
 }
 
 // ============== 认证中间件 ==============
@@ -125,6 +106,8 @@ export function authenticateRequest(request: NextRequest): {
   }
 }
 
+// ============== 需要认证的中间件包装器 ==============
+
 /**
  * 需要认证的中间件包装器
  */
@@ -133,16 +116,7 @@ export function requireAuth(
 ) {
   return async (request: NextRequest): Promise<NextResponse> => {
     // 添加安全头
-    const securityResponse = withSecurityHeaders(request)
-    if (securityResponse.headers.get('X-Frame-Options')) {
-      // 检查是否需要继续
-    }
-
-    // Rate limit
-    const rateLimitResponse = withRateLimit(request)
-    if (rateLimitResponse) {
-      return rateLimitResponse
-    }
+    withSecurityHeaders(request)
 
     // 认证
     const { user, error } = authenticateRequest(request)
@@ -152,176 +126,6 @@ export function requireAuth(
 
     // 执行处理函数
     return handler(request, user!)
-  }
-}
-
-// ============== 输入验证中间件 ==============
-
-/**
- * 验证请求体
- */
-export function validateRequestBody<T extends Record<string, unknown>>(
-  body: unknown,
-  schema: Record<string, (value: unknown) => { valid: boolean; error?: string }>
-): { valid: boolean; errors: Record<string, string> } {
-  const errors: Record<string, string> = {}
-
-  for (const [key, validator] of Object.entries(schema)) {
-    const value = (body as T)?.[key as keyof T]
-    const result = validator(value)
-
-    if (!result.valid) {
-      errors[key] = result.error || '验证失败'
-    }
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-  }
-}
-
-// ============== 登录保护中间件 ==============
-
-/**
- * 登录尝试保护
- */
-export function protectLoginAttempt(
-  phone: string,
-  request: NextRequest
-): {
-  allowed: boolean
-  response: NextResponse | null
-} {
-  const ip = getClientIp(request)
-  const result = checkLoginAttempt(ip, phone)
-
-  if (!result.allowed) {
-    return {
-      allowed: false,
-      response: NextResponse.json(
-        {
-          success: false,
-          error: '登录尝试过多，请15分钟后再试',
-          retryAfter: result.lockedUntil
-            ? Math.ceil((result.lockedUntil - Date.now()) / 1000)
-            : 900,
-        },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': (
-              result.lockedUntil
-                ? Math.ceil((result.lockedUntil - Date.now()) / 1000)
-                : 900
-            ).toString(),
-          },
-        }
-      ),
-    }
-  }
-
-  return {
-    allowed: true,
-    response: null,
-  }
-}
-
-/**
- * 记录登录结果
- */
-export function handleLoginResult(
-  success: boolean,
-  phone: string,
-  request: NextRequest
-): void {
-  const ip = getClientIp(request)
-
-  if (success) {
-    recordLoginSuccess(ip, phone)
-  } else {
-    recordLoginFailure(ip, phone)
-  }
-}
-
-// ============== 验证器工厂 ==============
-
-/**
- * 创建必填字段验证器
- */
-export function required(fieldName: string) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    if (value === undefined || value === null || value === '') {
-      return { valid: false, error: `${fieldName}不能为空` }
-    }
-    return { valid: true }
-  }
-}
-
-/**
- * 创建字符串长度验证器
- */
-export function minLength(fieldName: string, min: number) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    if (typeof value !== 'string' || value.length < min) {
-      return { valid: false, error: `${fieldName}长度不能少于${min}字符` }
-    }
-    return { valid: true }
-  }
-}
-
-/**
- * 创建字符串长度验证器
- */
-export function maxLength(fieldName: string, max: number) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    if (typeof value === 'string' && value.length > max) {
-      return { valid: false, error: `${fieldName}长度不能超过${max}字符` }
-    }
-    return { valid: true }
-  }
-}
-
-/**
- * 创建手机号验证器
- */
-export function isPhone() {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    return validatePhoneNumber(String(value))
-  }
-}
-
-/**
- * 创建UUID验证器
- */
-export function isUUID(fieldName: string) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    if (fieldName === '用户ID') {
-      return validateUserId(String(value))
-    }
-    return validateMatchId(String(value))
-  }
-}
-
-/**
- * 创建评分验证器
- */
-export function isRating(min: number = 1, max: number = 5) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    const num = Number(value)
-    if (isNaN(num)) {
-      return { valid: false, error: '评分必须是数字' }
-    }
-    return validateRating(num, min, max)
-  }
-}
-
-/**
- * 创建文本内容验证器
- */
-export function isTextContent(minLength: number = 0, maxLength: number = 1000) {
-  return (value: unknown): { valid: boolean; error?: string } => {
-    return validateTextContent(String(value), minLength, maxLength)
   }
 }
 
@@ -377,12 +181,8 @@ export function successResponse<T>(
 
 export default {
   withSecurityHeaders,
-  withRateLimit,
   authenticateRequest,
   requireAuth,
-  validateRequestBody,
-  protectLoginAttempt,
-  handleLoginResult,
   apiResponse,
   errorResponse,
   successResponse,
