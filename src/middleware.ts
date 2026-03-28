@@ -4,14 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, getUserIdFromToken } from '@/lib/jwt'
+import { verifyToken } from '@/lib/jwt'
 import {
-  sanitizeInput,
-  validatePhoneNumber,
-  validateUserId,
-  validateMatchId,
-  validateRating,
-  validateTextContent,
   createRateLimiter,
   getClientIp,
   checkLoginAttempt,

@@ -4,6 +4,8 @@
  */
 
 import crypto from 'crypto'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 // ============== 配置 ==============
 
@@ -399,10 +401,6 @@ export const defaultSecurityHeaders = {
   // 跨域资源共享
   'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '',
 }
-
-// 兼容 Next.js
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
 
 /**
  * 添加安全头的中间件

@@ -56,7 +56,7 @@ interface Match {
   }
 }
 
-// 增强的匹配卡片组件 - 带动画效果
+// 增强的匹配卡片组件
 const MatchCard = memo(function MatchCard({ 
   match, 
   onLike, 
@@ -74,57 +74,29 @@ const MatchCard = memo(function MatchCard({
   const showVectorDetails = useVectorMatch && match.vectorScore
   
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-    >
-      <GlassCard className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-        {/* Avatar Area */}
-        <div className="relative h-48 bg-gradient-to-br from-rose-100/80 via-pink-50/80 to-purple-100/80">
-          {/* 动态背景 */}
-          <motion.div 
-            className="absolute inset-0 opacity-30"
-            animate={{ 
-              backgroundPosition: ['0% 0%', '100% 100%', '0% 0%']
-            }}
-            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-            style={{
-              background: 'radial-gradient(circle at 30% 30%, rgba(244, 63, 94, 0.2), transparent 50%), radial-gradient(circle at 70% 70%, rgba(168, 85, 247, 0.2), transparent 50%)'
-            }}
-          />
-          
-          <div className="relative z-10 flex items-center justify-center h-full">
-            {match.avatar ? (
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: "spring", stiffness: 400 }}
-              >
-                <img
-                  src={match.avatar}
-                  alt={match.nickname}
-                  className="w-32 h-32 rounded-full object-cover shadow-xl shadow-rose-500/30"
-                />
-              </motion.div>
-            ) : match.liked ? (
-              <div className="w-32 h-32 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-rose-500/30">
-                {match.nickname[0]}
-              </div>
-            ) : (
-              <div className="w-32 h-32 bg-white/50 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400">
-                <Eye className="w-12 h-12" />
-              </div>
-            )}
-          </div>
+    <GlassCard className="overflow-hidden">
+      {/* Avatar Area */}
+      <div className="relative h-48 bg-gradient-to-br from-rose-100/80 via-pink-50/80 to-purple-100/80">
+        <div className="absolute inset-0 flex items-center justify-center">
+          {match.avatar ? (
+            <img
+              src={match.avatar}
+              alt={match.nickname}
+              className="w-32 h-32 rounded-full object-cover shadow-xl shadow-rose-500/30"
+            />
+          ) : match.liked ? (
+            <div className="w-32 h-32 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-rose-500/30">
+              {match.nickname[0]}
+            </div>
+          ) : (
+            <div className="w-32 h-32 bg-white/50 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400">
+              <Eye className="w-12 h-12" />
+            </div>
+          )}
+        </div>
         
         {/* Compatibility Badge - 增强显示 */}
-        <motion.div 
-          className="absolute top-4 right-4 bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg flex items-center gap-2"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.2 }}
-        >
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
           {useVectorMatch ? (
             <>
               <Brain className="w-4 h-4 text-purple-500" />
@@ -142,19 +114,14 @@ const MatchCard = memo(function MatchCard({
               </div>
             </>
           )}
-        </motion.div>
+        </div>
 
         {/* Like Status */}
         {match.liked && (
-          <motion.div 
-            className="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full px-4 py-1.5 text-sm font-medium flex items-center gap-1 shadow-lg shadow-rose-500/30"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", delay: 0.1 }}
-          >
+          <div className="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-full px-4 py-1.5 text-sm font-medium flex items-center gap-1 shadow-lg shadow-rose-500/30">
             <Heart className="w-4 h-4 fill-current" />
             已喜欢
-          </motion.div>
+          </div>
         )}
       </div>
 
