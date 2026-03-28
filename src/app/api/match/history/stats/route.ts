@@ -36,6 +36,13 @@ export async function GET(request: NextRequest) {
       )
     }
     
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { success: false, error: '服务未配置' },
+        { status: 500 }
+      )
+    }
+    
     // 2. 获取基本统计 - 从 match_history 表
     const { data: historyStats, error: historyError } = await supabaseAdmin
       .from('match_history')

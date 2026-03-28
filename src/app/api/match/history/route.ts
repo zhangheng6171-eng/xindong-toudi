@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromToken } from '@/lib/jwt'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { withSecurityHeaders, withRateLimit, validateTextContent } from '@/lib/security'
+import { withSecurityHeaders, withRateLimit } from '@/lib/security'
 
 // 强制动态渲染，避免静态导出问题
 

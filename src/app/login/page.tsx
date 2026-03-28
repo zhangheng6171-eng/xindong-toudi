@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Check, Loader2, Phone } from 'lucide-react'
 import Link from 'next/link'
 import { GlassCard, GradientText } from '@/components/animated-background'

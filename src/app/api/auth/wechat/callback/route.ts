@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// 微信开放平台配置
+// 微信开放平台配置（可选）
 const WECHAT_APP_ID = process.env.WECHAT_APP_ID || ''
 const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || ''
 const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'default-secret-change-me'
@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'def
 // 服务端 Supabase 客户端
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
+const supabaseAdmin = WECHAT_APP_ID && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
 
 // 生成JWT Token
 function generateToken(payload: Record<string, unknown>): string {
